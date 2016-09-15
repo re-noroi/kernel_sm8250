@@ -105,6 +105,27 @@ int cpupri_find(struct cpupri *cp, struct task_struct *p,
 }
 
 /**
+ * drop_nopreempt_cpus - remove a cpu from the mask if it is likely
+ *			 non-preemptible
+ * @lowest_mask: mask with selected CPUs (non-NULL)
+ */
+static void
+drop_nopreempt_cpus(struct cpumask *lowest_mask)
+{
+	unsigned int cpu = cpumask_first(lowest_mask);
+
+	while (cpu < nr_cpu_ids) {
+		/* unlocked access */
+		struct task_struct *task = READ_ONCE(cpu_rq(cpu)->curr);
+
+		if (task_may_not_preempt(task, cpu))
+			cpumask_clear_cpu(cpu, lowest_mask);
+
+		cpu = cpumask_next(cpu, lowest_mask);
+	}
+}
+
+/**
  * cpupri_find - find the best (lowest-pri) CPU in the system
  * @cp: The cpupri context
  * @p: The task
@@ -125,9 +146,11 @@ int cpupri_find_fitness(struct cpupri *cp, struct task_struct *p,
 {
 	int task_pri = convert_prio(p->prio);
 	int idx, cpu;
+	bool drop_nopreempts = task_pri <= MAX_RT_PRIO;
 
 	WARN_ON_ONCE(task_pri >= CPUPRI_NR_PRIORITIES);
 
+retry:
 	for (idx = 0; idx < task_pri; idx++) {
 
 		if (!__cpupri_find(cp, p, lowest_mask, idx))
@@ -135,6 +158,9 @@ int cpupri_find_fitness(struct cpupri *cp, struct task_struct *p,
 
 		if (!lowest_mask || !fitness_fn)
 			return 1;
+
+		if (drop_nopreempts)
+			drop_nopreempt_cpus(lowest_mask);
 
 		/* Ensure the capacity of the CPUs fit the task */
 		for_each_cpu(cpu, lowest_mask) {
@@ -150,6 +176,14 @@ int cpupri_find_fitness(struct cpupri *cp, struct task_struct *p,
 			continue;
 
 		return 1;
+	}
+	/*
+	 * If we can't find any non-preemptible cpu's, retry so we can
+	 * find the lowest priority target and avoid priority inversion.
+	 */
+	if (drop_nopreempts) {
+		drop_nopreempts = false;
+			goto retry;
 	}
 
 	/*
