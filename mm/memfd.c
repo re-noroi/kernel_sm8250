@@ -28,48 +28,38 @@
 #define MEMFD_TAG_PINNED        PAGECACHE_TAG_TOWRITE
 #define LAST_SCAN               4       /* about 150ms max */
 
-static void memfd_tag_pins(struct address_space *mapping)
+static void memfd_tag_pins(struct xa_state *xas)
 {
-	struct radix_tree_iter iter;
-	void __rcu **slot;
-	pgoff_t start;
 	struct page *page;
 	int latency = 0;
 	int cache_count;
 
 	lru_add_drain();
-	start = 0;
 
-	xa_lock_irq(&mapping->i_pages);
-	radix_tree_for_each_slot(slot, &mapping->i_pages, &iter, start) {
+	xas_lock_irq(xas);
+	xas_for_each(xas, page, ULONG_MAX) {
 		cache_count = 1;
-		page = radix_tree_deref_slot_protected(slot, &mapping->i_pages.xa_lock);
-		if (!page || radix_tree_exception(page) || PageTail(page)) {
-			if (radix_tree_deref_retry(page)) {
-				slot = radix_tree_iter_retry(&iter);
-				continue;
-			}
-		} else {
-			if (PageTransHuge(page) && !PageHuge(page))
-				cache_count = HPAGE_PMD_NR;
-			if (cache_count !=
-			    page_count(page) - total_mapcount(page)) {
-				radix_tree_tag_set(&mapping->i_pages,
-						iter.index, MEMFD_TAG_PINNED);
-			}
-		}
+		if (!xa_is_value(page) &&
+		    PageTransHuge(page) && !PageHuge(page))
+			cache_count = HPAGE_PMD_NR;
+
+		if (!xa_is_value(page) &&
+		    page_count(page) - total_mapcount(page) != cache_count)
+			xas_set_mark(xas, MEMFD_TAG_PINNED);
+		if (cache_count != 1)
+			xas_set(xas, page->index + cache_count);
 
 		latency += cache_count;
-		if (latency < 1024)
+		if (latency < XA_CHECK_SCHED)
 			continue;
 		latency = 0;
 
-		slot = radix_tree_iter_resume(slot, &iter);
-		xa_unlock_irq(&mapping->i_pages);
+		xas_pause(xas);
+		xas_unlock_irq(xas);
 		cond_resched();
-		xa_lock_irq(&mapping->i_pages);
+		xas_lock_irq(xas);
 	}
-	xa_unlock_irq(&mapping->i_pages);
+	xas_unlock_irq(xas);
 }
 
 /*
@@ -88,7 +78,7 @@ static int memfd_wait_for_pins(struct address_space *mapping)
 	int error, scan;
 	int cache_count;
 
-	memfd_tag_pins(mapping);
+	memfd_tag_pins(&xas);
 
 	error = 0;
 	for (scan = 0; scan <= LAST_SCAN; scan++) {
