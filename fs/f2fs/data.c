@@ -3077,7 +3077,7 @@ static int f2fs_write_cache_pages(struct address_space *mapping,
 	pgoff_t end;		/* Inclusive */
 	pgoff_t done_index;
 	int range_whole = 0;
-	int tag;
+	xa_mark_t tag;
 	int nwritten = 0;
 	int submitted = 0;
 	int i;
