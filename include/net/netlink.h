@@ -209,8 +209,10 @@ struct netlink_range_validation_signed {
  *    NLA_NUL_STRING       Maximum length of string (excluding NUL)
  *    NLA_FLAG             Unused
  *    NLA_BINARY           Maximum length of attribute payload
- *    NLA_NESTED           Don't use `len' field -- length verification is
- *                         done by checking len of nested header (or empty)
+ *    NLA_NESTED           Length verification is done by checking len of
+ *                         nested header (or empty); len field is used if
+ *                         validation_data is also used, for the max attr
+ *                         number in the nested policy.
  *    NLA_NESTED_COMPAT    Minimum length of structure payload
  *    NLA_U8, NLA_U16,
  *    NLA_U32, NLA_U64,
@@ -234,6 +236,10 @@ struct netlink_range_validation_signed {
  *    NLA_REJECT           This attribute is always rejected and validation data
  *                         may point to a string to report as the error instead
  *                         of the generic one in extended ACK.
+ *    NLA_NESTED           Points to a nested policy to validate, must also set
+ *                         `len' to the max attribute number.
+ *                         Note that nla_parse() will validate, but of course not
+ *                         parse, the nested sub-policies.
  *    All other            Unused
  *
  * Example:
@@ -289,6 +295,9 @@ struct nla_policy {
 
 #define NLA_POLICY_ETH_ADDR		NLA_POLICY_EXACT_LEN(ETH_ALEN)
 #define NLA_POLICY_ETH_ADDR_COMPAT	NLA_POLICY_EXACT_LEN_WARN(ETH_ALEN)
+
+#define NLA_POLICY_NESTED(maxattr, policy) \
+	{ .type = NLA_NESTED, .validation_data = policy, .len = maxattr }
 
 /**
  * struct nl_info - netlink source information
