@@ -20,7 +20,6 @@ extern unsigned long nr_running(void);
 extern bool single_task_running(void);
 extern unsigned long nr_iowait(void);
 extern unsigned long nr_iowait_cpu(int cpu);
-extern void get_iowait_load(unsigned long *nr_waiters, unsigned long *load);
 
 #ifdef CONFIG_SCHED_WALT
 extern void sched_update_nr_prod(int cpu, long delta, bool inc);
