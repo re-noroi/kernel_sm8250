@@ -1615,11 +1615,8 @@ static void rt_set_nexthop(struct rtable *rt, __be32 daddr,
 			rt->rt_gw4 = nh->fib_nh_gw4;
 			rt->rt_gw_family = AF_INET;
 		}
-		dst_init_metrics(&rt->dst, fi->fib_metrics->metrics, true);
-		if (fi->fib_metrics != &dst_default_metrics) {
-			rt->dst._metrics |= DST_METRICS_REFCOUNTED;
-			refcount_inc(&fi->fib_metrics->refcnt);
-		}
+		ip_dst_init_metrics(&rt->dst, fi->fib_metrics);
+
 #ifdef CONFIG_IP_ROUTE_CLASSID
 		rt->dst.tclassid = nh->nh_tclassid;
 #endif

@@ -441,6 +441,18 @@ struct dst_metrics *ip_fib_metrics_init(struct net *net, struct nlattr *fc_mx,
 					int fc_mx_len,
 					struct netlink_ext_ack *extack);
 
+/* ipv4 and ipv6 both use refcounted metrics if it is not the default */
+static inline
+void ip_dst_init_metrics(struct dst_entry *dst, struct dst_metrics *fib_metrics)
+{
+	dst_init_metrics(dst, fib_metrics->metrics, true);
+
+	if (fib_metrics != &dst_default_metrics) {
+		dst->_metrics |= DST_METRICS_REFCOUNTED;
+		refcount_inc(&fib_metrics->refcnt);
+	}
+}
+
 u32 ip_idents_reserve(u32 hash, int segs);
 void __ip_select_ident(struct net *net, struct iphdr *iph, int segs);
 
