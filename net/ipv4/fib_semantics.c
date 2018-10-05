@@ -235,15 +235,13 @@ void fib_nh_release(struct net *net, struct fib_nh *fib_nh)
 static void free_fib_info_rcu(struct rcu_head *head)
 {
 	struct fib_info *fi = container_of(head, struct fib_info, rcu);
-	struct dst_metrics *m;
 
 	change_nexthops(fi) {
 		fib_nh_release(fi->fib_net, nexthop_nh);
 	} endfor_nexthops(fi);
 
-	m = fi->fib_metrics;
-	if (m != &dst_default_metrics && refcount_dec_and_test(&m->refcnt))
-		kfree(m);
+	ip_fib_metrics_put(fi->fib_metrics);
+
 	kfree(fi);
 }
 
