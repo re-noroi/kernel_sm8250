@@ -1681,7 +1681,7 @@ static int tc_dump_tfilter(struct sk_buff *skb, struct netlink_callback *cb)
 		return skb->len;
 
 	err = nlmsg_parse_deprecated(cb->nlh, sizeof(*tcm), tca, TCA_MAX,
-				     NULL, NULL);
+				     NULL, cb->extack);
 	if (err)
 		return err;
 
@@ -2009,7 +2009,7 @@ static int tc_dump_chain(struct sk_buff *skb, struct netlink_callback *cb)
 		return skb->len;
 
 	err = nlmsg_parse_deprecated(cb->nlh, sizeof(*tcm), tca, TCA_MAX,
-				     rtm_tca_policy, NULL);
+				     rtm_tca_policy, cb->extack);
 	if (err)
 		return err;
 

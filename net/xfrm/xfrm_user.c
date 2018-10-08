@@ -1043,7 +1043,7 @@ static int xfrm_dump_sa(struct sk_buff *skb, struct netlink_callback *cb)
 		int err;
 
 		err = nlmsg_parse_deprecated(cb->nlh, 0, attrs, XFRMA_MAX,
-					     xfrma_policy, NULL);
+					     xfrma_policy, cb->extack);
 		if (err < 0)
 			return err;
 

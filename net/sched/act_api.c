@@ -1439,7 +1439,7 @@ static int tc_dump_action(struct sk_buff *skb, struct netlink_callback *cb)
 	u32 act_count = 0;
 
 	ret = nlmsg_parse_deprecated(cb->nlh, sizeof(struct tcamsg), tb,
-				     TCA_ROOT_MAX, tcaa_policy, NULL);
+				     TCA_ROOT_MAX, tcaa_policy, cb->extack);
 	if (ret < 0)
 		return ret;
 

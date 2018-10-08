@@ -784,7 +784,8 @@ static void set_ifa_lifetime(struct in_ifaddr *ifa, __u32 valid_lft,
 }
 
 static struct in_ifaddr *rtm_to_ifaddr(struct net *net, struct nlmsghdr *nlh,
-				       __u32 *pvalid_lft, __u32 *pprefered_lft)
+				       __u32 *pvalid_lft, __u32 *pprefered_lft,
+				       struct netlink_ext_ack *extack)
 {
 	struct nlattr *tb[IFA_MAX+1];
 	struct in_ifaddr *ifa;
@@ -794,7 +795,7 @@ static struct in_ifaddr *rtm_to_ifaddr(struct net *net, struct nlmsghdr *nlh,
 	int err;
 
 	err = nlmsg_parse_deprecated(nlh, sizeof(*ifm), tb, IFA_MAX,
-				     ifa_ipv4_policy, NULL);
+				     ifa_ipv4_policy, extack);
 	if (err < 0)
 		goto errout;
 
@@ -899,7 +900,7 @@ static int inet_rtm_newaddr(struct sk_buff *skb, struct nlmsghdr *nlh,
 
 	ASSERT_RTNL();
 
-	ifa = rtm_to_ifaddr(net, nlh, &valid_lft, &prefered_lft);
+	ifa = rtm_to_ifaddr(net, nlh, &valid_lft, &prefered_lft, extack);
 	if (IS_ERR(ifa))
 		return PTR_ERR(ifa);
 

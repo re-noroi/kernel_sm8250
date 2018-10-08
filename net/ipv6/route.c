@@ -4186,7 +4186,7 @@ static int rtm_to_fib6_config(struct sk_buff *skb, struct nlmsghdr *nlh,
 	int err;
 
 	err = nlmsg_parse_deprecated(nlh, sizeof(*rtm), tb, RTA_MAX,
-				     rtm_ipv6_policy, NULL);
+				     rtm_ipv6_policy, extack);
 	if (err < 0)
 		goto errout;
 

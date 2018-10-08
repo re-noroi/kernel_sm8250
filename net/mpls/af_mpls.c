@@ -1222,7 +1222,7 @@ static int mpls_netconf_get_devconf(struct sk_buff *in_skb,
 	int err;
 
 	err = nlmsg_parse_deprecated(nlh, sizeof(*ncm), tb, NETCONFA_MAX,
-				     devconf_mpls_policy, NULL);
+				     devconf_mpls_policy, extack);
 	if (err < 0)
 		goto errout;
 
