@@ -258,11 +258,12 @@ static int sock_map_link(struct bpf_map *map, struct sk_psock_progs *progs,
 	}
 
 	psock = sock_map_psock_get_checked(sk);
+	if (IS_ERR(psock)) {
+		ret = PTR_ERR(psock);
+		goto out_progs;
+	}
+
 	if (psock) {
-		if (!sk_has_psock(sk)) {
-			ret = -EBUSY;
-			goto out_progs;
-		}
 		if ((msg_parser && READ_ONCE(psock->progs.msg_parser)) ||
 		    (skb_progs  && READ_ONCE(psock->progs.skb_parser))) {
 			sk_psock_put(sk, psock);
