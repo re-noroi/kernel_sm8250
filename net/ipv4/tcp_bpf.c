@@ -136,6 +136,7 @@ msg_bytes_ready:
 			ret = err;
 			goto out;
 		}
+		copied = -EAGAIN;
 	}
 	ret = copied;
 out:
