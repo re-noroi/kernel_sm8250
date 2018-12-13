@@ -1135,7 +1135,7 @@ void *xas_find_marked(struct xa_state *xas, unsigned long max, xa_mark_t mark)
 		entry = xa_head(xas->xa);
 		xas->xa_node = NULL;
 		if (xas->xa_index > max_index(entry))
-			goto bounds;
+			goto out;
 		if (!xa_is_node(entry)) {
 			if (xa_marked(xas->xa, mark))
 				return entry;
@@ -1184,11 +1184,9 @@ void *xas_find_marked(struct xa_state *xas, unsigned long max, xa_mark_t mark)
 	}
 
 out:
-	if (!max)
+	if (xas->xa_index > max)
 		goto max;
-bounds:
-	xas->xa_node = XAS_BOUNDS;
-	return NULL;
+	return set_bounds(xas);
 max:
 	xas->xa_node = XAS_RESTART;
 	return NULL;
