@@ -1502,6 +1502,10 @@ static void isolate_freepages(struct compact_control *cc)
 		if (isolate_start_pfn == block_end_pfn)
 			update_pageblock_skip(cc, page, block_start_pfn);
 
+		/* Update the skip hint if the full pageblock was scanned */
+		if (isolate_start_pfn == block_end_pfn)
+			update_pageblock_skip(cc, page, block_start_pfn);
+
 		/* Are enough freepages isolated? */
 		if (cc->nr_freepages >= cc->nr_migratepages) {
 			if (isolate_start_pfn >= block_end_pfn) {
