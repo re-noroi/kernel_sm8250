@@ -595,6 +595,15 @@ static void fib_rebalance(struct fib_info *fi)
 }
 #else /* CONFIG_IP_ROUTE_MULTIPATH */
 
+static int fib_get_nhs(struct fib_info *fi, struct rtnexthop *rtnh,
+		       int remaining, struct fib_config *cfg,
+		       struct netlink_ext_ack *extack)
+{
+	NL_SET_ERR_MSG(extack, "Multipath support not enabled in kernel");
+
+	return -EINVAL;
+}
+
 #define fib_rebalance(fi) do { } while (0)
 
 #endif /* CONFIG_IP_ROUTE_MULTIPATH */
@@ -1095,7 +1104,6 @@ struct fib_info *fib_create_info(struct fib_config *cfg,
 	} endfor_nexthops(fi)
 
 	if (cfg->fc_mp) {
-#ifdef CONFIG_IP_ROUTE_MULTIPATH
 		err = fib_get_nhs(fi, cfg->fc_mp, cfg->fc_mp_len, cfg, extack);
 		if (err != 0)
 			goto failure;
@@ -1115,11 +1123,6 @@ struct fib_info *fib_create_info(struct fib_config *cfg,
 				       "Nexthop class id does not match RTA_FLOW");
 			goto err_inval;
 		}
-#endif
-#else
-		NL_SET_ERR_MSG(extack,
-			       "Multipath support not enabled in kernel");
-		goto err_inval;
 #endif
 	} else {
 		struct fib_nh *nh = fi->fib_nh;
