@@ -204,6 +204,21 @@ static void rt_fibinfo_free_cpus(struct rtable __rcu * __percpu *rtp)
 	free_percpu(rtp);
 }
 
+void fib_nh_release(struct net *net, struct fib_nh *fib_nh)
+{
+#ifdef CONFIG_IP_ROUTE_CLASSID
+	if (fib_nh->nh_tclassid)
+		net->ipv4.fib_num_tclassid_users--;
+#endif
+	if (fib_nh->fib_nh_dev)
+		dev_put(fib_nh->fib_nh_dev);
+
+	lwtstate_put(fib_nh->fib_nh_lws);
+	free_nh_exceptions(fib_nh);
+	rt_fibinfo_free_cpus(fib_nh->nh_pcpu_rth_output);
+	rt_fibinfo_free(&fib_nh->nh_rth_input);
+}
+
 /* Release a nexthop info record */
 static void free_fib_info_rcu(struct rcu_head *head)
 {
@@ -211,12 +226,7 @@ static void free_fib_info_rcu(struct rcu_head *head)
 	struct dst_metrics *m;
 
 	change_nexthops(fi) {
-		if (nexthop_nh->fib_nh_dev)
-			dev_put(nexthop_nh->fib_nh_dev);
-		lwtstate_put(nexthop_nh->fib_nh_lws);
-		free_nh_exceptions(nexthop_nh);
-		rt_fibinfo_free_cpus(nexthop_nh->nh_pcpu_rth_output);
-		rt_fibinfo_free(&nexthop_nh->nh_rth_input);
+		fib_nh_release(fi->fib_net, nexthop_nh);
 	} endfor_nexthops(fi);
 
 	m = fi->fib_metrics;
@@ -232,12 +242,7 @@ void free_fib_info(struct fib_info *fi)
 		return;
 	}
 	fib_info_cnt--;
-#ifdef CONFIG_IP_ROUTE_CLASSID
-	change_nexthops(fi) {
-		if (nexthop_nh->nh_tclassid)
-			fi->fib_net->ipv4.fib_num_tclassid_users--;
-	} endfor_nexthops(fi);
-#endif
+
 	call_rcu(&fi->rcu, free_fib_info_rcu);
 }
 EXPORT_SYMBOL_GPL(free_fib_info);
