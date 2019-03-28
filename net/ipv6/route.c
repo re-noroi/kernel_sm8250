@@ -3003,6 +3003,8 @@ int fib6_nh_init(struct net *net, struct fib6_nh *fib6_nh,
 	int addr_type;
 	int err;
 
+	fib6_nh->fib_nh_family = AF_INET6;
+
 	err = -ENODEV;
 	if (cfg->fc_ifindex) {
 		dev = dev_get_by_index(net, cfg->fc_ifindex);
@@ -3096,6 +3098,7 @@ int fib6_nh_init(struct net *net, struct fib6_nh *fib6_nh,
 
 set_dev:
 	fib6_nh->fib_nh_dev = dev;
+	fib6_nh->fib_nh_oif = dev->ifindex;
 	err = 0;
 out:
 	if (idev)
