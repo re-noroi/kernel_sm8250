@@ -198,10 +198,7 @@ void fib6_info_destroy_rcu(struct rcu_head *head)
 		free_percpu(f6i->rt6i_pcpu);
 	}
 
-	lwtstate_put(f6i->fib6_nh.nh_lwtstate);
-
-	if (f6i->fib6_nh.nh_dev)
-		dev_put(f6i->fib6_nh.nh_dev);
+	fib6_nh_release(&f6i->fib6_nh);
 
 	m = f6i->fib6_metrics;
 	if (m != &dst_default_metrics && refcount_dec_and_test(&m->refcnt))
