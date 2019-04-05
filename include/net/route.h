@@ -63,8 +63,8 @@ struct rtable {
 
 	/* Info on neighbour */
 	union {
-		__be32      rt_gw4;
-		struct in6_addr rt_gw6;
+		__be32		rt_gw4;
+		struct in6_addr	rt_gw6;
 	};
 
 	/* Miscellaneous cached information */
