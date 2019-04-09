@@ -2495,12 +2495,6 @@ ttwu_stat(struct task_struct *p, int cpu, int wake_flags)
 		__schedstat_inc(p->se.statistics.nr_wakeups_sync);
 }
 
-static inline void ttwu_activate(struct rq *rq, struct task_struct *p, int en_flags)
-{
-	activate_task(rq, p, en_flags);
-	p->on_rq = TASK_ON_RQ_QUEUED;
-}
-
 /*
  * Mark the task runnable and perform wakeup-preemption.
  */
@@ -2563,7 +2557,8 @@ ttwu_do_activate(struct rq *rq, struct task_struct *p, int wake_flags,
 		atomic_dec(&task_rq(p)->nr_iowait);
 	}
 
-	ttwu_activate(rq, p, en_flags);
+	activate_task(rq, p, en_flags);
+	p->on_rq = TASK_ON_RQ_QUEUED;
 	ttwu_do_wakeup(rq, p, wake_flags, rf);
 }
 
