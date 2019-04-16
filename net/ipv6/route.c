@@ -432,13 +432,15 @@ static bool rt6_check_expired(const struct rt6_info *rt)
 	return false;
 }
 
-struct fib6_info *fib6_multipath_select(const struct net *net,
-					struct fib6_info *match,
-					struct flowi6 *fl6, int oif,
-					const struct sk_buff *skb,
-					int strict)
+void fib6_select_path(const struct net *net, struct fib6_result *res,
+		      struct flowi6 *fl6, int oif, bool have_oif_match,
+		      const struct sk_buff *skb, int strict)
 {
 	struct fib6_info *sibling, *next_sibling;
+	struct fib6_info *match = res->f6i;
+
+	if (!match->fib6_nsiblings || have_oif_match)
+		goto out;
 
 	/* We might have already computed the hash for ICMPv6 errors. In such
 	 * case it will always be non-zero. Otherwise now is the time to do it.
@@ -447,7 +449,7 @@ struct fib6_info *fib6_multipath_select(const struct net *net,
 		fl6->mp_hash = rt6_multipath_hash(net, fl6, skb, NULL);
 
 	if (fl6->mp_hash <= atomic_read(&match->fib6_nh.fib_nh_upper_bound))
-		return match;
+		goto out;
 
 	list_for_each_entry_safe(sibling, next_sibling, &match->fib6_siblings,
 				 fib6_siblings) {
@@ -462,7 +464,9 @@ struct fib6_info *fib6_multipath_select(const struct net *net,
 		break;
 	}
 
-	return match;
+out:
+	res->f6i = match;
+	res->nh = &match->fib6_nh;
 }
 
 /*
@@ -1068,7 +1072,7 @@ static struct rt6_info *ip6_pol_route_lookup(struct net *net,
 					     const struct sk_buff *skb,
 					     int flags)
 {
-	struct fib6_info *f6i;
+	struct fib6_result res = {};
 	struct fib6_node *fn;
 	struct rt6_info *rt;
 
@@ -1078,14 +1082,14 @@ static struct rt6_info *ip6_pol_route_lookup(struct net *net,
 	rcu_read_lock();
 	fn = fib6_node_lookup(&table->tb6_root, &fl6->daddr, &fl6->saddr);
 restart:
-	f6i = rcu_dereference(fn->leaf);
-	if (!f6i)
-		f6i = net->ipv6.fib6_null_entry;
+	res.f6i = rcu_dereference(fn->leaf);
+	if (!res.f6i)
+		res.f6i = net->ipv6.fib6_null_entry;
 	else
-		f6i = rt6_device_match(net, f6i, &fl6->saddr,
-				      fl6->flowi6_oif, flags);
+		res.f6i = rt6_device_match(net, res.f6i, &fl6->saddr,
+					   fl6->flowi6_oif, flags);
 
-	if (f6i == net->ipv6.fib6_null_entry) {
+	if (res.f6i == net->ipv6.fib6_null_entry) {
 		fn = fib6_backtrack(fn, &fl6->saddr);
 		if (fn)
 			goto restart;
@@ -1095,20 +1099,20 @@ restart:
 		goto out;
 	}
 
-	if (f6i->fib6_nsiblings && fl6->flowi6_oif == 0)
-		f6i = fib6_multipath_select(net, f6i, fl6, fl6->flowi6_oif, skb,
-					    flags);
+	fib6_select_path(net, &res, fl6, fl6->flowi6_oif,
+			 fl6->flowi6_oif != 0, skb, flags);
+
 	/* Search through exception table */
-	rt = rt6_find_cached_rt(f6i, &fl6->daddr, &fl6->saddr);
+	rt = rt6_find_cached_rt(res.f6i, &fl6->daddr, &fl6->saddr);
 	if (rt) {
 		if (ip6_hold_safe(net, &rt, true))
 			dst_use_noref(&rt->dst, jiffies);
 	} else {
-		rt = ip6_create_rt_rcu(f6i);
+		rt = ip6_create_rt_rcu(res.f6i);
 	}
 
 out:
-	trace_fib6_table_lookup(net, f6i, table, fl6);
+	trace_fib6_table_lookup(net, res.f6i, table, fl6);
 
 	rcu_read_unlock();
 
@@ -1900,7 +1904,7 @@ struct rt6_info *ip6_pol_route(struct net *net, struct fib6_table *table,
 			       int oif, struct flowi6 *fl6,
 			       const struct sk_buff *skb, int flags)
 {
-	struct fib6_info *f6i;
+	struct fib6_result res = {};
 	struct rt6_info *rt;
 	int strict = 0;
 
@@ -1911,19 +1915,18 @@ struct rt6_info *ip6_pol_route(struct net *net, struct fib6_table *table,
 
 	rcu_read_lock();
 
-	f6i = fib6_table_lookup(net, table, oif, fl6, strict);
-	if (f6i == net->ipv6.fib6_null_entry) {
+	res.f6i = fib6_table_lookup(net, table, oif, fl6, strict);
+	if (res.f6i == net->ipv6.fib6_null_entry) {
 		rt = net->ipv6.ip6_null_entry;
 		rcu_read_unlock();
 		dst_hold(&rt->dst);
 		return rt;
 	}
 
-	if (f6i->fib6_nsiblings)
-		f6i = fib6_multipath_select(net, f6i, fl6, oif, skb, strict);
+	fib6_select_path(net, &res, fl6, oif, false, skb, strict);
 
 	/*Search through exception table */
-	rt = rt6_find_cached_rt(f6i, &fl6->daddr, &fl6->saddr);
+	rt = rt6_find_cached_rt(res.f6i, &fl6->daddr, &fl6->saddr);
 	if (rt) {
 		if (ip6_hold_safe(net, &rt, true))
 			dst_use_noref(&rt->dst, jiffies);
@@ -1931,7 +1934,7 @@ struct rt6_info *ip6_pol_route(struct net *net, struct fib6_table *table,
 		rcu_read_unlock();
 		return rt;
 	} else if (unlikely((fl6->flowi6_flags & FLOWI_FLAG_KNOWN_NH) &&
-			    !f6i->fib6_nh.fib_nh_gw_family)) {
+			    !res.nh->fib_nh_gw_family)) {
 		/* Create a RTF_CACHE clone which will not be
 		 * owned by the fib6 tree.  It is for the special case where
 		 * the daddr in the skb during the neighbor look-up is different
@@ -1939,7 +1942,7 @@ struct rt6_info *ip6_pol_route(struct net *net, struct fib6_table *table,
 		 */
 		struct rt6_info *uncached_rt;
 
-		uncached_rt = ip6_rt_cache_alloc(f6i, &fl6->daddr, NULL);
+		uncached_rt = ip6_rt_cache_alloc(res.f6i, &fl6->daddr, NULL);
 
 		rcu_read_unlock();
 
@@ -1961,10 +1964,10 @@ struct rt6_info *ip6_pol_route(struct net *net, struct fib6_table *table,
 		struct rt6_info *pcpu_rt;
 
 		local_bh_disable();
-		pcpu_rt = rt6_get_pcpu_route(f6i);
+		pcpu_rt = rt6_get_pcpu_route(res.f6i);
 
 		if (!pcpu_rt)
-			pcpu_rt = rt6_make_pcpu_route(net, f6i);
+			pcpu_rt = rt6_make_pcpu_route(net, res.f6i);
 
 		local_bh_enable();
 		rcu_read_unlock();
