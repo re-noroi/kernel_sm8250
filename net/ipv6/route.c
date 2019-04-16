@@ -1421,14 +1421,15 @@ __rt6_find_exception_rcu(struct rt6_exception_bucket **bucket,
 	return NULL;
 }
 
-static unsigned int fib6_mtu(const struct fib6_info *rt)
+static unsigned int fib6_mtu(const struct fib6_result *res)
 {
+	const struct fib6_nh *nh = res->nh;
 	unsigned int mtu;
 
-	if (rt->fib6_pmtu) {
-		mtu = rt->fib6_pmtu;
+	if (res->f6i->fib6_pmtu) {
+		mtu = res->f6i->fib6_pmtu;
 	} else {
-		struct net_device *dev = fib6_info_nh_dev(rt);
+		struct net_device *dev = nh->fib_nh_dev;
 		struct inet6_dev *idev;
 
 		rcu_read_lock();
@@ -1439,7 +1440,7 @@ static unsigned int fib6_mtu(const struct fib6_info *rt)
 
 	mtu = min_t(unsigned int, mtu, IP6_MAX_MTU);
 
-	return mtu - lwtunnel_headroom(rt->fib6_nh.fib_nh_lws, mtu);
+	return mtu - lwtunnel_headroom(nh->fib_nh_lws, mtu);
 }
 
 static int rt6_insert_exception(struct rt6_info *nrt,
@@ -1486,7 +1487,7 @@ static int rt6_insert_exception(struct rt6_info *nrt,
 	 * Only insert this exception route if its mtu
 	 * is less than f6i's mtu value.
 	 */
-	if (dst_metric_raw(&nrt->dst, RTAX_MTU) >= fib6_mtu(res->f6i)) {
+	if (dst_metric_raw(&nrt->dst, RTAX_MTU) >= fib6_mtu(res)) {
 		err = -EINVAL;
 		goto out;
 	}
@@ -2663,12 +2664,15 @@ out:
  * based on ip6_dst_mtu_forward and exception logic of
  * rt6_find_cached_rt; called with rcu_read_lock
  */
-u32 ip6_mtu_from_fib6(struct fib6_info *f6i, struct in6_addr *daddr,
-		      struct in6_addr *saddr)
+u32 ip6_mtu_from_fib6(const struct fib6_result *res,
+		      const struct in6_addr *daddr,
+		      const struct in6_addr *saddr)
 {
 	struct rt6_exception_bucket *bucket;
+	const struct fib6_nh *nh = res->nh;
+	struct fib6_info *f6i = res->f6i;
+	const struct in6_addr *src_key;
 	struct rt6_exception *rt6_ex;
-	struct in6_addr *src_key;
 	struct inet6_dev *idev;
 	u32 mtu = 0;
 
@@ -2690,7 +2694,7 @@ u32 ip6_mtu_from_fib6(struct fib6_info *f6i, struct in6_addr *daddr,
 		mtu = dst_metric_raw(&rt6_ex->rt6i->dst, RTAX_MTU);
 
 	if (likely(!mtu)) {
-		struct net_device *dev = fib6_info_nh_dev(f6i);
+		struct net_device *dev = nh->fib_nh_dev;
 
 		mtu = IPV6_MIN_MTU;
 		idev = __in6_dev_get(dev);
@@ -2700,7 +2704,7 @@ u32 ip6_mtu_from_fib6(struct fib6_info *f6i, struct in6_addr *daddr,
 
 	mtu = min_t(unsigned int, mtu, IP6_MAX_MTU);
 out:
-	return mtu - lwtunnel_headroom(fib6_info_nh_lwt(f6i), mtu);
+	return mtu - lwtunnel_headroom(nh->fib_nh_lws, mtu);
 }
 
 struct dst_entry *icmp6_dst_alloc(struct net_device *dev,

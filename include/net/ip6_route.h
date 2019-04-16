@@ -311,8 +311,9 @@ out:
 	return mtu - lwtunnel_headroom(dst->lwtstate, mtu);
 }
 
-u32 ip6_mtu_from_fib6(struct fib6_info *f6i, struct in6_addr *daddr,
-		      struct in6_addr *saddr);
+u32 ip6_mtu_from_fib6(const struct fib6_result *res,
+		      const struct in6_addr *daddr,
+		      const struct in6_addr *saddr);
 
 struct neighbour *ip6_neigh_lookup(const struct in6_addr *gw,
 				   struct net_device *dev, struct sk_buff *skb,
