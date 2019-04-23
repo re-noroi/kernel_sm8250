@@ -169,10 +169,7 @@ void fib6_info_destroy_rcu(struct rcu_head *head)
 	WARN_ON(f6i->fib6_node);
 
 	bucket = rcu_dereference_protected(f6i->rt6i_exception_bucket, 1);
-	if (bucket) {
-		f6i->rt6i_exception_bucket = NULL;
-		kfree(bucket);
-	}
+	kfree(bucket);
 
 	fib6_nh_release(&f6i->fib6_nh);
 
