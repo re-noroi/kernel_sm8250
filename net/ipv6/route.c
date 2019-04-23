@@ -3891,7 +3891,7 @@ void rt6_clean_tohost(struct net *net, struct in6_addr *gateway)
 struct arg_netdev_event {
 	const struct net_device *dev;
 	union {
-		unsigned int nh_flags;
+		unsigned char nh_flags;
 		unsigned long event;
 	};
 };
@@ -4004,7 +4004,7 @@ static int fib6_ifup(struct fib6_info *rt, void *p_arg)
 	return 0;
 }
 
-void rt6_sync_up(struct net_device *dev, unsigned int nh_flags)
+void rt6_sync_up(struct net_device *dev, unsigned char nh_flags)
 {
 	struct arg_netdev_event arg = {
 		.dev = dev,
@@ -4061,7 +4061,7 @@ static unsigned int rt6_multipath_dead_count(const struct fib6_info *rt,
 
 static void rt6_multipath_nh_flags_set(struct fib6_info *rt,
 				       const struct net_device *dev,
-				       unsigned int nh_flags)
+				       unsigned char nh_flags)
 {
 	struct fib6_info *iter;
 
@@ -4798,9 +4798,13 @@ static int rt6_fill_node(struct net *net, struct sk_buff *skb,
 
 		nla_nest_end(skb, mp);
 	} else {
+		unsigned char nh_flags = 0;
+
 		if (fib_nexthop_info(skb, &rt->fib6_nh.nh_common,
-				     &rtm->rtm_flags, false) < 0)
+				     &nh_flags, false) < 0)
 			goto nla_put_failure;
+
+		rtm->rtm_flags |= nh_flags;
 	}
 
 	if (rt6_flags & RTF_EXPIRES) {
