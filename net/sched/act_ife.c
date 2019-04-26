@@ -490,7 +490,8 @@ static int tcf_ife_init(struct net *net, struct nlattr *nla,
 		return -EINVAL;
 	}
 
-	err = nla_parse_nested(tb, TCA_IFE_MAX, nla, ife_policy, NULL);
+	err = nla_parse_nested_deprecated(tb, TCA_IFE_MAX, nla, ife_policy,
+					  NULL);
 	if (err < 0)
 		return err;
 
@@ -568,8 +569,9 @@ static int tcf_ife_init(struct net *net, struct nlattr *nla,
 		INIT_LIST_HEAD(&ife->metalist);
 
 	if (tb[TCA_IFE_METALST]) {
-		err = nla_parse_nested(tb2, IFE_META_MAX, tb[TCA_IFE_METALST],
-				       NULL, NULL);
+		err = nla_parse_nested_deprecated(tb2, IFE_META_MAX,
+						  tb[TCA_IFE_METALST], NULL,
+						  NULL);
 		if (err) {
 metadata_parse_err:
 			tcf_idr_release(*a, bind);
