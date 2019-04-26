@@ -500,7 +500,7 @@ static int diag_get(struct bpf_local_storage_data *sdata, struct sk_buff *skb)
 	/* It cannot exceed max nlattr's payload */
 	BUILD_BUG_ON(U16_MAX - NLA_HDRLEN < BPF_LOCAL_STORAGE_MAX_VALUE_SIZE);
 
-	nla_stg = nla_nest_start(skb, SK_DIAG_BPF_STORAGE);
+	nla_stg = nla_nest_start_noflag(skb, SK_DIAG_BPF_STORAGE);
 	if (!nla_stg)
 		return -EMSGSIZE;
 
@@ -549,7 +549,7 @@ static int bpf_sk_storage_diag_put_all(struct sock *sk, struct sk_buff *skb,
 		return 0;
 	}
 
-	nla_stgs = nla_nest_start(skb, stg_array_type);
+	nla_stgs = nla_nest_start_noflag(skb, stg_array_type);
 	if (!nla_stgs)
 		/* Continue to learn diag_size */
 		err = -EMSGSIZE;
@@ -610,7 +610,7 @@ int bpf_sk_storage_diag_put(struct bpf_sk_storage_diag *diag,
 		return 0;
 	}
 
-	nla_stgs = nla_nest_start(skb, stg_array_type);
+	nla_stgs = nla_nest_start_noflag(skb, stg_array_type);
 	if (!nla_stgs)
 		/* Continue to learn diag_size */
 		err = -EMSGSIZE;
