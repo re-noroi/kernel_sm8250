@@ -210,6 +210,8 @@ void fib_nh_common_release(struct fib_nh_common *nhc)
 		dev_put(nhc->nhc_dev);
 
 	lwtstate_put(nhc->nhc_lwtstate);
+	rt_fibinfo_free_cpus(nhc->nhc_pcpu_rth_output);
+	rt_fibinfo_free(&nhc->nhc_rth_input);
 }
 EXPORT_SYMBOL_GPL(fib_nh_common_release);
 
@@ -221,8 +223,6 @@ void fib_nh_release(struct net *net, struct fib_nh *fib_nh)
 #endif
 	fib_nh_common_release(&fib_nh->nh_common);
 	free_nh_exceptions(fib_nh);
-	rt_fibinfo_free_cpus(fib_nh->nh_pcpu_rth_output);
-	rt_fibinfo_free(&fib_nh->nh_rth_input);
 }
 
 /* Release a nexthop info record */
@@ -474,23 +474,35 @@ int fib_nh_common_init(struct fib_nh_common *nhc, struct nlattr *encap,
 		       u16 encap_type, void *cfg, gfp_t gfp_flags,
 		       struct netlink_ext_ack *extack)
 {
+	int err;
+
+	nhc->nhc_pcpu_rth_output = alloc_percpu_gfp(struct rtable __rcu *,
+						    gfp_flags);
+	if (!nhc->nhc_pcpu_rth_output)
+		return -ENOMEM;
+
 	if (encap) {
 		struct lwtunnel_state *lwtstate;
-		int err;
 
 		if (encap_type == LWTUNNEL_ENCAP_NONE) {
 			NL_SET_ERR_MSG(extack, "LWT encap type not specified");
-			return -EINVAL;
+			err = -EINVAL;
+			goto lwt_failure;
 		}
 		err = lwtunnel_build_state(encap_type, encap, nhc->nhc_family,
 					   cfg, &lwtstate, extack);
 		if (err)
-			return err;
+			goto lwt_failure;
 
 		nhc->nhc_lwtstate = lwtstate_get(lwtstate);
 	}
 
 	return 0;
+
+lwt_failure:
+	rt_fibinfo_free_cpus(nhc->nhc_pcpu_rth_output);
+	nhc->nhc_pcpu_rth_output = NULL;
+	return err;
 }
 EXPORT_SYMBOL_GPL(fib_nh_common_init);
 
@@ -498,18 +510,14 @@ int fib_nh_init(struct net *net, struct fib_nh *nh,
 		struct fib_config *cfg, int nh_weight,
 		struct netlink_ext_ack *extack)
 {
-	int err = -ENOMEM;
+	int err;
 
 	nh->fib_nh_family = AF_INET;
-
-	nh->nh_pcpu_rth_output = alloc_percpu(struct rtable __rcu *);
-	if (!nh->nh_pcpu_rth_output)
-		goto err_out;
 
 	err = fib_nh_common_init(&nh->nh_common, cfg->fc_encap,
 				 cfg->fc_encap_type, cfg, GFP_KERNEL, extack);
 	if (err)
-		goto init_failure;
+		return err;
 
 	nh->fib_nh_oif = cfg->fc_oif;
 	if (cfg->fc_gw) {
@@ -527,12 +535,6 @@ int fib_nh_init(struct net *net, struct fib_nh *nh,
 	nh->nh_weight = nh_weight;
 #endif
 	return 0;
-
-init_failure:
-	rt_fibinfo_free_cpus(nh->nh_pcpu_rth_output);
-	nh->nh_pcpu_rth_output = NULL;
-err_out:
-	return err;
 }
 
 #ifdef CONFIG_IP_ROUTE_MULTIPATH
