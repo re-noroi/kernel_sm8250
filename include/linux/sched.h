@@ -1825,7 +1825,7 @@ void sched_migrate_to_cpumask_end(const struct cpumask *old_mask,
 				  const struct cpumask *dest);
 
 #ifndef cpu_relax_yield
-#define cpu_relax_yield() cpu_relax()
+#define cpu_relax_yield(cpumask) cpu_relax()
 #endif
 
 extern int yield_to(struct task_struct *p, bool preempt);
