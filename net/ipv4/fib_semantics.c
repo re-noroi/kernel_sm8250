@@ -1366,7 +1366,6 @@ int fib_dump_info(struct sk_buff *skb, u32 portid, u32 seq, int event,
 		    nla_put_u32(skb, RTA_OIF, fi->fib_nh->fib_nh_oif))
 			goto nla_put_failure;
 		if (fi->fib_nh->fib_nh_flags & RTNH_F_LINKDOWN) {
-
 			rcu_read_lock();
 			if (ip_ignore_linkdown(fi->fib_nh->fib_nh_dev))
 				rtm->rtm_flags |= RTNH_F_DEAD;
@@ -1399,7 +1398,6 @@ int fib_dump_info(struct sk_buff *skb, u32 portid, u32 seq, int event,
 
 			rtnh->rtnh_flags = nh->fib_nh_flags & 0xFF;
 			if (nh->fib_nh_flags & RTNH_F_LINKDOWN) {
-
 				rcu_read_lock();
 				if (ip_ignore_linkdown(nh->fib_nh_dev))
 					rtnh->rtnh_flags |= RTNH_F_DEAD;
