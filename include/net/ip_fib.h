@@ -152,7 +152,6 @@ struct fib_info {
 	bool			fib_nh_is_v6;
 	struct rcu_head		rcu;
 	struct fib_nh		fib_nh[0];
-#define fib_dev		fib_nh[0].fib_nh_dev
 };
 
 
@@ -188,11 +187,6 @@ struct fib_result_nl {
 	unsigned char	scope;
 	int             err;
 };
-
-static inline struct fib_nh_common *fib_info_nhc(struct fib_info *fi, int nhsel)
-{
-	return &fi->fib_nh[nhsel].nh_common;
-}
 
 #ifdef CONFIG_IP_MULTIPLE_TABLES
 #define FIB_TABLE_HASHSZ 256

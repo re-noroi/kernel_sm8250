@@ -67,6 +67,7 @@
 #include <net/inet_hashtables.h>
 #include <net/inet6_hashtables.h>
 #include <net/ip_fib.h>
+#include <net/nexthop.h>
 #include <net/flow.h>
 #include <net/arp.h>
 #include <net/ipv6.h>
@@ -5416,7 +5417,7 @@ static int bpf_ipv4_fib_lookup(struct net *net, struct bpf_fib_lookup *params,
 	if (res.type != RTN_UNICAST)
 		return BPF_FIB_LKUP_RET_NOT_FWDED;
 
-	if (res.fi->fib_nhs > 1)
+	if (fib_info_num_path(res.fi) > 1)
 		fib_select_path(net, &res, &fl4, NULL);
 
 	if (check_mtu) {
