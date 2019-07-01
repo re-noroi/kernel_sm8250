@@ -4996,4 +4996,6 @@ do {								\
 #define PTYPE_HASH_SIZE	(16)
 #define PTYPE_HASH_MASK	(PTYPE_HASH_SIZE - 1)
 
+extern struct net_device *blackhole_netdev;
+
 #endif	/* _LINUX_NETDEVICE_H */
