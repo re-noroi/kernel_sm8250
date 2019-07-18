@@ -149,7 +149,7 @@ static const struct ctl_path fsverity_sysctl_path[] = {
 };
 
 /* shared constants to be used in various sysctls */
-static int sysctl_vals[] = { 0, 1, INT_MAX };
+extern const int sysctl_vals[];
 
 #define SYSCTL_ZERO	((void *)&sysctl_vals[0])
 #define SYSCTL_ONE	((void *)&sysctl_vals[1])

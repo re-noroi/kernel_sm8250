@@ -294,7 +294,7 @@ static LIST_HEAD(tfile_check_list);
 
 #include <linux/sysctl.h>
 
-static long zero;
+static long long_zero;
 static long long_max = LONG_MAX;
 
 struct ctl_table epoll_table[] = {
@@ -304,7 +304,7 @@ struct ctl_table epoll_table[] = {
 		.maxlen		= sizeof(max_user_watches),
 		.mode		= 0644,
 		.proc_handler	= proc_doulongvec_minmax,
-		.extra1		= &zero,
+		.extra1		= &long_zero,
 		.extra2		= &long_max,
 	},
 	{ }
