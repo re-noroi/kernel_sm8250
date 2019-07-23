@@ -1168,6 +1168,9 @@ static void cpufreq_policy_free(struct cpufreq_policy *policy)
 	if (unlikely(!policy_is_inactive(policy)))
 		pr_warn("%s: Freeing active policy\n", __func__);
 
+	blocking_notifier_call_chain(&cpufreq_policy_notifier_list,
+				     CPUFREQ_REMOVE_POLICY, policy);
+
 	/* Remove policy from list */
 	write_lock_irqsave(&cpufreq_driver_lock, flags);
 	list_del(&policy->policy_list);
@@ -1336,6 +1339,11 @@ static int cpufreq_online(unsigned int cpu)
 		/* cpufreq_policy_free() will notify based on this */
 		new_policy = false;
 		goto out_destroy_policy;
+	}
+
+	if (new_policy) {
+		blocking_notifier_call_chain(&cpufreq_policy_notifier_list,
+				CPUFREQ_CREATE_POLICY, policy);
 	}
 
 	up_write(&policy->rwsem);
