@@ -1151,7 +1151,6 @@ static int dsi_ctrl_copy_and_pad_cmd(const struct mipi_dsi_packet *packet,
 	if (packet->payload_length > 0)
 		buf[3] |= BIT(6);
 
-
 	/* send embedded BTA for read commands */
 	cmd_type = buf[2] & 0x3f;
 	if ((cmd_type == MIPI_DSI_DCS_READ) ||
@@ -1280,11 +1279,13 @@ int dsi_message_validate_tx_mode(struct dsi_ctrl *dsi_ctrl,
 			DSI_CTRL_ERR(dsi_ctrl, "Cannot transfer,size is greater than 4096\n");
 			return -ENOTSUPP;
 		}
-	}
+	} else if (*flags & DSI_CTRL_CMD_FETCH_MEMORY) {
+		const size_t transfer_size = dsi_ctrl->cmd_len + cmd_len + 4;
 
-	if (*flags & DSI_CTRL_CMD_FETCH_MEMORY) {
-		if ((dsi_ctrl->cmd_len + cmd_len + 4) > SZ_4K) {
-			DSI_CTRL_ERR(dsi_ctrl, "Cannot transfer,size is greater than 4096\n");
+		if (transfer_size > DSI_EMBEDDED_MODE_DMA_MAX_SIZE_BYTES) {
+			DSI_CTRL_ERR(dsi_ctrl,"Cannot transfer, size: %zu is greater than %d\n",
+			       transfer_size,
+			       DSI_EMBEDDED_MODE_DMA_MAX_SIZE_BYTES);
 			return -ENOTSUPP;
 		}
 	}
@@ -1578,6 +1579,10 @@ static int dsi_message_tx(struct dsi_ctrl *dsi_ctrl,
 
 	if (dsi_ctrl->dma_wait_queued)
 		dsi_ctrl_flush_cmd_dma_queue(dsi_ctrl);
+
+	DSI_CTRL_DEBUG(dsi_ctrl, "cmd tx type=%02x cmd=%02x len=%d last=%d\n",
+ 		 msg->type, msg->tx_len ? *((u8 *)msg->tx_buf) : 0, msg->tx_len,
+ 		 (msg->flags & MIPI_DSI_MSG_LASTCOMMAND) != 0);
 
 	if (!(*flags & DSI_CTRL_CMD_BROADCAST_MASTER))
 		dsi_ctrl_clear_slave_dma_status(dsi_ctrl, *flags);
