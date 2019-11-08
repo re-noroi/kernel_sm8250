@@ -286,8 +286,7 @@ static u64 __calc_delta(u64 delta_exec, unsigned long weight, struct load_weight
 		fact >>= fs;
 	}
 
-	/* hint to use a 32x32->64 mul */
-	fact = (u64)(u32)fact * lw->inv_weight;
+	fact = mul_u32_u32(fact, lw->inv_weight);
 
 	fact_hi = (u32)(fact >> 32);
 	if (fact_hi) {
