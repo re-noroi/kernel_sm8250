@@ -301,7 +301,7 @@ static int __inet6_bind(struct sock *sk, struct sockaddr *uaddr, int addr_len,
 
 	snum = ntohs(addr->sin6_port);
 	if (!(flags & BIND_NO_CAP_NET_BIND_SERVICE) &&
-	    snum && snum < inet_prot_sock(net) &&
+	    snum && inet_port_requires_bind_service(net, snum) &&
 	    !ns_capable(net->user_ns, CAP_NET_BIND_SERVICE))
 		return -EACCES;
 
