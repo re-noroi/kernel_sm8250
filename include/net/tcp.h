@@ -1057,6 +1057,7 @@ struct rate_sample {
 	bool is_retrans;	/* is sample from retransmission? */
 	bool is_ack_delayed;	/* is this (likely) a delayed ACK? */
 	bool is_ece;		/* did this ACK have ECN marked? */
+	bool is_acking_tlp_retrans_seq;	/* ACKed a TLP retransmit sequence? */
 };
 
 struct tcp_congestion_ops {
@@ -1267,6 +1268,11 @@ static inline __u32 tcp_max_tso_deferred_mss(const struct tcp_sock *tp)
 static inline u32 tcp_wnd_end(const struct tcp_sock *tp)
 {
 	return tp->snd_una + tp->snd_wnd;
+}
+
+static inline bool tcp_has_tlp_probe(const struct tcp_sock *tp)
+{
+	return tp->tlp_high_seq != 0;
 }
 
 /* We follow the spirit of RFC2861 to validate cwnd but implement a more
