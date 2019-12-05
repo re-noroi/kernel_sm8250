@@ -1,5 +1,5 @@
 /*
- * Test cases for printf facility.
+ * Test cases for bitmap API.
  */
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
