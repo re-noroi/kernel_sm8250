@@ -421,7 +421,11 @@ static int set_peer(struct wg_device *wg, struct nlattr **attrs)
 
 		peer = wg_peer_create(wg, public_key, preshared_key);
 		if (IS_ERR(peer)) {
-			ret = PTR_ERR(peer);
+			/* Similar to the above, if the key is invalid, we skip
+			 * it without fanfare, so that services don't need to
+			 * worry about doing key validation themselves.
+			 */
+			ret = PTR_ERR(peer) == -EKEYREJECTED ? 0 : PTR_ERR(peer);
 			peer = NULL;
 			goto out;
 		}
@@ -446,13 +450,14 @@ static int set_peer(struct wg_device *wg, struct nlattr **attrs)
 	if (attrs[WGPEER_A_ENDPOINT]) {
 		struct sockaddr *addr = nla_data(attrs[WGPEER_A_ENDPOINT]);
 		size_t len = nla_len(attrs[WGPEER_A_ENDPOINT]);
-		struct endpoint endpoint = { { { 0 } } };
 
-		if (len == sizeof(struct sockaddr_in) && addr->sa_family == AF_INET) {
-			endpoint.addr4 = *(struct sockaddr_in *)addr;
-			wg_socket_set_peer_endpoint(peer, &endpoint);
-		} else if (len == sizeof(struct sockaddr_in6) && addr->sa_family == AF_INET6) {
-			endpoint.addr6 = *(struct sockaddr_in6 *)addr;
+		if ((len == sizeof(struct sockaddr_in) &&
+		     addr->sa_family == AF_INET) ||
+		    (len == sizeof(struct sockaddr_in6) &&
+		     addr->sa_family == AF_INET6)) {
+			struct endpoint endpoint = { { { 0 } } };
+
+			memcpy(&endpoint.addr, addr, len);
 			wg_socket_set_peer_endpoint(peer, &endpoint);
 		}
 	}
@@ -520,15 +525,11 @@ static int wg_set_device(struct sk_buff *skb, struct genl_info *info)
 	if (flags & ~__WGDEVICE_F_ALL)
 		goto out;
 
-	if (info->attrs[WGDEVICE_A_LISTEN_PORT] || info->attrs[WGDEVICE_A_FWMARK]) {
-		struct net *net;
-		rcu_read_lock();
-		net = rcu_dereference(wg->creating_net);
-		ret = !net || !ns_capable(net->user_ns, CAP_NET_ADMIN) ? -EPERM : 0;
-		rcu_read_unlock();
-		if (ret)
-			goto out;
-	}
+	ret = -EPERM;
+	if ((info->attrs[WGDEVICE_A_LISTEN_PORT] ||
+	     info->attrs[WGDEVICE_A_FWMARK]) &&
+	    !ns_capable(wg->creating_net->user_ns, CAP_NET_ADMIN))
+		goto out;
 
 	++wg->device_update_gen;
 
@@ -556,7 +557,6 @@ static int wg_set_device(struct sk_buff *skb, struct genl_info *info)
 		u8 *private_key = nla_data(info->attrs[WGDEVICE_A_PRIVATE_KEY]);
 		u8 public_key[NOISE_PUBLIC_KEY_LEN];
 		struct wg_peer *peer, *temp;
-		bool send_staged_packets;
 
 		if (!crypto_memneq(wg->static_identity.static_private,
 				   private_key, NOISE_PUBLIC_KEY_LEN))
@@ -575,17 +575,16 @@ static int wg_set_device(struct sk_buff *skb, struct genl_info *info)
 		}
 
 		down_write(&wg->static_identity.lock);
-		send_staged_packets = !wg->static_identity.has_identity && netif_running(wg->dev);
-		wg_noise_set_static_identity_private_key(&wg->static_identity, private_key);
-		send_staged_packets = send_staged_packets && wg->static_identity.has_identity;
-
-		wg_cookie_checker_precompute_device_keys(&wg->cookie_checker);
-		list_for_each_entry_safe(peer, temp, &wg->peer_list, peer_list) {
-			wg_noise_precompute_static_static(peer);
-			wg_noise_expire_current_peer_keypairs(peer);
-			if (send_staged_packets)
-				wg_packet_send_staged_packets(peer);
+		wg_noise_set_static_identity_private_key(&wg->static_identity,
+							 private_key);
+		list_for_each_entry_safe(peer, temp, &wg->peer_list,
+					 peer_list) {
+			if (wg_noise_precompute_static_static(peer))
+				wg_noise_expire_current_peer_keypairs(peer);
+			else
+				wg_peer_remove(peer);
 		}
+		wg_cookie_checker_precompute_device_keys(&wg->cookie_checker);
 		up_write(&wg->static_identity.lock);
 	}
 skip_set_private_key:

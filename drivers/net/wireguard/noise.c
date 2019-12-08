@@ -44,23 +44,28 @@ void __init wg_noise_init(void)
 }
 
 /* Must hold peer->handshake.static_identity->lock */
-void wg_noise_precompute_static_static(struct wg_peer *peer)
+bool wg_noise_precompute_static_static(struct wg_peer *peer)
 {
+	bool ret = true;
+
 	down_write(&peer->handshake.lock);
-	if (!peer->handshake.static_identity->has_identity ||
-	    !curve25519(peer->handshake.precomputed_static_static,
+	if (peer->handshake.static_identity->has_identity)
+		ret = curve25519(
+			peer->handshake.precomputed_static_static,
 			peer->handshake.static_identity->static_private,
-			peer->handshake.remote_static))
+			peer->handshake.remote_static);
+	else
 		memset(peer->handshake.precomputed_static_static, 0,
 		       NOISE_PUBLIC_KEY_LEN);
 	up_write(&peer->handshake.lock);
+	return ret;
 }
 
-void wg_noise_handshake_init(struct noise_handshake *handshake,
-			     struct noise_static_identity *static_identity,
-			     const u8 peer_public_key[NOISE_PUBLIC_KEY_LEN],
-			     const u8 peer_preshared_key[NOISE_SYMMETRIC_KEY_LEN],
-			     struct wg_peer *peer)
+bool wg_noise_handshake_init(struct noise_handshake *handshake,
+			   struct noise_static_identity *static_identity,
+			   const u8 peer_public_key[NOISE_PUBLIC_KEY_LEN],
+			   const u8 peer_preshared_key[NOISE_SYMMETRIC_KEY_LEN],
+			   struct wg_peer *peer)
 {
 	memset(handshake, 0, sizeof(*handshake));
 	init_rwsem(&handshake->lock);
@@ -72,7 +77,7 @@ void wg_noise_handshake_init(struct noise_handshake *handshake,
 		       NOISE_SYMMETRIC_KEY_LEN);
 	handshake->static_identity = static_identity;
 	handshake->state = HANDSHAKE_ZEROED;
-	wg_noise_precompute_static_static(peer);
+	return wg_noise_precompute_static_static(peer);
 }
 
 static void handshake_zero(struct noise_handshake *handshake)
@@ -87,12 +92,15 @@ static void handshake_zero(struct noise_handshake *handshake)
 
 void wg_noise_handshake_clear(struct noise_handshake *handshake)
 {
-	down_write(&handshake->lock);
 	wg_index_hashtable_remove(
 			handshake->entry.peer->device->index_hashtable,
 			&handshake->entry);
+	down_write(&handshake->lock);
 	handshake_zero(handshake);
 	up_write(&handshake->lock);
+	wg_index_hashtable_remove(
+			handshake->entry.peer->device->index_hashtable,
+			&handshake->entry);
 }
 
 static struct noise_keypair *keypair_create(struct wg_peer *peer)
@@ -101,7 +109,6 @@ static struct noise_keypair *keypair_create(struct wg_peer *peer)
 
 	if (unlikely(!keypair))
 		return NULL;
-	spin_lock_init(&keypair->receiving_counter.lock);
 	keypair->internal_id = atomic64_inc_return(&keypair_counter);
 	keypair->entry.type = INDEX_HASHTABLE_KEYPAIR;
 	keypair->entry.peer = peer;
@@ -356,16 +363,25 @@ out:
 	memzero_explicit(output, BLAKE2S_HASH_SIZE + 1);
 }
 
+static void symmetric_key_init(struct noise_symmetric_key *key)
+{
+	spin_lock_init(&key->counter.receive.lock);
+	atomic64_set(&key->counter.counter, 0);
+	memset(key->counter.receive.backtrack, 0,
+	       sizeof(key->counter.receive.backtrack));
+	key->birthdate = ktime_get_coarse_boottime_ns();
+	key->is_valid = true;
+}
+
 static void derive_keys(struct noise_symmetric_key *first_dst,
 			struct noise_symmetric_key *second_dst,
 			const u8 chaining_key[NOISE_HASH_LEN])
 {
-	u64 birthdate = ktime_get_coarse_boottime_ns();
 	kdf(first_dst->key, second_dst->key, NULL, NULL,
 	    NOISE_SYMMETRIC_KEY_LEN, NOISE_SYMMETRIC_KEY_LEN, 0, 0,
 	    chaining_key);
-	first_dst->birthdate = second_dst->birthdate = birthdate;
-	first_dst->is_valid = second_dst->is_valid = true;
+	symmetric_key_init(first_dst);
+	symmetric_key_init(second_dst);
 }
 
 static bool __must_check mix_dh(u8 chaining_key[NOISE_HASH_LEN],
@@ -380,19 +396,6 @@ static bool __must_check mix_dh(u8 chaining_key[NOISE_HASH_LEN],
 	kdf(chaining_key, key, NULL, dh_calculation, NOISE_HASH_LEN,
 	    NOISE_SYMMETRIC_KEY_LEN, 0, NOISE_PUBLIC_KEY_LEN, chaining_key);
 	memzero_explicit(dh_calculation, NOISE_PUBLIC_KEY_LEN);
-	return true;
-}
-
-static bool __must_check mix_precomputed_dh(u8 chaining_key[NOISE_HASH_LEN],
-					    u8 key[NOISE_SYMMETRIC_KEY_LEN],
-					    const u8 precomputed[NOISE_PUBLIC_KEY_LEN])
-{
-	static u8 zero_point[NOISE_PUBLIC_KEY_LEN];
-	if (unlikely(!crypto_memneq(precomputed, zero_point, NOISE_PUBLIC_KEY_LEN)))
-		return false;
-	kdf(chaining_key, key, NULL, precomputed, NOISE_HASH_LEN,
-	    NOISE_SYMMETRIC_KEY_LEN, 0, NOISE_PUBLIC_KEY_LEN,
-	    chaining_key);
 	return true;
 }
 
@@ -524,9 +527,10 @@ wg_noise_handshake_create_initiation(struct message_handshake_initiation *dst,
 			NOISE_PUBLIC_KEY_LEN, key, handshake->hash);
 
 	/* ss */
-	if (!mix_precomputed_dh(handshake->chaining_key, key,
-				handshake->precomputed_static_static))
-		goto out;
+	kdf(handshake->chaining_key, key, NULL,
+	    handshake->precomputed_static_static, NOISE_HASH_LEN,
+	    NOISE_SYMMETRIC_KEY_LEN, 0, NOISE_PUBLIC_KEY_LEN,
+	    handshake->chaining_key);
 
 	/* {t} */
 	tai64n_now(timestamp);
@@ -587,9 +591,9 @@ wg_noise_handshake_consume_initiation(struct message_handshake_initiation *src,
 	handshake = &peer->handshake;
 
 	/* ss */
-	if (!mix_precomputed_dh(chaining_key, key,
-				handshake->precomputed_static_static))
-	    goto out;
+	kdf(chaining_key, key, NULL, handshake->precomputed_static_static,
+	    NOISE_HASH_LEN, NOISE_SYMMETRIC_KEY_LEN, 0, NOISE_PUBLIC_KEY_LEN,
+	    chaining_key);
 
 	/* {t} */
 	if (!message_decrypt(t, src->encrypted_timestamp,
@@ -614,8 +618,8 @@ wg_noise_handshake_consume_initiation(struct message_handshake_initiation *src,
 	memcpy(handshake->hash, hash, NOISE_HASH_LEN);
 	memcpy(handshake->chaining_key, chaining_key, NOISE_HASH_LEN);
 	handshake->remote_index = src->sender_index;
-	initiation_consumption = ktime_get_coarse_boottime_ns();
-	if ((s64)(handshake->last_initiation_consumption - initiation_consumption) < 0)
+	if ((s64)(handshake->last_initiation_consumption -
+	    (initiation_consumption = ktime_get_coarse_boottime_ns())) < 0)
 		handshake->last_initiation_consumption = initiation_consumption;
 	handshake->state = HANDSHAKE_CONSUMED_INITIATION;
 	up_write(&handshake->lock);
@@ -704,7 +708,6 @@ wg_noise_handshake_consume_response(struct message_handshake_response *src,
 	u8 e[NOISE_PUBLIC_KEY_LEN];
 	u8 ephemeral_private[NOISE_PUBLIC_KEY_LEN];
 	u8 static_private[NOISE_PUBLIC_KEY_LEN];
-	u8 preshared_key[NOISE_SYMMETRIC_KEY_LEN];
 
 	down_read(&wg->static_identity.lock);
 
@@ -723,8 +726,6 @@ wg_noise_handshake_consume_response(struct message_handshake_response *src,
 	memcpy(chaining_key, handshake->chaining_key, NOISE_HASH_LEN);
 	memcpy(ephemeral_private, handshake->ephemeral_private,
 	       NOISE_PUBLIC_KEY_LEN);
-	memcpy(preshared_key, handshake->preshared_key,
-	       NOISE_SYMMETRIC_KEY_LEN);
 	up_read(&handshake->lock);
 
 	if (state != HANDSHAKE_CREATED_INITIATION)
@@ -742,7 +743,7 @@ wg_noise_handshake_consume_response(struct message_handshake_response *src,
 		goto fail;
 
 	/* psk */
-	mix_psk(chaining_key, hash, key, preshared_key);
+	mix_psk(chaining_key, hash, key, handshake->preshared_key);
 
 	/* {} */
 	if (!message_decrypt(NULL, src->encrypted_nothing,
@@ -775,7 +776,6 @@ out:
 	memzero_explicit(chaining_key, NOISE_HASH_LEN);
 	memzero_explicit(ephemeral_private, NOISE_PUBLIC_KEY_LEN);
 	memzero_explicit(static_private, NOISE_PUBLIC_KEY_LEN);
-	memzero_explicit(preshared_key, NOISE_SYMMETRIC_KEY_LEN);
 	up_read(&wg->static_identity.lock);
 	return ret_peer;
 }
