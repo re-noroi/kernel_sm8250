@@ -41,7 +41,7 @@ struct wg_device {
 	struct net_device *dev;
 	struct crypt_queue encrypt_queue, decrypt_queue, handshake_queue;
 	struct sock __rcu *sock4, *sock6;
-	struct net __rcu *creating_net;
+	struct net *creating_net;
 	struct noise_static_identity static_identity;
 	struct workqueue_struct *packet_crypt_wq,*handshake_receive_wq, *handshake_send_wq;
 	struct cookie_checker cookie_checker;
@@ -54,9 +54,18 @@ struct wg_device {
 	unsigned int num_peers, device_update_gen;
 	u32 fwmark;
 	u16 incoming_port;
+	bool have_creating_net_ref;
 };
 
 int wg_device_init(void);
 void wg_device_uninit(void);
+
+/* Later after the dust settles, this can be moved into include/linux/skbuff.h,
+ * where virtually all code that deals with GSO segs can benefit, around ~30
+ * drivers as of writing.
+ */
+#define skb_list_walk_safe(first, skb, next)                                   \
+	for (skb = first, next = skb->next; skb;                               \
+	     skb = next, next = skb ? skb->next : NULL)
 
 #endif /* _WG_DEVICE_H */
