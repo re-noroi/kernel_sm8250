@@ -176,12 +176,11 @@ static inline bool ext4_need_verity(const struct inode *inode, pgoff_t idx)
 	       idx < DIV_ROUND_UP(inode->i_size, PAGE_SIZE);
 }
 
-static struct bio_post_read_ctx *get_bio_post_read_ctx(struct inode *inode,
-						       struct bio *bio,
-						       pgoff_t first_idx)
+static void ext4_set_bio_post_read_ctx(struct bio *bio,
+				       const struct inode *inode,
+				       pgoff_t first_idx)
 {
 	unsigned int post_read_steps = 0;
-	struct bio_post_read_ctx *ctx = NULL;
 
 	if (fscrypt_inode_uses_fs_layer_crypto(inode))
 		post_read_steps |= 1 << STEP_DECRYPT;
@@ -190,14 +189,14 @@ static struct bio_post_read_ctx *get_bio_post_read_ctx(struct inode *inode,
 		post_read_steps |= 1 << STEP_VERITY;
 
 	if (post_read_steps) {
-		ctx = mempool_alloc(bio_post_read_ctx_pool, GFP_NOFS);
-		if (!ctx)
-			return ERR_PTR(-ENOMEM);
+		/* Due to the mempool, this never fails. */
+		struct bio_post_read_ctx *ctx =
+			mempool_alloc(bio_post_read_ctx_pool, GFP_NOFS);
+
 		ctx->bio = bio;
 		ctx->enabled_steps = post_read_steps;
 		bio->bi_private = ctx;
 	}
-	return ctx;
 }
 
 static inline loff_t ext4_readpage_limit(struct inode *inode)
@@ -360,24 +359,16 @@ int ext4_mpage_readpages(struct address_space *mapping,
 			bio = NULL;
 		}
 		if (bio == NULL) {
-			struct bio_post_read_ctx *ctx;
-
 			bio = bio_alloc(GFP_KERNEL,
 				min_t(int, nr_pages, BIO_MAX_PAGES));
 			if (!bio)
 				goto set_error_page;
 			fscrypt_set_bio_crypt_ctx(bio, inode, next_block,
 						  GFP_KERNEL);
-			ctx = get_bio_post_read_ctx(inode, bio, page->index);
-			if (IS_ERR(ctx)) {
-				bio_put(bio);
-				bio = NULL;
-				goto set_error_page;
-			}
+			ext4_set_bio_post_read_ctx(bio, inode, page->index);
 			bio_set_dev(bio, bdev);
 			bio->bi_iter.bi_sector = blocks[0] << (blkbits - 9);
 			bio->bi_end_io = mpage_end_io;
-			bio->bi_private = ctx;
 			bio_set_op_attrs(bio, REQ_OP_READ,
 						is_readahead ? REQ_RAHEAD : 0);
 		}
