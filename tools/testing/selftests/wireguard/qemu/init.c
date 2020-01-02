@@ -13,10 +13,7 @@
 #include <fcntl.h>
 #include <sys/wait.h>
 #include <sys/mount.h>
-<<<<<<< HEAD
-=======
 #include <sys/types.h>
->>>>>>> c68a03c2086b... UPSTREAM: wireguard: selftests: import harness makefile for test suite
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/io.h>
@@ -24,10 +21,7 @@
 #include <sys/reboot.h>
 #include <sys/utsname.h>
 #include <sys/sendfile.h>
-<<<<<<< HEAD
 #include <sys/sysmacros.h>
-=======
->>>>>>> c68a03c2086b... UPSTREAM: wireguard: selftests: import harness makefile for test suite
 #include <linux/random.h>
 #include <linux/version.h>
 
