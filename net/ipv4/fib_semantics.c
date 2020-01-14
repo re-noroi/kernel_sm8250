@@ -452,6 +452,8 @@ void rtmsg_fib(int event, __be32 key, struct fib_alias *fa,
 	fri.dst_len = dst_len;
 	fri.tos = fa->fa_tos;
 	fri.type = fa->fa_type;
+	fri.offload = fa->offload;
+	fri.trap = fa->trap;
 	err = fib_dump_info(skb, info->portid, seq, event, &fri, nlm_flags);
 	if (err < 0) {
 		/* -EMSGSIZE implies BUG in fib_nlmsg_size() */
@@ -1610,6 +1612,11 @@ int fib_dump_info(struct sk_buff *skb, u32 portid, u32 seq, int event,
 		if (fib_add_multipath(skb, fi) < 0)
 			goto nla_put_failure;
 	}
+
+	if (fri->offload)
+		rtm->rtm_flags |= RTM_F_OFFLOAD;
+	if (fri->trap)
+		rtm->rtm_flags |= RTM_F_TRAP;
 
 	nlmsg_end(skb, nlh);
 	return 0;
