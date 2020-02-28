@@ -738,27 +738,7 @@ static void posix_cpu_timer_get(struct k_itimer *timer, struct itimerspec64 *itp
 	if (CPUCLOCK_PERTHREAD(timer->it_clock)) {
 		cpu_clock_sample(timer->it_clock, p, &now);
 	} else {
-		struct sighand_struct *sighand;
-		unsigned long flags;
-
-		/*
-		 * Protect against sighand release/switch in exit/exec and
-		 * also make timer sampling safe if it ends up calling
-		 * thread_group_cputime().
-		 */
-		sighand = lock_task_sighand(p, &flags);
-		if (unlikely(sighand == NULL)) {
-			/*
-			 * The process has been reaped.
-			 * We can't even collect a sample any more.
-			 * Call the timer disarmed, nothing else to do.
-			 */
-			timer->it.cpu.expires = 0;
-			return;
-		} else {
-			cpu_timer_sample_group(timer->it_clock, p, &now);
-			unlock_task_sighand(p, &flags);
-		}
+		cpu_timer_sample_group(timer->it_clock, p, &now);
 	}
 
 	if (now < timer->it.cpu.expires) {
@@ -1023,41 +1003,21 @@ static void posix_cpu_timer_rearm(struct k_itimer *timer)
 			timer->it.cpu.expires = 0;
 			return;
 		}
-		bump_cpu_timer(timer, now);
-		if (unlikely(p->exit_state))
-			return;
-
-		/* Protect timer list r/w in arm_timer() */
-		sighand = lock_task_sighand(p, &flags);
-		if (!sighand)
-			return;
-	} else {
-		/*
-		 * Protect arm_timer() and timer sampling in case of call to
-		 * thread_group_cputime().
-		 */
-		sighand = lock_task_sighand(p, &flags);
-		if (unlikely(sighand == NULL)) {
-			/*
-			 * The process has been reaped.
-			 * We can't even collect a sample any more.
-			 */
-			timer->it.cpu.expires = 0;
-			return;
-		} else if (unlikely(p->exit_state) && thread_group_empty(p)) {
-			/* If the process is dying, no need to rearm */
-			goto unlock;
-		}
+		} else {
 		cpu_timer_sample_group(timer->it_clock, p, &now);
-		bump_cpu_timer(timer, now);
-		/* Leave the sighand locked for the call below.  */
 	}
+
+	bump_cpu_timer(timer, now);
+
+	/* Protect timer list r/w in arm_timer() */
+	sighand = lock_task_sighand(p, &flags);
+	if (unlikely(sighand == NULL))
+		return;
 
 	/*
 	 * Now re-arm for the new expiry time.
 	 */
 	arm_timer(timer);
-unlock:
 	unlock_task_sighand(p, &flags);
 }
 
