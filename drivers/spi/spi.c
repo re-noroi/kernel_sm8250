@@ -1314,8 +1314,6 @@ static void spi_pump_messages(struct kthread_work *work)
 
 static int spi_init_queue(struct spi_controller *ctlr)
 {
-	struct sched_param param = { .sched_priority = MAX_RT_PRIO - 1 };
-
 	ctlr->running = false;
 	ctlr->busy = false;
 
@@ -1338,7 +1336,7 @@ static int spi_init_queue(struct spi_controller *ctlr)
 	if (ctlr->rt) {
 		dev_info(&ctlr->dev,
 			"will run message pump with realtime priority\n");
-		sched_setscheduler(ctlr->kworker_task, SCHED_FIFO, &param);
+		sched_set_fifo(ctlr->kworker_task);
 	}
 
 	return 0;
