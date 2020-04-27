@@ -975,7 +975,7 @@ int rt6_route_rcv(struct net_device *dev, u8 *opt, int len,
 					gwaddr, dev);
 
 	if (rt && !lifetime) {
-		ip6_del_rt(net, rt);
+		ip6_del_rt(net, rt, false);
 		rt = NULL;
 	}
 
@@ -3742,9 +3742,12 @@ out:
 	return err;
 }
 
-int ip6_del_rt(struct net *net, struct fib6_info *rt)
+int ip6_del_rt(struct net *net, struct fib6_info *rt, bool skip_notify)
 {
-	struct nl_info info = { .nl_net = net };
+	struct nl_info info = {
+		.nl_net = net,
+		.skip_notify = skip_notify
+	};
 
 	return __ip6_del_rt(rt, &info);
 }
