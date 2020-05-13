@@ -210,6 +210,14 @@ static void qcom_lmh_dcvs_notify(struct cpufreq_qcom *c)
 				 msecs_to_jiffies(LIMITS_POLLING_DELAY_MS));
 	}
 
+	/*
+	 * Route the LMh-reported throttled frequency through FIE's thermal
+	 * pressure aggregation. FIE combines this with its own measured HW
+	 * throttle detection for a more accurate thermal pressure report.
+	 */
+	fie_cpufreq_pressure(cpu, thermal_pressure >= policy->cpuinfo.max_freq ?
+			     UINT_MAX : thermal_pressure);
+
 	trace_dcvsh_freq(cpu, requested_freq, throttled_freq, thermal_pressure);
 
 	/* Update thermal pressure (boost frequencies are accepted). */
@@ -321,14 +329,19 @@ qcom_cpufreq_hw_target_index(struct cpufreq_policy *policy,
 {
 	struct cpufreq_qcom *c = policy->driver_data;
 	unsigned long flags;
+	unsigned long freq = policy->freq_table[index].frequency;
 
 	if (c->skip_data.skip && index == c->skip_data.high_temp_index) {
 		spin_lock_irqsave(&c->skip_data.lock, flags);
 		writel_relaxed(c->skip_data.final_index,
-				c->reg_bases[REG_PERF_STATE]);
+			       c->reg_bases[REG_PERF_STATE]);
+		fie_rate_set(policy->cpu, freq); /* Added for FIE */
 		spin_unlock_irqrestore(&c->skip_data.lock, flags);
 	} else {
+		local_irq_save(flags);
 		writel_relaxed(index, c->reg_bases[REG_PERF_STATE]);
+		fie_rate_set(policy->cpu, freq); /* Added for FIE */
+		local_irq_restore(flags);
 	}
 
 	return 0;
