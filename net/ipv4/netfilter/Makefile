@@ -14,8 +14,10 @@ obj-$(CONFIG_NF_SOCKET_IPV4) += nf_socket_ipv4.o
 obj-$(CONFIG_NF_TPROXY_IPV4) += nf_tproxy_ipv4.o
 
 # logging
+ifdef CONFIG_KERNEL_DEBUG
 obj-$(CONFIG_NF_LOG_ARP) += nf_log_arp.o
 obj-$(CONFIG_NF_LOG_IPV4) += nf_log_ipv4.o
+endif
 
 # reject
 obj-$(CONFIG_NF_REJECT_IPV4) += nf_reject_ipv4.o
