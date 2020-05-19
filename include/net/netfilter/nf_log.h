@@ -74,6 +74,7 @@ void nf_logger_request_module(int pf, enum nf_log_type type);
 	MODULE_ALIAS("nf-logger-" __stringify(family) "-" __stringify(type))
 
 /* Calls the registered backend logging function */
+#ifdef CONFIG_DEBUG_KERNEL
 __printf(8, 9)
 void nf_log_packet(struct net *net,
 		   u_int8_t pf,
@@ -83,16 +84,35 @@ void nf_log_packet(struct net *net,
 		   const struct net_device *out,
 		   const struct nf_loginfo *li,
 		   const char *fmt, ...);
-
 __printf(8, 9)
 void nf_log_trace(struct net *net,
+		   u_int8_t pf,
+		   unsigned int hooknum,
+		   const struct sk_buff *skb,
+		   const struct net_device *in,
+		   const struct net_device *out,
+		   const struct nf_loginfo *li,
+		   const char *fmt, ...)
+
+#else
+static inline void nf_log_packet(struct net *net,
+		   u_int8_t pf,
+		   unsigned int hooknum,
+		   const struct sk_buff *skb,
+		   const struct net_device *in,
+		   const struct net_device *out,
+		   const struct nf_loginfo *li,
+		   const char *fmt, ...) {}
+
+static inline void nf_log_trace(struct net *net,
 		  u_int8_t pf,
 		  unsigned int hooknum,
 		  const struct sk_buff *skb,
 		  const struct net_device *in,
 		  const struct net_device *out,
 		  const struct nf_loginfo *li,
-		  const char *fmt, ...);
+		  const char *fmt, ...) {}
+#endif
 
 struct nf_log_buf;
 
