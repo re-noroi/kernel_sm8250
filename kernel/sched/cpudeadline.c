@@ -124,8 +124,21 @@ int cpudl_find(struct cpudl *cp, struct task_struct *p,
 	const struct sched_dl_entity *dl_se = &p->dl;
 
 	if (later_mask &&
-	    cpumask_and(later_mask, cp->free_cpus, &p->cpus_allowed)) {
-		return 1;
+	    cpumask_and(later_mask, cp->free_cpus, &p->cpus_allowed) &&
+	    cpumask_and(later_mask, later_mask, cpu_active_mask)) {
+		int cpu;
+
+		if (!static_branch_unlikely(&sched_asym_cpucapacity))
+			return 1;
+
+		/* Ensure the capacity of the CPUs fits the task. */
+		for_each_cpu(cpu, later_mask) {
+			if (!dl_task_fits_capacity(p, cpu))
+				cpumask_clear_cpu(cpu, later_mask);
+		}
+
+		if (!cpumask_empty(later_mask))
+			return 1;
 	} else {
 		int best_cpu = cpudl_maximum(cp);
 
