@@ -192,7 +192,7 @@ static inline int INET_ECN_set_ce(struct sk_buff *skb)
 
 static inline int INET_ECN_set_ect1(struct sk_buff *skb)
 {
-	switch (skb->protocol) {
+	switch (skb_protocol(skb, true)) {
 	case cpu_to_be16(ETH_P_IP):
 		if (skb_network_header(skb) + sizeof(struct iphdr) <=
 		    skb_tail_pointer(skb))
