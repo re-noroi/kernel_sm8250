@@ -2117,7 +2117,7 @@ static int __sys_setsockopt(int fd, int level, int optname,
 
 		if (level == SOL_SOCKET)
 			err =
-			    sock_setsockopt(sock, level, optname, optval,
+			    sock_setsockopt(sock, level, optname, USER_SOCKPTR(optval),
 					    optlen);
 		else
 			err =
@@ -3714,7 +3714,7 @@ int kernel_setsockopt(struct socket *sock, int level, int optname,
 
 	set_fs(KERNEL_DS);
 	if (level == SOL_SOCKET)
-		err = sock_setsockopt(sock, level, optname, uoptval, optlen);
+		err = sock_setsockopt(sock, level, optname, USER_SOCKPTR(uoptval), optlen);
 	else
 		err = sock->ops->setsockopt(sock, level, optname, uoptval,
 					    optlen);
