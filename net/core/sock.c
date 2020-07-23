@@ -358,7 +358,7 @@ static int sock_get_timeout(long timeo, void *optval)
 	return sizeof(tv);
 }
 
-static int sock_set_timeout(long *timeo_p, char __user *optval, int optlen)
+static int sock_set_timeout(long *timeo_p, sockptr_t optval, int optlen)
 {
 	struct __kernel_old_timeval tv;
 
@@ -368,14 +368,14 @@ static int sock_set_timeout(long *timeo_p, char __user *optval, int optlen)
 		if (optlen < sizeof(tv32))
 			return -EINVAL;
 
-		if (copy_from_user(&tv32, optval, sizeof(tv32)))
+		if (copy_from_sockptr(&tv32, optval, sizeof(tv32)))
 			return -EFAULT;
 		tv.tv_sec = tv32.tv_sec;
 		tv.tv_usec = tv32.tv_usec;
 	} else {
 		if (optlen < sizeof(tv))
 			return -EINVAL;
-		if (copy_from_user(&tv, optval, sizeof(tv)))
+		if (copy_from_sockptr(&tv, optval, sizeof(tv)))
 			return -EFAULT;
 	}
 	if (tv.tv_usec < 0 || tv.tv_usec >= USEC_PER_SEC)
@@ -940,11 +940,11 @@ set_rcvbuf:
 		break;
 
 	case SO_RCVTIMEO:
-		ret = sock_set_timeout(&sk->sk_rcvtimeo, optval, optlen);
+		ret = sock_set_timeout(&sk->sk_rcvtimeo, USER_SOCKPTR(optval), optlen);
 		break;
 
 	case SO_SNDTIMEO:
-		ret = sock_set_timeout(&sk->sk_sndtimeo, optval, optlen);
+		ret = sock_set_timeout(&sk->sk_sndtimeo, USER_SOCKPTR(optval), optlen);
 		break;
 
 	case SO_ATTACH_FILTER: {
