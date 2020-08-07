@@ -319,12 +319,6 @@ static inline void set_freepointer(struct kmem_cache *s, void *object, void *fp)
 		__p < (__addr) + (__objects) * (__s)->size; \
 		__p += (__s)->size)
 
-/* Determine object index from a given position */
-static inline unsigned int slab_index(void *p, struct kmem_cache *s, void *addr)
-{
-	return (kasan_reset_tag(p) - addr) / s->size;
-}
-
 static inline unsigned int order_objects(unsigned int order, unsigned int size)
 {
 	return ((unsigned int)PAGE_SIZE << order) / size;
@@ -457,7 +451,7 @@ static void get_map(struct kmem_cache *s, struct page *page, unsigned long *map)
 	void *addr = page_address(page);
 
 	for (p = page->freelist; p; p = get_freepointer(s, p))
-		set_bit(slab_index(p, s, addr), map);
+		set_bit(__obj_to_index(s, addr, p), map);
 }
 
 static inline unsigned int size_from_object(struct kmem_cache *s)
@@ -3652,6 +3646,7 @@ static int calculate_sizes(struct kmem_cache *s, int forced_order)
 	 */
 	size = ALIGN(size, s->align);
 	s->size = size;
+	s->reciprocal_size = reciprocal_value(size);
 	if (forced_order >= 0)
 		order = forced_order;
 	else
@@ -3763,7 +3758,7 @@ static void list_slab_objects(struct kmem_cache *s, struct page *page,
 	get_map(s, page, map);
 	for_each_object(p, s, addr, page->objects) {
 
-		if (!test_bit(slab_index(p, s, addr), map)) {
+		if (!test_bit(__obj_to_index(s, addr, p), map)) {
 			pr_err("INFO: Object 0x%p @offset=%tu\n", p, p - addr);
 			print_tracking(s, p);
 		}
@@ -4475,7 +4470,7 @@ static int validate_slab(struct kmem_cache *s, struct page *page,
 
 	get_map(s, page, map);
 	for_each_object(p, s, addr, page->objects) {
-		if (test_bit(slab_index(p, s, addr), map))
+		if (test_bit(__obj_to_index(s, addr, p), map))
 			if (!check_object(s, page, p, SLUB_RED_INACTIVE))
 				return 0;
 	}
@@ -4683,7 +4678,7 @@ static void process_slab(struct loc_track *t, struct kmem_cache *s,
 	get_map(s, page, map);
 
 	for_each_object(p, s, addr, page->objects)
-		if (!test_bit(slab_index(p, s, addr), map))
+		if (!test_bit(__obj_to_index(s, addr, p), map))
 			add_location(t, s, get_track(s, p, alloc));
 }
 
