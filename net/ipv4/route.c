@@ -1099,7 +1099,7 @@ static void ip_rt_update_pmtu(struct dst_entry *dst, struct sock *sk,
 void ipv4_update_pmtu(struct sk_buff *skb, struct net *net, u32 mtu,
 		      int oif, u8 protocol)
 {
-	const struct iphdr *iph = (const struct iphdr *) skb->data;
+	const struct iphdr *iph = (const struct iphdr *)skb->data;
 	struct flowi4 fl4;
 	struct rtable *rt;
 	u32 mark = IP4_REPLY_MARK(net, skb->mark);
@@ -1134,7 +1134,7 @@ static void __ipv4_sk_update_pmtu(struct sk_buff *skb, struct sock *sk, u32 mtu)
 
 void ipv4_sk_update_pmtu(struct sk_buff *skb, struct sock *sk, u32 mtu)
 {
-	const struct iphdr *iph = (const struct iphdr *) skb->data;
+	const struct iphdr *iph = (const struct iphdr *)skb->data;
 	struct flowi4 fl4;
 	struct rtable *rt;
 	struct dst_entry *odst = NULL;
@@ -1189,7 +1189,7 @@ EXPORT_SYMBOL_GPL(ipv4_sk_update_pmtu);
 void ipv4_redirect(struct sk_buff *skb, struct net *net,
 		   int oif, u8 protocol)
 {
-	const struct iphdr *iph = (const struct iphdr *) skb->data;
+	const struct iphdr *iph = (const struct iphdr *)skb->data;
 	struct flowi4 fl4;
 	struct rtable *rt;
 
@@ -1347,7 +1347,7 @@ static unsigned int ipv4_default_advmss(const struct dst_entry *dst)
 
 static unsigned int ipv4_mtu(const struct dst_entry *dst)
 {
-	const struct rtable *rt = (const struct rtable *) dst;
+	const struct rtable *rt = (const struct rtable *)dst;
 	unsigned int mtu = rt->rt_pmtu;
 
 	if (!mtu || time_after_eq(jiffies, rt->dst.expires))
