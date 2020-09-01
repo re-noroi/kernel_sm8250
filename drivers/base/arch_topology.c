@@ -28,6 +28,9 @@ void arch_set_freq_scale(const struct cpumask *cpus, unsigned long cur_freq,
 	unsigned long scale;
 	int i;
 
+	if (WARN_ON_ONCE(!cur_freq || !max_freq))
+		return;
+
 	scale = (cur_freq << SCHED_CAPACITY_SHIFT) / max_freq;
 
 	for_each_cpu(i, cpus) {
