@@ -53,6 +53,8 @@ void topology_set_thermal_pressure(const struct cpumask *cpus,
 void topology_update_thermal_pressure(const struct cpumask *cpus,
 				      unsigned long capped_freq);
 
+bool topology_scale_freq_invariant(void);
+
 bool arch_freq_counters_available(const struct cpumask *cpus);
 
 #endif /* _LINUX_ARCH_TOPOLOGY_H_ */
