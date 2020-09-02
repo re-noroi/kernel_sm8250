@@ -23,6 +23,7 @@
 
 static int zero;
 static int one = 1;
+static int two = 2;
 static int auto_flowlabels_min;
 static int auto_flowlabels_max = IP6_AUTO_FLOW_LABEL_MAX;
 
@@ -149,7 +150,7 @@ static struct ctl_table ipv6_table_template[] = {
 		.mode		= 0644,
 		.proc_handler   = proc_rt6_multipath_hash_policy,
 		.extra1		= &zero,
-		.extra2		= &one,
+		.extra2		= &two,
 	},
 	{
 		.procname	= "seg6_flowlabel",
