@@ -1746,6 +1746,8 @@ thermal_sconfig_store(struct device *dev,
 	else
 		atomic_set(&switch_mode, val);
 
+	if (ret)
+		return ret;
 	return len;
 }
 
