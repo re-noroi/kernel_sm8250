@@ -18,7 +18,7 @@
  *  in that class).  Therefore a typical application without affinity
  *  restrictions can find a suitable CPU with O(1) complexity (e.g. two bit
  *  searches).  For tasks with affinity restrictions, the algorithm has a
- *  worst case complexity of O(min(101, nr_domcpus)), though the scenario that
+ *  worst case complexity of O(min(100, nr_domcpus)), though the scenario that
  *  yields the worst case search is fairly contrived.
  *
  *  This program is free software; you can redistribute it and/or
@@ -28,7 +28,7 @@
  */
 #include "sched.h"
 
-/* Convert between a 140 based task->prio, and our 101 based cpupri */
+/* Convert between a 140 based task->prio, and our 100 based cpupri */
 static int convert_prio(int prio)
 {
 	int cpupri;
@@ -38,7 +38,7 @@ static int convert_prio(int prio)
 	else if (prio >= MAX_RT_PRIO)
 		cpupri = CPUPRI_NORMAL;
 	else
-		cpupri = MAX_RT_PRIO - prio;
+		cpupri = MAX_RT_PRIO - prio - 1;
 
 	return cpupri;
 }
