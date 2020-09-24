@@ -31,8 +31,8 @@ __weak bool arch_freq_counters_available(const struct cpumask *cpus)
 DEFINE_PER_CPU(unsigned long, arch_freq_scale) = SCHED_CAPACITY_SCALE;
 static DEFINE_PER_CPU(u32, freq_factor) = 1;
 
-void arch_set_freq_scale(const struct cpumask *cpus, unsigned long cur_freq,
-			 unsigned long max_freq)
+void topology_set_freq_scale(const struct cpumask *cpus, unsigned long cur_freq,
+			     unsigned long max_freq)
 {
 	unsigned long scale;
 	int i;
