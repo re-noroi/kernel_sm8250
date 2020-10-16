@@ -457,31 +457,33 @@ eg indices 64-127 may be tied together, but 2-6 may not be.  This may
 save substantial quantities of memory; for example tying 512 entries
 together will save over 4kB.
 
-You can create a multi-index entry by using :c:func:`XA_STATE_ORDER`
-or :c:func:`xas_set_order` followed by a call to :c:func:`xas_store`.
-Calling :c:func:`xas_load` with a multi-index xa_state will walk the
+You can create a multi-index entry by using XA_STATE_ORDER()
+or xas_set_order() followed by a call to xas_store().
+Calling xas_load() with a multi-index xa_state will walk the
 xa_state to the right location in the tree, but the return value is not
 meaningful, potentially being an internal entry or ``NULL`` even when there
-is an entry stored within the range.  Calling :c:func:`xas_find_conflict`
+is an entry stored within the range.  Calling xas_find_conflict()
 will return the first entry within the range or ``NULL`` if there are no
-entries in the range.  The :c:func:`xas_for_each_conflict` iterator will
+entries in the range.  The xas_for_each_conflict() iterator will
 iterate over every entry which overlaps the specified range.
 
-If :c:func:`xas_load` encounters a multi-index entry, the xa_index
+If xas_load() encounters a multi-index entry, the xa_index
 in the xa_state will not be changed.  When iterating over an XArray
-or calling :c:func:`xas_find`, if the initial index is in the middle
+or calling xas_find(), if the initial index is in the middle
 of a multi-index entry, it will not be altered.  Subsequent calls
 or iterations will move the index to the first index in the range.
 Each entry will only be returned once, no matter how many indices it
 occupies.
 
-Using :c:func:`xas_next` or :c:func:`xas_prev` with a multi-index xa_state
-is not supported.  Using either of these functions on a multi-index entry
-will reveal sibling entries; these should be skipped over by the caller.
+Using xas_next() or xas_prev() with a multi-index xa_state is not
+supported.  Using either of these functions on a multi-index entry will
+reveal sibling entries; these should be skipped over by the caller.
 
-Storing ``NULL`` into any index of a multi-index entry will set the entry
-at every index to ``NULL`` and dissolve the tie.  Splitting a multi-index
-entry into entries occupying smaller ranges is not yet supported.
+Storing ``NULL`` into any index of a multi-index entry will set the
+entry at every index to ``NULL`` and dissolve the tie.  A multi-index
+entry can be split into entries occupying smaller ranges by calling
+xas_split_alloc() without the xa_lock held, followed by taking the lock
+and calling xas_split().
 
 Functions and structures
 ========================
