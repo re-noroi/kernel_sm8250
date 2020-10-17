@@ -300,7 +300,10 @@ create_elf_tables(struct linux_binprm *bprm, struct elfhdr *exec,
 	 * Grow the stack manually; some architectures have a limit on how
 	 * far ahead a user-space access may be in order to grow the stack.
 	 */
+	if (mmap_write_lock_killable(current->mm))
+		return -EINTR;
 	vma = find_extend_vma(current->mm, bprm->p);
+	mmap_write_unlock(current->mm);
 	if (!vma)
 		return -EFAULT;
 
