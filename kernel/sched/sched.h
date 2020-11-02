@@ -1885,7 +1885,7 @@ struct sched_class {
 
 #ifdef CONFIG_SMP
 	int (*balance)(struct rq *rq, struct task_struct *prev, struct rq_flags *rf);
-	int  (*select_task_rq)(struct task_struct *p, int task_cpu, int sd_flag, int flags);
+	int  (*select_task_rq)(struct task_struct *p, int task_cpu, int flags);
 	struct task_struct * (*pick_task)(struct rq *rq);
 
 	void (*migrate_task_rq)(struct task_struct *p, int new_cpu);
