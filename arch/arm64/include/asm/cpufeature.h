@@ -598,6 +598,11 @@ void spectre_bhb_enable_mitigation(const struct arm64_cpu_capabilities *__unused
 #ifdef CONFIG_ARM64_AMU_EXTN
 /* Check whether the cpu supports the Activity Monitors Unit (AMU) */
 extern bool cpu_has_amu_feat(int cpu);
+#else
+static inline bool cpu_has_amu_feat(int cpu)
+{
+	return false;
+}
 #endif
 
 #endif /* __ASSEMBLY__ */
