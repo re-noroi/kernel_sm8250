@@ -29,6 +29,8 @@ extern struct lsm_blob_sizes bpf_lsm_blob_sizes;
 int bpf_lsm_verify_prog(struct bpf_verifier_log *vlog,
 			const struct bpf_prog *prog);
 
+bool bpf_lsm_is_sleepable_hook(u32 btf_id);
+
 static inline struct bpf_storage_blob *bpf_inode(
 	const struct inode *inode)
 {
@@ -57,6 +59,10 @@ void bpf_task_storage_free(struct task_struct *task);
 #else /* !CONFIG_BPF_LSM */
 
 #define bpf_lsm_initialized false
+static inline bool bpf_lsm_is_sleepable_hook(u32 btf_id)
+{
+	return false;
+}
 
 static inline int bpf_lsm_verify_prog(struct bpf_verifier_log *vlog,
 				      const struct bpf_prog *prog)
