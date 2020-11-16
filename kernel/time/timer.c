@@ -1739,27 +1739,6 @@ void timer_clear_idle(void)
 }
 #endif
 
-/*
- * Called from the timer interrupt handler to charge one tick to the current
- * process.  user_tick is 1 if the tick is user time, 0 for system.
- */
-void update_process_times(int user_tick)
-{
-	struct task_struct *p = current;
-
-	/* Note: this timer irq context must be accounted for as well. */
-	account_process_tick(p, user_tick);
-	run_local_timers();
-	rcu_sched_clock_irq(user_tick);
-#ifdef CONFIG_IRQ_WORK
-	if (in_irq())
-		irq_work_tick();
-#endif
-	scheduler_tick();
-	if (IS_ENABLED(CONFIG_POSIX_TIMERS))
-		run_posix_cpu_timers(p);
-}
-
 /**
  * __run_timers - run all expired timers (if any) on this CPU.
  * @base: the timer vector to be processed.
@@ -1812,7 +1791,7 @@ static __latent_entropy void run_timer_softirq(struct softirq_action *h)
 /*
  * Called by the local, per-CPU timer interrupt on SMP.
  */
-void run_local_timers(void)
+static void run_local_timers(void)
 {
 	struct timer_base *base = this_cpu_ptr(&timer_bases[BASE_STD]);
 
@@ -1827,6 +1806,27 @@ void run_local_timers(void)
 			return;
 	}
 	raise_softirq(TIMER_SOFTIRQ);
+}
+
+/*
+ * Called from the timer interrupt handler to charge one tick to the current
+ * process.  user_tick is 1 if the tick is user time, 0 for system.
+ */
+void update_process_times(int user_tick)
+{
+	struct task_struct *p = current;
+
+	/* Note: this timer irq context must be accounted for as well. */
+	account_process_tick(p, user_tick);
+	run_local_timers();
+	rcu_sched_clock_irq(user_tick);
+#ifdef CONFIG_IRQ_WORK
+	if (in_irq())
+		irq_work_tick();
+#endif
+	scheduler_tick();
+	if (IS_ENABLED(CONFIG_POSIX_TIMERS))
+		run_posix_cpu_timers(p);
 }
 
 /*
