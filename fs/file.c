@@ -691,29 +691,59 @@ EXPORT_SYMBOL(__close_fd); /* for ksys_close() */
  */
 int __close_fd_get_file(unsigned int fd, struct file **res)
 {
-	struct files_struct *files = current->files;
-	struct file *file;
-	struct fdtable *fdt;
+    struct files_struct *files = current->files;
+    struct file *file;
+    struct fdtable *fdt;
 
-	spin_lock(&files->file_lock);
-	fdt = files_fdtable(files);
-	if (fd >= fdt->max_fds)
-		goto out_unlock;
-	file = fdt->fd[fd];
-	if (!file)
-		goto out_unlock;
-	rcu_assign_pointer(fdt->fd[fd], NULL);
-	__put_unused_fd(files, fd);
-	spin_unlock(&files->file_lock);
-	get_file(file);
-	*res = file;
-	return 0;
+    spin_lock(&files->file_lock);
+    fdt = files_fdtable(files);
+    if (fd >= fdt->max_fds)
+        goto out_unlock;
+    file = fdt->fd[fd];
+    if (!file)
+        goto out_unlock;
+    rcu_assign_pointer(fdt->fd[fd], NULL);
+    __put_unused_fd(files, fd);
+    spin_unlock(&files->file_lock);
+    get_file(file);
+    *res = file;
+    return 0;
 
 out_unlock:
-	spin_unlock(&files->file_lock);
-	*res = NULL;
-	return -ENOENT;
-}	
+    spin_unlock(&files->file_lock);
+    *res = NULL;
+    return -ENOENT;
+}
+
+static inline void __range_cloexec(struct files_struct *cur_fds,
+                   unsigned int fd, unsigned int max_fd)
+{
+    struct fdtable *fdt;
+
+    if (fd > max_fd)
+        return;
+
+    spin_lock(&cur_fds->file_lock);
+    fdt = files_fdtable(cur_fds);
+    bitmap_set(fdt->close_on_exec, fd, max_fd - fd + 1);
+    spin_unlock(&cur_fds->file_lock);
+}
+
+static inline void __range_close(struct files_struct *cur_fds, unsigned int fd,
+                 unsigned int max_fd)
+{
+    while (fd <= max_fd) {
+        struct file *file;
+
+        file = pick_file(cur_fds, fd++);
+        if (!file)
+            continue;
+
+        filp_close(file, cur_fds);
+        cond_resched();
+    }
+}
+
 /**
  * __close_range() - Close all file descriptors in a given range.
  *
@@ -729,7 +759,7 @@ int __close_range(unsigned fd, unsigned max_fd, unsigned int flags)
 	struct task_struct *me = current;
 	struct files_struct *cur_fds = me->files, *fds = NULL;
 
-	if (flags & ~CLOSE_RANGE_UNSHARE)
+	if (flags & ~(CLOSE_RANGE_UNSHARE | CLOSE_RANGE_CLOEXEC))
 		return -EINVAL;
 
 	if (fd > max_fd)
@@ -767,16 +797,11 @@ int __close_range(unsigned fd, unsigned max_fd, unsigned int flags)
 	}
 
 	max_fd = min(max_fd, cur_max);
-	while (fd <= max_fd) {
-		struct file *file;
 
-		file = pick_file(cur_fds, fd++);
-		if (!file)
-			continue;
-
-		filp_close(file, cur_fds);
-		cond_resched();
-	}
+	if (flags & CLOSE_RANGE_CLOEXEC)
+		__range_cloexec(cur_fds, fd, max_fd);
+	else
+		__range_close(cur_fds, fd, max_fd);
 
 	if (fds) {
 		/*
