@@ -25,7 +25,7 @@ notrace static unsigned int check_preemption_disabled(const char *what1,
 	if (cpumask_equal(&current->cpus_allowed, cpumask_of(this_cpu)))
 		goto out;
 
-#if defined(CONFIG_SMP) && defined(CONFIG_PREEMPT_RT)
+#ifdef CONFIG_SMP
 	if (current->migration_disabled)
 		goto out;
 #endif
