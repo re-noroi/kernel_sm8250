@@ -473,10 +473,12 @@ END {
 		dump(first, i, batchnum);
 }' >> $T/script
 
-cat << ___EOF___ >> $T/script
+cat << '___EOF___' >> $T/script
 echo
 echo
 echo " --- `date` Test summary:"
+___EOF___
+cat << ___EOF___ >> $T/script
 echo Results directory: $resdir/$ds
 kvm-recheck.sh $resdir/$ds
 ___EOF___
