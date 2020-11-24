@@ -411,6 +411,31 @@ int ima_file_check(struct file *file, int mask)
 }
 EXPORT_SYMBOL_GPL(ima_file_check);
 
+static int __ima_inode_hash(struct inode *inode, char *buf, size_t buf_size)
+{
+	struct integrity_iint_cache *iint;
+	int hash_algo;
+
+	if (!ima_policy_flag)
+		return -EOPNOTSUPP;
+
+	iint = integrity_iint_find(inode);
+	if (!iint)
+		return -EOPNOTSUPP;
+
+	mutex_lock(&iint->mutex);
+	if (buf) {
+		size_t copied_size;
+
+		copied_size = min_t(size_t, iint->ima_hash->length, buf_size);
+		memcpy(buf, iint->ima_hash->digest, copied_size);
+	}
+	hash_algo = iint->ima_hash->algo;
+	mutex_unlock(&iint->mutex);
+
+	return hash_algo;
+}
+
 /**
  * ima_file_hash - return the stored measurement if a file has been hashed and
  * is in the iint cache.
@@ -431,34 +456,39 @@ EXPORT_SYMBOL_GPL(ima_file_check);
  */
 int ima_file_hash(struct file *file, char *buf, size_t buf_size)
 {
-	struct inode *inode;
-	struct integrity_iint_cache *iint;
-	int hash_algo;
-
 	if (!file)
 		return -EINVAL;
 
-	if (!ima_policy_flag)
-		return -EOPNOTSUPP;
-
-	inode = file_inode(file);
-	iint = integrity_iint_find(inode);
-	if (!iint)
-		return -EOPNOTSUPP;
-
-	mutex_lock(&iint->mutex);
-	if (buf) {
-		size_t copied_size;
-
-		copied_size = min_t(size_t, iint->ima_hash->length, buf_size);
-		memcpy(buf, iint->ima_hash->digest, copied_size);
-	}
-	hash_algo = iint->ima_hash->algo;
-	mutex_unlock(&iint->mutex);
-
-	return hash_algo;
+	return __ima_inode_hash(file_inode(file), buf, buf_size);
 }
 EXPORT_SYMBOL_GPL(ima_file_hash);
+
+/**
+ * ima_inode_hash - return the stored measurement if the inode has been hashed
+ * and is in the iint cache.
+ * @inode: pointer to the inode
+ * @buf: buffer in which to store the hash
+ * @buf_size: length of the buffer
+ *
+ * On success, return the hash algorithm (as defined in the enum hash_algo).
+ * If buf is not NULL, this function also outputs the hash into buf.
+ * If the hash is larger than buf_size, then only buf_size bytes will be copied.
+ * It generally just makes sense to pass a buffer capable of holding the largest
+ * possible hash: IMA_MAX_DIGEST_SIZE.
+ * The hash returned is based on the entire contents, including the appended
+ * signature.
+ *
+ * If IMA is disabled or if no measurement is available, return -EOPNOTSUPP.
+ * If the parameters are incorrect, return -EINVAL.
+ */
+int ima_inode_hash(struct inode *inode, char *buf, size_t buf_size)
+{
+	if (!inode)
+		return -EINVAL;
+
+	return __ima_inode_hash(inode, buf, buf_size);
+}
+EXPORT_SYMBOL_GPL(ima_inode_hash);
 
 /**
  * ima_post_create_tmpfile - mark newly created tmpfile as new
