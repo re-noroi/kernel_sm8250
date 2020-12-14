@@ -38,6 +38,7 @@ static inline __maybe_unused unsigned long map_util_perf(unsigned long util)
 {
 	return util + (util >> 2);
 }
+
 #endif /* CONFIG_CPU_FREQ */
 
 #endif /* _LINUX_SCHED_CPUFREQ_H */
