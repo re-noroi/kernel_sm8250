@@ -1055,9 +1055,12 @@ int copy_page_range(struct mm_struct *dst_mm, struct mm_struct *src_mm,
 	is_cow = is_cow_mapping(vma->vm_flags);
 	mmun_start = addr;
 	mmun_end   = end;
-	if (is_cow)
+	if (is_cow) {
+		mmap_assert_write_locked(src_mm);
+		raw_write_seqcount_begin(&src_mm->write_protect_seq);
 		mmu_notifier_invalidate_range_start(src_mm, mmun_start,
 						    mmun_end);
+	}
 
 	ret = 0;
 	dst_pgd = pgd_offset(dst_mm, addr);
@@ -1073,8 +1076,10 @@ int copy_page_range(struct mm_struct *dst_mm, struct mm_struct *src_mm,
 		}
 	} while (dst_pgd++, src_pgd++, addr = next, addr != end);
 
-	if (is_cow)
+	if (is_cow) {
+		raw_write_seqcount_end(&src_mm->write_protect_seq);
 		mmu_notifier_invalidate_range_end(src_mm, mmun_start, mmun_end);
+	}
 	return ret;
 }
 
