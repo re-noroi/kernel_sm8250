@@ -418,3 +418,4 @@
 434	common	pidfd_open		sys_pidfd_open
 436	common	close_range		sys_close_range
 440	common	process_madvise		sys_process_madvise
+441	common	epoll_pwait2		sys_epoll_pwait2
