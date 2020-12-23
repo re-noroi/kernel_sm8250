@@ -14,3 +14,4 @@ egrep 'Badness|WARNING:|Warn|BUG|===========|Call Trace:|Oops:|detected stalls o
 grep -v 'ODEBUG: ' |
 grep -v 'This means that this is a DEBUG kernel and it is' |
 grep -v 'Warning: unable to open an initial console'
+grep -v 'Warning: Failed to add ttynull console. No stdin, stdout, and stderr.*the init process!' |
