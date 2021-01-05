@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2016-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
  */
 
 #define pr_fmt(fmt) "%s:%s " fmt, KBUILD_MODNAME, __func__
@@ -27,8 +27,6 @@
 #include <asm/cacheflush.h>
 
 #include <soc/qcom/scm.h>
-
-#include "../thermal_core.h"
 #include "lmh_dbg.h"
 
 #define CREATE_TRACE_POINTS
