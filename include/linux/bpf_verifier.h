@@ -370,6 +370,7 @@ struct bpf_insn_aux_data {
 };
 
 #define MAX_USED_MAPS 64 /* max number of maps accessed by one eBPF program */
+#define MAX_USED_BTFS 64 /* max number of BTFs accessed by one BPF program */
 
 #define BPF_VERIFIER_TMP_LOG_SIZE	1024
 
@@ -437,7 +438,9 @@ struct bpf_verifier_env {
 	struct bpf_verifier_state_list **explored_states; /* search pruning optimization */
 	struct bpf_verifier_state_list *free_list;
 	struct bpf_map *used_maps[MAX_USED_MAPS]; /* array of map's used by eBPF program */
+	struct btf_mod_pair used_btfs[MAX_USED_BTFS]; /* array of BTF's used by BPF program */
 	u32 used_map_cnt;		/* number of used maps */
+	u32 used_btf_cnt;		/* number of used BTF objects */
 	u32 id_gen;			/* used to generate unique reg IDs */
 	bool explore_alu_limits;
 	bool allow_ptr_leaks;
