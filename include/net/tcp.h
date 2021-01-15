@@ -424,6 +424,7 @@ int tcp_getsockopt(struct sock *sk, int level, int optname,
 		   char __user *optval, int __user *optlen);
 int tcp_setsockopt(struct sock *sk, int level, int optname,
 		   char __user *optval, unsigned int optlen);
+bool tcp_bpf_bypass_getsockopt(int level, int optname);
 int compat_tcp_getsockopt(struct sock *sk, int level, int optname,
 			  char __user *optval, int __user *optlen);
 int compat_tcp_setsockopt(struct sock *sk, int level, int optname,
