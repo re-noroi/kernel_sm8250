@@ -23987,9 +23987,9 @@ static void hdd_update_chan_info(struct hdd_context *hdd_ctx,
 			struct scan_chan_info *chan,
 			struct scan_chan_info *info, uint32_t cmd_flag)
 {
-	if ((info->cmd_flag != WMI_CHAN_InFO_START_RESP) &&
+	/*if ((info->cmd_flag != WMI_CHAN_InFO_START_RESP) &&
 	   (info->cmd_flag != WMI_CHAN_InFO_END_RESP))
-		hdd_err("cmd flag is invalid: %d", info->cmd_flag);
+		hdd_err("cmd flag is invalid: %d", info->cmd_flag);*/
 
 	mutex_lock(&hdd_ctx->chan_info_lock);
 
