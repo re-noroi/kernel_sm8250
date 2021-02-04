@@ -2646,7 +2646,7 @@ INDIRECT_CALLABLE_SCOPE struct dst_entry *ip6_dst_check(struct dst_entry *dst,
 
 	return dst_ret;
 }
-EXPORT_SYMBOL(ip6_dst_check);
+EXPORT_INDIRECT_CALLABLE(ip6_dst_check);
 
 static void ip6_negative_advice(struct sock *sk,
 				struct dst_entry *dst)
@@ -3122,7 +3122,7 @@ out:
 
 	return mtu - lwtunnel_headroom(dst->lwtstate, mtu);
 }
-EXPORT_SYMBOL(ip6_mtu);
+EXPORT_INDIRECT_CALLABLE(ip6_mtu);
 
 /* MTU selection:
  * 1. mtu on route is locked - use it
