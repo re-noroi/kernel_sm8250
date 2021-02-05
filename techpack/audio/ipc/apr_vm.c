@@ -1299,7 +1299,7 @@ static struct notifier_block modem_service_nb = {
 };
 
 #ifdef CONFIG_DEBUG_FS
-static int __init apr_debug_init(void)
+static int apr_debug_init(void)
 {
 	debugfs_apr_debug = debugfs_create_file("msm_apr_debug",
 						 S_IFREG | 0444, NULL, NULL,
@@ -1307,7 +1307,7 @@ static int __init apr_debug_init(void)
 	return 0;
 }
 #else
-static int __init apr_debug_init(void)
+static int apr_debug_init(void)
 {
 	return 0;
 }
