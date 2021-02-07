@@ -3899,9 +3899,6 @@ mlxsw_sp_fib4_entry_offload_set(struct mlxsw_sp_fib_entry *fib_entry)
 	struct mlxsw_sp_nexthop_group *nh_grp = fib_entry->nh_group;
 	int i;
 
-	if (fib_entry->type == MLXSW_SP_FIB_ENTRY_TYPE_LOCAL ||
-	    fib_entry->type == MLXSW_SP_FIB_ENTRY_TYPE_IPIP_DECAP) {
-		nh_grp->nexthops->key.fib_nh->fib_nh_flags |= RTNH_F_OFFLOAD;
 		return;
 	}
 
