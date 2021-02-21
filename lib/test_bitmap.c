@@ -232,28 +232,6 @@ struct test_bitmap_parselist{
 	const int flags;
 };
 
-<<<<<<< HEAD
-static const unsigned long exp1[] __initconst = {
-	BITMAP_FROM_U64(1),
-	BITMAP_FROM_U64(2),
-	BITMAP_FROM_U64(0x0000ffff),
-	BITMAP_FROM_U64(0xffff0000),
-	BITMAP_FROM_U64(0x55555555),
-	BITMAP_FROM_U64(0xaaaaaaaa),
-	BITMAP_FROM_U64(0x11111111),
-	BITMAP_FROM_U64(0x22222222),
-	BITMAP_FROM_U64(0xffffffff),
-	BITMAP_FROM_U64(0xfffffffe),
-	BITMAP_FROM_U64(0x3333333311111111ULL),
-	BITMAP_FROM_U64(0xffffffff77777777ULL)
-};
-
-static const unsigned long exp2[] __initconst = {
-	BITMAP_FROM_U64(0x3333333311111111ULL),
-	BITMAP_FROM_U64(0xffffffff77777777ULL)
-};
-
-=======
 static const struct test_bitmap_parselist parselist_tests[] __initconst = {
 #define step (sizeof(u64) / sizeof(unsigned long))
 
