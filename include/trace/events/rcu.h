@@ -268,6 +268,7 @@ TRACE_EVENT(rcu_exp_funnel_lock,
  *	"WokeNonEmpty": rcuo kthread woke to find non-empty list.
  *	"WaitQueue": Enqueue partially done, timed wait for it to complete.
  *	"WokeQueue": Partial enqueue now complete.
+ *	"WakeBypassIsDeferred": Wake rcuo kthread later, bypass list is contended.
  */
 TRACE_EVENT(rcu_nocb_wake,
 
