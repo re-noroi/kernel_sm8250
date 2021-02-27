@@ -50,6 +50,12 @@
 #include <linux/random.h>
 #include <linux/jhash.h>
 #include <linux/nmi.h>
+<<<<<<< HEAD
+=======
+#include <linux/rcupdate.h>
+#include <linux/kprobes.h>
+#include <linux/lockdep.h>
+>>>>>>> 1b251ed3225ed (lockdep: Add lockdep lock state defines)
 
 #include <asm/sections.h>
 #include <asm/stacktrace.h>
@@ -3915,14 +3921,19 @@ static int __lock_is_held(const struct lockdep_map *lock, int read)
 		struct held_lock *hlock = curr->held_locks + i;
 
 		if (match_held_lock(hlock, lock)) {
+<<<<<<< HEAD
 			if (read == -1 || hlock->read == read)
 				return 1;
+=======
+			if (read == -1 || !!hlock->read == read)
+				return LOCK_STATE_HELD;
+>>>>>>> 1b251ed3225ed (lockdep: Add lockdep lock state defines)
 
-			return 0;
+			return LOCK_STATE_NOT_HELD;
 		}
 	}
 
-	return 0;
+	return LOCK_STATE_NOT_HELD;
 }
 
 static struct pin_cookie __lock_pin_lock(struct lockdep_map *lock)
@@ -4133,14 +4144,14 @@ EXPORT_SYMBOL_GPL(lock_release);
 int lock_is_held_type(const struct lockdep_map *lock, int read)
 {
 	unsigned long flags;
-	int ret = 0;
+	int ret = LOCK_STATE_NOT_HELD;
 
 	/*
 	 * Avoid false negative lockdep_assert_held() and
 	 * lockdep_assert_not_held().
 	 */
 	if (unlikely(current->lockdep_recursion))
-		return -1;
+		return LOCK_STATE_UNKNOWN;
 
 	raw_local_irq_save(flags);
 	check_flags(flags);
