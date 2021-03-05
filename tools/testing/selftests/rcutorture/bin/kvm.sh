@@ -67,7 +67,7 @@ usage () {
 	echo "       --cpus N"
 	echo "       --datestamp string"
 	echo "       --defconfig string"
-	echo "       --dryrun batches|sched|script"
+	echo "       --dryrun batches|scenarios|sched|script"
 	echo "       --duration minutes | <seconds>s | <hours>h | <days>d"
 	echo "       --interactive"
 	echo "       --jitter N [ maxsleep (us) [ maxspin (us) ] ]"
@@ -124,7 +124,7 @@ do
 		shift
 		;;
 	--dryrun)
-		checkarg --dryrun "batches|sched|script" $# "$2" 'batches\|sched\|script' '^--'
+		checkarg --dryrun "batches|sched|script" $# "$2" 'batches\|scenarios\|sched\|script' '^--'
 		dryrun=$2
 		shift
 		;;
@@ -516,6 +516,25 @@ egrep 'Start batch|Starting build\.' $T/script | grep -v ">>" |
 		print batchno, $1, $2
 	}' > $T/batches
 
+# As above, but one line per batch.
+grep -v '^#' $T/batches | awk '
+BEGIN {
+	oldbatch = 1;
+}
+
+{
+	if (oldbatch != $1) {
+		print ++n ". " curbatch;
+		curbatch = "";
+		oldbatch = $1;
+	}
+	curbatch = curbatch " " $2;
+}
+
+END {
+	print ++n ". " curbatch;
+}' > $T/scenarios
+
 if test "$dryrun" = script
 then
 	cat $T/script
@@ -536,11 +555,16 @@ elif test "$dryrun" = batches
 then
 	cat $T/batches
 	exit 0
+elif test "$dryrun" = scenarios
+then
+	cat $T/scenarios
+	exit 0
 else
 	# Not a dryrun.  Record the batches and the number of CPUs, then run the script.
 	bash $T/script
 	ret=$?
 	cp $T/batches $resdir/$ds/batches
+	cp $T/scenarios $resdir/$ds/scenarios
 	echo '#' cpus=$cpus >> $resdir/$ds/batches
 	echo " --- Done at `date` (`get_starttime_duration $starttime`) exitcode $ret" | tee -a $resdir/$ds/log
 	exit $ret
