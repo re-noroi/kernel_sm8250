@@ -28,7 +28,7 @@ __weak bool arch_freq_counters_available(const struct cpumask *cpus)
 {
 	return false;
 }
-DEFINE_PER_CPU(unsigned long, freq_scale) = SCHED_CAPACITY_SCALE;
+DEFINE_PER_CPU(unsigned long, arch_freq_scale) = SCHED_CAPACITY_SCALE;
 static DEFINE_PER_CPU(u32, freq_factor) = 1;
 
 void arch_set_freq_scale(const struct cpumask *cpus, unsigned long cur_freq,
@@ -51,7 +51,7 @@ void arch_set_freq_scale(const struct cpumask *cpus, unsigned long cur_freq,
 	scale = (cur_freq << SCHED_CAPACITY_SHIFT) / max_freq;
 
 	for_each_cpu(i, cpus)
-		per_cpu(freq_scale, i) = scale;
+		per_cpu(arch_freq_scale, i) = scale;
 }
 
 static DEFINE_MUTEX(cpu_scale_mutex);
