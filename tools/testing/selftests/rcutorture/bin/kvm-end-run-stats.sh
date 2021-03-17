@@ -32,7 +32,6 @@ echo | tee -a "$rundir/log"
 echo | tee -a "$rundir/log"
 echo " --- `date` Test summary:" | tee -a "$rundir/log"
 echo Results directory: $rundir | tee -a "$rundir/log"
-kcsan-collapse.sh "$rundir" | tee -a "$rundir/log"
 kvm-recheck.sh "$rundir" > $T/kvm-recheck.sh.out 2>&1
 ret=$?
 cat $T/kvm-recheck.sh.out | tee -a "$rundir/log"
