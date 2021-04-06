@@ -52,9 +52,6 @@ static inline bool policy_is_inactive(struct cpufreq_policy *policy)
 #define for_each_inactive_policy(__policy)		\
 	for_each_suitable_policy(__policy, false)
 
-#define for_each_policy(__policy)			\
-	list_for_each_entry(__policy, &cpufreq_policy_list, policy_list)
-
 /* Iterate over governors */
 static LIST_HEAD(cpufreq_governor_list);
 #define for_each_governor(__governor)				\
