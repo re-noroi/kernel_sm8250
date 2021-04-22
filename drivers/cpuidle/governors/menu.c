@@ -136,7 +136,7 @@ static inline int get_loadavg(unsigned long load)
 	return LOAD_INT(load) * 10 + LOAD_FRAC(load) / 10;
 }
 
-static inline int which_bucket(unsigned int duration, unsigned long nr_iowaiters)
+static inline int which_bucket(unsigned int duration, unsigned int nr_iowaiters)
 {
 	int bucket = 0;
 
@@ -169,7 +169,7 @@ static inline int which_bucket(unsigned int duration, unsigned long nr_iowaiters
  * to be, the higher this multiplier, and thus the higher
  * the barrier to go to an expensive C state.
  */
-static inline int performance_multiplier(unsigned long nr_iowaiters, unsigned long load)
+static inline int performance_multiplier(unsigned int nr_iowaiters, unsigned long load)
 {
 	int mult = 1;
 
@@ -291,7 +291,7 @@ static int menu_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
 	int idx;
 	unsigned int interactivity_req;
 	unsigned int expected_interval;
-	unsigned long nr_iowaiters, cpu_load;
+	unsigned int nr_iowaiters, cpu_load;
 	ktime_t delta_next;
 
 	if (data->needs_update) {
