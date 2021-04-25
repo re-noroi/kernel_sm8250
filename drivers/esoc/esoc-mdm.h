@@ -37,7 +37,6 @@
 #define SFR_RETRY_INTERVAL		1000
 #define MDM_DBG_OFFSET			0x934
 #define MDM_DBG_MODE			0x53444247
-#define MDM_CTI_NAME			"coresight-cti-rpm-cpu0"
 #define MDM_CTI_TRIG			0
 #define MDM_CTI_CH			0
 
@@ -95,7 +94,6 @@ struct mdm_ctrl {
 	u32 status;
 	void __iomem *dbg_addr;
 	bool dbg_mode;
-	struct coresight_cti *cti;
 	int trig_cnt;
 	const struct mdm_pon_ops *pon_ops;
 	bool skip_restart_for_mdm_crash;
