@@ -39,7 +39,6 @@
 #include "diagfwd_peripheral.h"
 #include "diagfwd_mhi.h"
 
-#include <linux/coresight-stm.h>
 #include <linux/kernel.h>
 #include <linux/kmemleak.h>
 #ifdef CONFIG_COMPAT
@@ -3647,12 +3646,6 @@ static int diag_user_process_apps_data(const char __user *buf, int len,
 
 	if (driver->stm_state[APPS_DATA] &&
 	    (pkt_type >= DATA_TYPE_EVENT) && (pkt_type <= DATA_TYPE_LOG)) {
-		stm_size = stm_log_inv_ts(OST_ENTITY_DIAG, 0, user_space_data,
-					  len);
-		if (stm_size == 0) {
-			pr_debug("diag: In %s, stm_log_inv_ts returned size of 0\n",
-				 __func__);
-		}
 		diagmem_free(driver, user_space_data, mempool);
 		user_space_data = NULL;
 

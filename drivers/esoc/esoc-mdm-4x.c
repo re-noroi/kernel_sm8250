@@ -4,8 +4,6 @@
  * Copyright (C) 2021 XiaoMi, Inc.
  */
 
-#include <linux/coresight.h>
-#include <linux/coresight-cti.h>
 #include <linux/workqueue.h>
 #include <linux/sched/clock.h>
 #include <soc/qcom/sysmon.h>
@@ -242,18 +240,6 @@ static void mdm_update_gpio_configs(struct mdm_ctrl *mdm,
 	if (pins_state != NULL) {
 		if (pinctrl_select_state(mdm->pinctrl, pins_state))
 			dev_err(mdm->dev, "switching gpio config failed\n");
-	}
-}
-
-static void mdm_trigger_dbg(struct mdm_ctrl *mdm)
-{
-	int ret;
-
-	if (mdm->dbg_mode && !mdm->trig_cnt) {
-		ret = coresight_cti_pulse_trig(mdm->cti, MDM_CTI_CH);
-		mdm->trig_cnt++;
-		if (ret)
-			dev_err(mdm->dev, "unable to trigger cti pulse on\n");
 	}
 }
 
@@ -643,7 +629,6 @@ static irqreturn_t mdm_status_change(int irq, void *dev_id)
 		dev_dbg(dev, "status = 1: mdm is now ready\n");
 		mdm->ready = true;
 		esoc_clink_evt_notify(ESOC_BOOT_STATE, esoc);
-		mdm_trigger_dbg(mdm);
 		queue_work(mdm->mdm_queue, &mdm->mdm_status_work);
 		if (mdm->get_restart_reason)
 			queue_work(mdm->mdm_queue, &mdm->restart_reason_work);
@@ -668,7 +653,6 @@ static irqreturn_t mdm_pblrdy_change(int irq, void *dev_id)
 			gpio_get_value(MDM_GPIO(mdm, MDM2AP_PBLRDY)));
 	if (mdm->init) {
 		mdm->init = 0;
-		mdm_trigger_dbg(mdm);
 		esoc_clink_queue_request(ESOC_REQ_IMG, esoc);
 		return IRQ_HANDLED;
 	}
