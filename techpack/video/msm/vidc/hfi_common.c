@@ -6,7 +6,6 @@
 #include <asm/dma-iommu.h>
 #include <asm/memory.h>
 #include <linux/clk/qcom.h>
-#include <linux/coresight-stm.h>
 #include <linux/delay.h>
 #include <linux/hash.h>
 #include <linux/interrupt.h>
@@ -3140,12 +3139,6 @@ static void __flush_debug_queue(struct venus_hfi_device *device, u8 *packet)
 
 			SKIP_INVALID_PKT(pkt->size,
 				pkt->msg_size, sizeof(*pkt));
-
-			stm_size = stm_log_inv_ts(0, 0,
-				pkt->rg_msg_data, pkt->msg_size);
-			if (stm_size == 0)
-				d_vpr_e("In %s, stm_log returned size of 0\n",
-					__func__);
 
 		} else if (pkt->packet_type == HFI_MSG_SYS_DEBUG) {
 			struct hfi_msg_sys_debug_packet *pkt =
