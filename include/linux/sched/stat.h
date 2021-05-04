@@ -3,6 +3,7 @@
 #define _LINUX_SCHED_STAT_H
 
 #include <linux/percpu.h>
+#include <linux/kconfig.h>
 
 /*
  * Various counters maintained by the scheduler and fork(),
@@ -39,14 +40,7 @@ static inline u64 sched_lpm_disallowed_time(int cpu)
 
 static inline int sched_info_on(void)
 {
-#ifdef CONFIG_SCHEDSTATS
-	return 1;
-#elif defined(CONFIG_TASK_DELAY_ACCT)
-	extern int delayacct_on;
-	return delayacct_on;
-#else
-	return 0;
-#endif
+	return IS_ENABLED(CONFIG_SCHED_INFO);
 }
 
 #ifdef CONFIG_SCHEDSTATS
