@@ -11,14 +11,14 @@
 DECLARE_EVENT_CLASS(cma_alloc_class,
 
 	TP_PROTO(unsigned long pfn, const struct page *page,
-		 unsigned int count, unsigned int align),
+		 unsigned long count, unsigned int align),
 
 	TP_ARGS(pfn, page, count, align),
 
 	TP_STRUCT__entry(
 		__field(unsigned long, pfn)
 		__field(const struct page *, page)
-		__field(unsigned int, count)
+		__field(unsigned long, count)
 		__field(unsigned int, align)
 	),
 
@@ -29,7 +29,7 @@ DECLARE_EVENT_CLASS(cma_alloc_class,
 		__entry->align = align;
 	),
 
-	TP_printk("pfn=%lx page=%p count=%u align=%u",
+	TP_printk("pfn=%lx page=%p count=%lu align=%u",
 		  __entry->pfn,
 		  __entry->page,
 		  __entry->count,
@@ -39,14 +39,14 @@ DECLARE_EVENT_CLASS(cma_alloc_class,
 TRACE_EVENT(cma_release,
 
 	TP_PROTO(unsigned long pfn, const struct page *page,
-		 unsigned int count),
+		 unsigned long count),
 
 	TP_ARGS(pfn, page, count),
 
 	TP_STRUCT__entry(
 		__field(unsigned long, pfn)
 		__field(const struct page *, page)
-		__field(unsigned int, count)
+		__field(unsigned long, count)
 	),
 
 	TP_fast_assign(
@@ -55,7 +55,7 @@ TRACE_EVENT(cma_release,
 		__entry->count = count;
 	),
 
-	TP_printk("pfn=%lx page=%p count=%u",
+	TP_printk("pfn=%lx page=%p count=%lu",
 		  __entry->pfn,
 		  __entry->page,
 		  __entry->count)
@@ -63,12 +63,12 @@ TRACE_EVENT(cma_release,
 
 TRACE_EVENT(cma_alloc_start,
 
-	TP_PROTO(unsigned int count, unsigned int align),
+	TP_PROTO(unsigned long count, unsigned int align),
 
 	TP_ARGS(count, align),
 
 	TP_STRUCT__entry(
-		__field(unsigned int, count)
+		__field(unsigned long, count)
 		__field(unsigned int, align)
 	),
 
@@ -77,7 +77,7 @@ TRACE_EVENT(cma_alloc_start,
 		__entry->align = align;
 	),
 
-	TP_printk("count=%u align=%u",
+	TP_printk("count=%lu align=%u",
 		  __entry->count,
 		  __entry->align)
 );
@@ -85,7 +85,7 @@ TRACE_EVENT(cma_alloc_start,
 DEFINE_EVENT(cma_alloc_class, cma_alloc,
 
 	TP_PROTO(unsigned long pfn, const struct page *page,
-		 unsigned int count, unsigned int align),
+		 unsigned long count, unsigned int align),
 
 	TP_ARGS(pfn, page, count, align)
 );
@@ -93,7 +93,7 @@ DEFINE_EVENT(cma_alloc_class, cma_alloc,
 DEFINE_EVENT(cma_alloc_class, cma_alloc_busy_retry,
 
 	TP_PROTO(unsigned long pfn, const struct page *page,
-		 unsigned int count, unsigned int align),
+		 unsigned long count, unsigned int align),
 
 	TP_ARGS(pfn, page, count, align)
 );
