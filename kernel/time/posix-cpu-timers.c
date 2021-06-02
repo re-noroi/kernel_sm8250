@@ -995,6 +995,11 @@ static void posix_cpu_timer_rearm(struct k_itimer *timer)
 	if (WARN_ON_ONCE(!p))
 		return;
 
+	/* Protect timer list r/w in arm_timer() */
+	sighand = lock_task_sighand(p, &flags);
+	if (unlikely(sighand == NULL))
+		return;
+
 	/*
 	 * Fetch the current sample and update the timer's expiry time.
 	 */
@@ -1008,11 +1013,6 @@ static void posix_cpu_timer_rearm(struct k_itimer *timer)
 	}
 
 	bump_cpu_timer(timer, now);
-
-	/* Protect timer list r/w in arm_timer() */
-	sighand = lock_task_sighand(p, &flags);
-	if (unlikely(sighand == NULL))
-		return;
 
 	/*
 	 * Now re-arm for the new expiry time.
