@@ -19,7 +19,7 @@ struct allowedips_node {
 	u8 bits[16] __aligned(__alignof(u64));
 
 	/* Keep rarely used members at bottom to be beyond cache line. */
-	unsigned long parent_bit_packed;
+	struct allowedips_node *__rcu *parent_bit; /* XXX: this puts us at 68->128 bytes instead of 60->64 bytes!! */
 	union {
 		struct list_head peer_list;
 		struct rcu_head rcu;
@@ -30,7 +30,7 @@ struct allowedips {
 	struct allowedips_node __rcu *root4;
 	struct allowedips_node __rcu *root6;
 	u64 seq;
-} __aligned(4); /* We pack the lower 2 bits of &root, but m68k only gives 16-bit alignment. */
+};
 
 void wg_allowedips_init(struct allowedips *table);
 void wg_allowedips_free(struct allowedips *table, struct mutex *mutex);
@@ -52,8 +52,5 @@ struct wg_peer *wg_allowedips_lookup_src(struct allowedips *table,
 #ifdef DEBUG
 bool wg_allowedips_selftest(void);
 #endif
-
-int wg_allowedips_slab_init(void);
-void wg_allowedips_slab_uninit(void);
 
 #endif /* _WG_ALLOWEDIPS_H */
