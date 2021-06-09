@@ -135,6 +135,7 @@ static const u16 cpufreq_qcom_epss_std_offsets[REG_ARRAY_SIZE] = {
 
 static struct cpufreq_counter qcom_cpufreq_counter[NR_CPUS];
 static struct cpufreq_qcom *qcom_freq_domain_map[NR_CPUS];
+static struct thermal_cooling_device *cdev[NR_CPUS];
 
 static unsigned int qcom_cpufreq_hw_get(unsigned int cpu);
 
@@ -462,7 +463,6 @@ static struct freq_attr *qcom_cpufreq_hw_attr[] = {
 
 static void qcom_cpufreq_ready(struct cpufreq_policy *policy)
 {
-	static struct thermal_cooling_device *cdev[NR_CPUS];
 	struct device_node *np;
 	unsigned int cpu = policy->cpu;
 
@@ -493,6 +493,20 @@ static void qcom_cpufreq_ready(struct cpufreq_policy *policy)
 	}
 
 	of_node_put(np);
+}
+
+static int qcom_cpufreq_exit(struct cpufreq_policy *policy)
+{
+	unsigned int cpu = policy->cpu;
+
+	if (!cdev[cpu])
+		return 0;
+
+	cpufreq_cooling_unregister(cdev[cpu]);
+
+	cdev[cpu] = NULL;
+
+	return 0;
 }
 
 static int qcom_cpufreq_hw_cpu_online(struct cpufreq_policy *policy)
@@ -571,6 +585,7 @@ static struct cpufreq_driver cpufreq_qcom_hw_driver = {
 	.ready		= qcom_cpufreq_ready,
 	.online		= qcom_cpufreq_hw_cpu_online,
 	.offline	= qcom_cpufreq_hw_cpu_offline,
+	.exit		= qcom_cpufreq_exit,
 };
 
 static int cpuhp_qcom_online(unsigned int cpu)
