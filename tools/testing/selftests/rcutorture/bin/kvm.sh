@@ -367,7 +367,9 @@ then
 	git diff HEAD >> $resdir/$ds/testid.txt
 fi
 ___EOF___
-cat << '___EOF___' > $T/dumpbatches.awk
+kvm-assign-cpus.sh /sys/devices/system/node > $T/cpuarray.awk
+kvm-get-cpus-script.sh $T/cpuarray.awk $T/dumpbatches.awk
+cat << '___EOF___' >> $T/dumpbatches.awk
 BEGIN {
 	i = 0;
 }
@@ -379,7 +381,7 @@ BEGIN {
 }
 
 # Dump out the scripting required to run one test batch.
-function dump(first, pastlast, batchnum)
+function dump(first, pastlast, batchnum,  affinitylist)
 {
 	print "echo ----Start batch " batchnum ": `date` | tee -a " rd "log";
 	print "needqemurun="
@@ -403,6 +405,14 @@ function dump(first, pastlast, batchnum)
 		print "touch " builddir ".wait";
 		print "mkdir " builddir " > /dev/null 2>&1 || :";
 		print "mkdir " rd cfr[jn] " || :";
+		affinitylist = "";
+		if (gotcpus()) {
+			affinitylist = nextcpus(cpusr[jn]);
+		}
+		if (affinitylist ~ /^[0-9,-][0-9,-]*$/)
+			print "export TORTURE_AFFINITY=" affinitylist;
+		else
+			print "export TORTURE_AFFINITY=";
 		print "kvm-test-1-run.sh " CONFIGDIR cf[j], builddir, rd cfr[jn], dur " \"" TORTURE_QEMU_ARG "\" \"" TORTURE_BOOTARGS "\" > " rd cfr[jn]  "/kvm-test-1-run.sh.out 2>&1 &"
 		print "echo ", cfr[jn], cpusr[jn] ovf ": Waiting for build to complete. `date` | tee -a " rd "log";
 		print "while test -f " builddir ".wait"
