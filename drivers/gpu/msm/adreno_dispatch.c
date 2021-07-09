@@ -2300,6 +2300,10 @@ static int adreno_dispatch_process_drawqueue(struct adreno_device *adreno_dev,
 		return count;
 	}
 
+	/* Don't check timeout if we are still in middle of preemption */
+	if (!adreno_in_preempt_state(adreno_dev, ADRENO_PREEMPT_NONE))
+		return 0;
+
 	/*
 	 * If we get here then 1) the ringbuffer is current and 2) we haven't
 	 * retired anything.  Check to see if the timeout if valid for the
