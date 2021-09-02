@@ -885,8 +885,7 @@ bool tomoyo_dump_page(struct linux_binprm *bprm, unsigned long pos,
 	/*
 	 * This is called at execve() time in order to dig around
 	 * in the argv/environment of the new proceess
-	 * (represented by bprm).  'current' is the process doing
-	 * the execve().
+	 * (represented by bprm).
 	 */
 	if (get_user_pages_remote(current, bprm->mm, pos, 1,
 				FOLL_FORCE, &page, NULL, NULL) <= 0)

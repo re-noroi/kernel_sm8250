@@ -260,8 +260,10 @@ static struct page *get_arg_page(struct linux_binprm *bprm, unsigned long pos,
 	 * We are doing an exec().  'current' is the process
 	 * doing the exec and bprm->mm is the new process's mm.
 	 */
+	down_read(&bprm->mm->mmap_sem);
 	ret = get_user_pages_remote(current, bprm->mm, pos, 1, gup_flags,
 			&page, NULL, NULL);
+	up_read(&bprm->mm->mmap_sem);
 	if (ret <= 0)
 		return NULL;
 
