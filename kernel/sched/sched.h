@@ -1353,11 +1353,6 @@ DECLARE_PER_CPU_SHARED_ALIGNED(struct rq, runqueues);
 
 extern void update_rq_clock(struct rq *rq);
 
-static inline u64 __rq_clock_broken(struct rq *rq)
-{
-	return READ_ONCE(rq->clock);
-}
-
 /*
  * rq::clock_update_flags bits
  *
