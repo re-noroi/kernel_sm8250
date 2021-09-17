@@ -37,8 +37,6 @@ lib-y := ctype.o string.o vsprintf.o cmdline.o \
 	 earlycpio.o seq_buf.o siphash.o dec_and_lock.o \
 	 nodemask.o win_minmax.o
 
-lib-$(CONFIG_WATCHDOG) += nmi_backtrace.o
-
 lib-$(CONFIG_PRINTK) += dump_stack.o
 lib-$(CONFIG_MMU) += ioremap.o
 lib-$(CONFIG_SMP) += cpumask.o
