@@ -424,7 +424,6 @@ static int cpufreq_set_cur_state(struct thermal_cooling_device *cdev,
 	struct cpufreq_cooling_device *cpufreq_cdev = cdev->devdata;
 	unsigned int clip_freq;
 	struct cpumask *cpus;
-	unsigned long max_capacity, capacity;
 
 	/* Request state should be less than max_level */
 	if (state > cpufreq_cdev->max_level)
@@ -439,10 +438,7 @@ static int cpufreq_set_cur_state(struct thermal_cooling_device *cdev,
 	cpufreq_cdev->clipped_freq = clip_freq;
 
 	cpus = cpufreq_cdev->policy->related_cpus;
-	max_capacity = arch_scale_cpu_capacity(cpumask_first(cpus));
-	capacity = clip_freq * max_capacity;
-	capacity /= cpufreq_cdev->policy->cpuinfo.max_freq;
-	arch_set_thermal_pressure(cpus, max_capacity - capacity);
+	arch_update_thermal_pressure(cpus, clip_freq);
 
 	/* Check if the device has a platform mitigation function that
 	 * can handle the CPU freq mitigation, if not, notify cpufreq
