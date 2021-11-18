@@ -215,7 +215,7 @@ void clocksource_mark_unstable(struct clocksource *cs)
 	spin_unlock_irqrestore(&watchdog_lock, flags);
 }
 
-static ulong max_cswd_read_retries = 3;
+static ulong max_cswd_read_retries = 2;
 module_param(max_cswd_read_retries, ulong, 0644);
 
 enum wd_read_status {
