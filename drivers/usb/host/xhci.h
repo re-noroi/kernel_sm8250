@@ -1989,10 +1989,17 @@ static inline int xhci_link_trb_quirk(struct xhci_hcd *xhci)
 }
 
 /* xHCI debugging */
+#ifdef CONFIG_DEBUG_KERNEL
 char *xhci_get_slot_state(struct xhci_hcd *xhci,
 		struct xhci_container_ctx *ctx);
 void xhci_dbg_trace(struct xhci_hcd *xhci, void (*trace)(struct va_format *),
 			const char *fmt, ...);
+#else
+static inline char *xhci_get_slot_state(struct xhci_hcd *xhci,
+        struct xhci_container_ctx *ctx) { return 0; }
+static inline void xhci_dbg_trace(struct xhci_hcd *xhci, void (*trace)(struct va_format *),
+            const char *fmt, ...) {}
+#endif
 
 /* xHCI memory management */
 void xhci_mem_cleanup(struct xhci_hcd *xhci);
