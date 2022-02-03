@@ -20,7 +20,6 @@
 
 static DEFINE_SPINLOCK(tz_lock);
 static DEFINE_SPINLOCK(sample_lock);
-static DEFINE_SPINLOCK(suspend_lock);
 /*
  * FLOOR is 5msec to capture up to 3 re-draws
  * per frame for 60fps content.
@@ -52,8 +51,8 @@ static DEFINE_SPINLOCK(suspend_lock);
 
 #define TAG "msm_adreno_tz: "
 
-static u64 suspend_time;
-static u64 suspend_start;
+static atomic_long_t suspend_time;
+static atomic_long_t suspend_start;
 static unsigned long acc_total, acc_relative_busy;
 
 static struct msm_adreno_extended_profile *partner_gpu_profile;
@@ -67,18 +66,18 @@ static struct workqueue_struct *workqueue;
 /*
  * Returns GPU suspend time in millisecond.
  */
-u64 suspend_time_ms(void)
+static s64 suspend_time_ms(void)
 {
-	u64 suspend_sampling_time;
-	u64 time_diff = 0;
+	s64 suspend_sampling_time;
+	s64 time_diff;
 
-	if (suspend_start == 0)
+	if (!atomic_long_read(&suspend_start))
 		return 0;
 
-	suspend_sampling_time = (u64)ktime_to_ms(ktime_get());
-	time_diff = suspend_sampling_time - suspend_start;
+	suspend_sampling_time = ktime_to_ms(ktime_get());
+	time_diff = suspend_sampling_time - atomic_long_read(&suspend_start);
 	/* Update the suspend_start sample again */
-	suspend_start = suspend_sampling_time;
+	atomic_long_set(&suspend_start, suspend_sampling_time);
 	return time_diff;
 }
 
@@ -111,9 +110,8 @@ static ssize_t suspend_time_show(struct device *dev,
 	struct device_attribute *attr,
 	char *buf)
 {
-	u64 time_diff = 0;
+	s64 time_diff;
 
-	spin_lock(&suspend_lock);
 	time_diff = suspend_time_ms();
 	/*
 	 * Adding the previous suspend time also as the gpu
@@ -121,9 +119,8 @@ static ssize_t suspend_time_show(struct device *dev,
 	 * reads also and we should have the total suspend
 	 * since last read.
 	 */
-	time_diff += suspend_time;
-	suspend_time = 0;
-	spin_unlock(&suspend_lock);
+	time_diff += atomic_long_read(&suspend_time);
+	atomic_long_set(&suspend_time, 0);
 
 	return snprintf(buf, PAGE_SIZE, "%llu\n", time_diff);
 }
@@ -579,28 +576,22 @@ static int tz_handler(struct devfreq *devfreq, unsigned int event, void *data)
 		if (partner_gpu_profile && partner_gpu_profile->bus_devfreq)
 			queue_work(workqueue,
 				&gpu_profile->partner_stop_event_ws);
-		spin_lock(&suspend_lock);
-		suspend_start = 0;
-		spin_unlock(&suspend_lock);
+		atomic_long_set(&suspend_start, 0);
 		result = tz_stop(devfreq);
 		break;
 
 	case DEVFREQ_GOV_SUSPEND:
 		result = tz_suspend(devfreq);
 		if (!result) {
-			spin_lock(&suspend_lock);
 			/* Collect the start sample for suspend time */
-			suspend_start = (u64)ktime_to_ms(ktime_get());
-			spin_unlock(&suspend_lock);
+			atomic_long_set(&suspend_start, ktime_to_ms(ktime_get()));
 		}
 		break;
 
 	case DEVFREQ_GOV_RESUME:
-		spin_lock(&suspend_lock);
-		suspend_time += suspend_time_ms();
+		atomic_long_add(suspend_time_ms(), &suspend_time);
 		/* Reset the suspend_start when gpu resumes */
-		suspend_start = 0;
-		spin_unlock(&suspend_lock);
+		atomic_long_set(&suspend_start, 0);
 		/* fallthrough */
 	case DEVFREQ_GOV_INTERVAL:
 		/* fallthrough, this governor doesn't use polling */
