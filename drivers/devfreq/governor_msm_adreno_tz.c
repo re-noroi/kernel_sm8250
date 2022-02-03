@@ -19,7 +19,6 @@
 #include "governor.h"
 
 static DEFINE_SPINLOCK(tz_lock);
-static DEFINE_SPINLOCK(sample_lock);
 /*
  * FLOOR is 5msec to capture up to 3 re-draws
  * per frame for 60fps content.
@@ -53,7 +52,7 @@ static DEFINE_SPINLOCK(sample_lock);
 
 static atomic_long_t suspend_time;
 static atomic_long_t suspend_start;
-static unsigned long acc_total, acc_relative_busy;
+static atomic_long_t acc_total, acc_relative_busy;
 
 static struct msm_adreno_extended_profile *partner_gpu_profile;
 static void do_partner_start_event(struct work_struct *work);
@@ -91,14 +90,13 @@ static ssize_t gpu_load_show(struct device *dev,
 	 * This will keep the average value in sync with
 	 * with the client sampling duration.
 	 */
-	spin_lock(&sample_lock);
-	if (acc_total)
-		sysfs_busy_perc = (acc_relative_busy * 100) / acc_total;
+	if (atomic_long_read(&acc_total))
+		sysfs_busy_perc = (atomic_long_read(&acc_relative_busy) * 100) /
+				   atomic_long_read(&acc_total);
 
 	/* Reset the parameters */
-	acc_total = 0;
-	acc_relative_busy = 0;
-	spin_unlock(&sample_lock);
+	atomic_long_set(&acc_total, 0);
+	atomic_long_set(&acc_relative_busy, 0);
 	return snprintf(buf, PAGE_SIZE, "%lu\n", sysfs_busy_perc);
 }
 
@@ -135,24 +133,21 @@ static const struct device_attribute *adreno_tz_attr_list[] = {
 		NULL
 };
 
-void compute_work_load(struct devfreq_dev_status *stats,
+static void compute_work_load(struct devfreq_dev_status *stats,
 		struct devfreq_msm_adreno_tz_data *priv,
 		struct devfreq *devfreq)
 {
-	u64 busy;
+	s64 busy;
 
-	spin_lock(&sample_lock);
 	/*
 	 * Keep collecting the stats till the client
 	 * reads it. Average of all samples and reset
 	 * is done when the entry is read
 	 */
-	acc_total += stats->total_time;
-	busy = (u64)stats->busy_time * stats->current_frequency;
+	atomic_long_add(stats->total_time, &acc_total);
+	busy = stats->busy_time * stats->current_frequency;
 	do_div(busy, devfreq->profile->freq_table[0]);
-	acc_relative_busy += busy;
-
-	spin_unlock(&sample_lock);
+	atomic_long_add(busy, &acc_relative_busy);
 }
 
 /* Trap into the TrustZone, and call funcs there. */
