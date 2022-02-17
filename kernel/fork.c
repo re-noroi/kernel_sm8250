@@ -392,12 +392,10 @@ void vm_area_free(struct vm_area_struct *vma)
 
 static void account_kernel_stack(struct task_struct *tsk, int account)
 {
-	void *stack = task_stack_page(tsk);
-	struct vm_struct *vm = task_stack_vm_area(tsk);
-
 	BUILD_BUG_ON(IS_ENABLED(CONFIG_VMAP_STACK) && PAGE_SIZE % 1024 != 0);
 
-	if (vm) {
+	if (IS_ENABLED(CONFIG_VMAP_STACK)) {
+		struct vm_struct *vm = task_stack_vm_area(tsk);
 		int i;
 
 		BUG_ON(vm->nr_pages != THREAD_SIZE / PAGE_SIZE);
@@ -412,6 +410,8 @@ static void account_kernel_stack(struct task_struct *tsk, int account)
 		mod_memcg_page_state(vm->pages[0], MEMCG_KERNEL_STACK_KB,
 				     account * (THREAD_SIZE / 1024));
 	} else {
+		void *stack = task_stack_page(tsk);
+
 		/*
 		 * All stack pages are in the same zone and belong to the
 		 * same memcg.
