@@ -188,7 +188,10 @@ static void update_counts(struct memlat_cpu_grp *cpu_grp)
 		for (i = 0; i < NUM_COMMON_EVS; i++)
 			read_event(&common_evs[i]);
 
-		cpu_data->freq = common_evs[CYC_IDX].last_delta / delta;
+		if (delta != 0)
+			cpu_data->freq = common_evs[CYC_IDX].last_delta / delta;
+		else
+			cpu_data->freq = common_evs[CYC_IDX].last_delta;
 
 		if (!common_evs[STALL_IDX].pevent)
 			common_evs[STALL_IDX].last_delta =
