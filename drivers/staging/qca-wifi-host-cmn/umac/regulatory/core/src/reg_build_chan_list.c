@@ -221,6 +221,7 @@ static void reg_modify_chan_list_for_dfs_channels(
  * indoor_chan_enabled flag is set to false.
  * @pdev_priv_obj: Pointer to regulatory private pdev structure.
  */
+#ifdef CONFIG_REG_CLIENT
 static void reg_modify_chan_list_for_indoor_channels(
 		struct wlan_regulatory_pdev_priv_obj *pdev_priv_obj)
 {
@@ -252,6 +253,12 @@ static void reg_modify_chan_list_for_indoor_channels(
 		}
 	}
 }
+#else
+static void reg_modify_chan_list_for_indoor_channels(
+		struct wlan_regulatory_pdev_priv_obj *pdev_priv_obj)
+{
+}
+#endif
 
 #ifdef CONFIG_BAND_6GHZ
 static void reg_modify_chan_list_for_band_6G(
