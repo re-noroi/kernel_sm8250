@@ -1281,7 +1281,7 @@ this file is for attribution only of enuma
 	charger_therm0 {//place close to charge IC
 		polling-delay-passive = <0>;
 		polling-delay = <0>;
-		thermal-governor = "user_space";
+		thermal-governor = "step_wise";
 		thermal-sensors = <&pm8150b_adc_tm ADC_AMUX_THM1_PU2>;
 		trips {
 			active-config0 {
@@ -1295,7 +1295,7 @@ this file is for attribution only of enuma
 	conn_therm {//place close to type-c connector
 		polling-delay-passive = <0>;
 		polling-delay = <0>;
-		thermal-governor = "user_space";
+		thermal-governor = "step_wise";
 		thermal-sensors = <&pm8150b_adc_tm ADC_AMUX_THM3_PU2>;
 		wake-capable-sensor;
 		trips {
@@ -1310,7 +1310,7 @@ this file is for attribution only of enuma
 	cpu_therm {//place close to sm8250
 		polling-delay-passive = <0>;
 		polling-delay = <0>;
-		thermal-governor = "user_space";
+		thermal-governor = "step_wise";
 		thermal-sensors = <&pm8150_adc_tm ADC_AMUX_THM1_PU2>;
 		wake-capable-sensor;
 		trips {
@@ -1325,7 +1325,7 @@ this file is for attribution only of enuma
 	quiet_therm {//place close to cool place
 		polling-delay-passive = <0>;
 		polling-delay = <0>;
-		thermal-governor = "user_space";
+		thermal-governor = "step_wise";
 		thermal-sensors = <&pm8150_adc_tm ADC_AMUX_THM2_PU2>;
 		wake-capable-sensor;
 		trips {
@@ -1340,7 +1340,7 @@ this file is for attribution only of enuma
 	pa_therm1 {//place close to pa1
 		polling-delay-passive = <0>;
 		polling-delay = <0>;
-		thermal-governor = "user_space";
+		thermal-governor = "step_wise";
 		thermal-sensors = <&pm8150l_adc_tm ADC_AMUX_THM1_PU2>;
 		wake-capable-sensor;
 		trips {
@@ -1355,7 +1355,7 @@ this file is for attribution only of enuma
 	pa_therm0 {//place close to pa0
 		polling-delay-passive = <0>;
 		polling-delay = <0>;
-		thermal-governor = "user_space";
+		thermal-governor = "step_wise";
 		thermal-sensors = <&pm8150l_adc_tm ADC_AMUX_THM2_PU2>;
 		wake-capable-sensor;
 		trips {
@@ -1370,7 +1370,7 @@ this file is for attribution only of enuma
 	backlight_therm {
 		polling-delay-passive = <0>;
 		polling-delay = <0>;
-		thermal-governor = "user_space";
+		thermal-governor = "step_wise";
 		thermal-sensors = <&pm8150l_adc_tm ADC_AMUX_THM3_PU2>;
 		wake-capable-sensor;
 		trips {
@@ -1385,7 +1385,7 @@ this file is for attribution only of enuma
 	flash_therm {//place close to flash
 		polling-delay-passive = <0>;
 		polling-delay = <0>;
-		thermal-governor = "user_space";
+		thermal-governor = "step_wise";
 		thermal-sensors = <&pm8150l_adc_tm ADC_GPIO1_PU2>;
 		wake-capable-sensor;
 		trips {
