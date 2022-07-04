@@ -1965,8 +1965,8 @@ static QDF_STATUS find_ie_data_after_fils_session_ie(struct mac_context *mac_ctx
 		if (elem_len > left)
 			return QDF_STATUS_E_FAILURE;
 
-		if (elem_id == WLAN_REQUEST_IE_MAX_LEN &&
-			ptr[2] == SIR_FILS_SESSION_EXT_EID) {
+		if ((elem_id == WLAN_REQUEST_IE_MAX_LEN) &&
+		    (left >= 3 && ptr[2] == SIR_FILS_SESSION_EXT_EID)) {
 			(*ie) = ((&ptr[1]) + ptr[1] + 1);
 			(*ie_len) = (left - elem_len);
 			return QDF_STATUS_SUCCESS;
