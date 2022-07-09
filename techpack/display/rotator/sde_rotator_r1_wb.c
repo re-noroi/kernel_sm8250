@@ -45,7 +45,7 @@ struct sde_mdp_writeback_ctx {
 	struct sde_mdp_shared_reg_ctrl clk_ctrl;
 
 	u32 opmode;
-	struct sde_mdp_format_params *dst_fmt;
+	const struct sde_mdp_format_params *dst_fmt;
 	u16 img_width;
 	u16 img_height;
 	u16 width;
@@ -125,7 +125,7 @@ static int sde_mdp_writeback_addr_setup(struct sde_mdp_writeback_ctx *ctx,
 static int sde_mdp_writeback_format_setup(struct sde_mdp_writeback_ctx *ctx,
 		u32 format, struct sde_mdp_ctl *ctl)
 {
-	struct sde_mdp_format_params *fmt;
+	const struct sde_mdp_format_params *fmt;
 	u32 dst_format, pattern, ystride0, ystride1, outsize, chroma_samp;
 	u32 dnsc_factor, write_config = 0;
 	u32 opmode = ctx->opmode;

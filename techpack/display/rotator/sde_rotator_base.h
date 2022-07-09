@@ -308,7 +308,7 @@ void sde_reg_bus_vote_client_destroy(struct reg_bus_client *client);
 int sde_update_reg_bus_vote(struct reg_bus_client *bus_client, u32 usecase_ndx);
 
 u32 sde_apply_comp_ratio_factor(u32 quota,
-	struct sde_mdp_format_params *fmt,
+	const struct sde_mdp_format_params *fmt,
 	struct sde_mult_factor *factor);
 
 u32 sde_mdp_get_ot_limit(u32 width, u32 height, u32 pixfmt, u32 fps, u32 is_rd);
