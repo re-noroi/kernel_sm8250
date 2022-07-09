@@ -206,7 +206,7 @@
  * If a compression ratio needs to be used for this or any other format,
  * the data will be passed by user-space.
  */
-static struct sde_mdp_format_params_ubwc sde_mdp_format_ubwc_map[] = {
+static const struct sde_mdp_format_params_ubwc sde_mdp_format_ubwc_map[] = {
 	{
 		.mdp_format = FMT_RGB_565(SDE_PIX_FMT_RGB_565_UBWC,
 			"SDE/RGB_565_UBWC",
@@ -563,7 +563,7 @@ static struct sde_mdp_format_params_ubwc sde_mdp_format_ubwc_map[] = {
 	},
 };
 
-static struct sde_mdp_format_params sde_mdp_format_map[] = {
+static const struct sde_mdp_format_params sde_mdp_format_map[] = {
 	FMT_RGB_565(
 		SDE_PIX_FMT_RGB_565, "RGB_565", SDE_MDP_FMT_LINEAR,
 		0, C1_B_Cb, C0_G_Y, C2_R_Cr, SDE_MDP_COMPRESS_NONE),
@@ -783,34 +783,26 @@ static struct sde_mdp_format_params sde_mdp_format_map[] = {
  * sde_get_format_params - return format parameter of the given format
  * @format: format to lookup
  */
-struct sde_mdp_format_params *sde_get_format_params(u32 format)
+const struct sde_mdp_format_params *sde_get_format_params(u32 format)
 {
-	struct sde_mdp_format_params *fmt = NULL;
+	const struct sde_mdp_format_params *fmt = NULL;
 	int i;
-	bool fmt_found = false;
 
 	for (i = 0; i < ARRAY_SIZE(sde_mdp_format_map); i++) {
 		fmt = &sde_mdp_format_map[i];
 		if (format == fmt->format) {
-			fmt_found = true;
-			break;
+			return fmt;
 		}
 	}
 
-	if (!fmt_found) {
-		for (i = 0; i < ARRAY_SIZE(sde_mdp_format_ubwc_map); i++) {
-			fmt = &sde_mdp_format_ubwc_map[i].mdp_format;
-			if (format == fmt->format) {
-				fmt_found = true;
-				break;
-			}
+	for (i = 0; i < ARRAY_SIZE(sde_mdp_format_ubwc_map); i++) {
+		fmt = &sde_mdp_format_ubwc_map[i].mdp_format;
+		if (format == fmt->format) {
+			return fmt;
 		}
 	}
-	/* If format not supported than return NULL */
-	if (!fmt_found)
-		fmt = NULL;
 
-	return fmt;
+	return NULL;
 }
 
 /*
@@ -821,7 +813,7 @@ struct sde_mdp_format_params *sde_get_format_params(u32 format)
  */
 int sde_rot_get_ubwc_micro_dim(u32 format, u16 *w, u16 *h)
 {
-	struct sde_mdp_format_params_ubwc *fmt = NULL;
+	const struct sde_mdp_format_params_ubwc *fmt = NULL;
 	bool fmt_found = false;
 	int i;
 

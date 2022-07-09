@@ -237,7 +237,7 @@ static int sde_mdp_image_setup(struct sde_mdp_pipe *pipe,
 
 static int sde_mdp_format_setup(struct sde_mdp_pipe *pipe)
 {
-	struct sde_mdp_format_params *fmt;
+	const struct sde_mdp_format_params *fmt;
 	u32 chroma_samp, unpack, src_format;
 	u32 secure = 0;
 	u32 opmode;
