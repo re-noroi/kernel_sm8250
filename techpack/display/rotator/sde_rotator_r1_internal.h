@@ -105,7 +105,7 @@ struct sde_mdp_pipe {
 	u8 vert_deci;
 	struct sde_rect src;
 	struct sde_rect dst;
-	struct sde_mdp_format_params *src_fmt;
+	const struct sde_mdp_format_params *src_fmt;
 	struct sde_mdp_plane_sizes src_planes;
 	struct sde_mdp_mixer *mixer_left;
 	struct sde_mdp_mixer *mixer_right;

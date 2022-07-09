@@ -198,7 +198,7 @@ static void sde_rotator_get_item_from_ctx(struct sde_rotator_ctx *ctx,
 static void sde_rotator_format_recalc(struct v4l2_format *f)
 {
 	int ret;
-	struct sde_mdp_format_params *fmt;
+	const struct sde_mdp_format_params *fmt;
 	struct sde_mdp_plane_sizes ps;
 
 	fmt = sde_get_format_params(f->fmt.pix.pixelformat);
@@ -2042,7 +2042,7 @@ static int sde_rotator_enum_fmt_vid_cap(struct file *file,
 {
 	struct sde_rotator_ctx *ctx = sde_rotator_ctx_from_fh(fh);
 	struct sde_rotator_device *rot_dev = ctx->rot_dev;
-	struct sde_mdp_format_params *fmt;
+	const struct sde_mdp_format_params *fmt;
 	u32 i, index, pixfmt;
 	bool found = false;
 
@@ -2087,7 +2087,7 @@ static int sde_rotator_enum_fmt_vid_out(struct file *file,
 {
 	struct sde_rotator_ctx *ctx = sde_rotator_ctx_from_fh(fh);
 	struct sde_rotator_device *rot_dev = ctx->rot_dev;
-	struct sde_mdp_format_params *fmt;
+	const struct sde_mdp_format_params *fmt;
 	u32 i, index, pixfmt;
 	bool found = false;
 
