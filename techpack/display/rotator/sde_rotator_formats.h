@@ -114,82 +114,82 @@ struct sde_mdp_format_ubwc_tile_info {
 };
 
 struct sde_mdp_format_params_ubwc {
-	struct sde_mdp_format_params mdp_format;
+	const struct sde_mdp_format_params mdp_format;
 	struct sde_mdp_format_ubwc_tile_info micro;
 };
 
-struct sde_mdp_format_params *sde_get_format_params(u32 format);
+const struct sde_mdp_format_params *sde_get_format_params(u32 format);
 
 int sde_rot_get_ubwc_micro_dim(u32 format, u16 *w, u16 *h);
 
 int sde_rot_get_base_tilea5x_pixfmt(u32 src_pixfmt, u32 *dst_pixfmt);
 
-static inline bool sde_mdp_is_tilea4x_format(struct sde_mdp_format_params *fmt)
+static inline bool sde_mdp_is_tilea4x_format(const struct sde_mdp_format_params *fmt)
 {
 	return fmt && (fmt->frame_format == SDE_MDP_FMT_TILE_A4X);
 }
 
-static inline bool sde_mdp_is_tilea5x_format(struct sde_mdp_format_params *fmt)
+static inline bool sde_mdp_is_tilea5x_format(const struct sde_mdp_format_params *fmt)
 {
 	return fmt && (fmt->frame_format == SDE_MDP_FMT_TILE_A5X);
 }
 
-static inline bool sde_mdp_is_ubwc_format(struct sde_mdp_format_params *fmt)
+static inline bool sde_mdp_is_ubwc_format(const struct sde_mdp_format_params *fmt)
 {
 	return fmt && (fmt->is_ubwc == SDE_MDP_COMPRESS_UBWC);
 }
 
-static inline bool sde_mdp_is_linear_format(struct sde_mdp_format_params *fmt)
+static inline bool sde_mdp_is_linear_format(const struct sde_mdp_format_params *fmt)
 {
 	return fmt && (fmt->frame_format == SDE_MDP_FMT_LINEAR);
 }
 
-static inline bool sde_mdp_is_nv12_format(struct sde_mdp_format_params *fmt)
+static inline bool sde_mdp_is_nv12_format(const struct sde_mdp_format_params *fmt)
 {
 	return fmt && (fmt->fetch_planes == SDE_MDP_PLANE_PSEUDO_PLANAR) &&
 			(fmt->chroma_sample == SDE_MDP_CHROMA_420);
 }
 
-static inline bool sde_mdp_is_nv12_8b_format(struct sde_mdp_format_params *fmt)
+static inline bool sde_mdp_is_nv12_8b_format(const struct sde_mdp_format_params *fmt)
 {
 	return fmt && sde_mdp_is_nv12_format(fmt) &&
 			(fmt->pixel_mode == SDE_MDP_PIXEL_NORMAL);
 }
 
-static inline bool sde_mdp_is_nv12_10b_format(struct sde_mdp_format_params *fmt)
+static inline bool sde_mdp_is_nv12_10b_format(const struct sde_mdp_format_params *fmt)
 {
 	return fmt && sde_mdp_is_nv12_format(fmt) &&
 			(fmt->pixel_mode == SDE_MDP_PIXEL_10BIT);
 }
 
-static inline bool sde_mdp_is_tp10_format(struct sde_mdp_format_params *fmt)
+static inline bool sde_mdp_is_tp10_format(const struct sde_mdp_format_params *fmt)
 {
 	return fmt && sde_mdp_is_nv12_10b_format(fmt) &&
 			fmt->unpack_tight;
 }
 
-static inline bool sde_mdp_is_p010_format(struct sde_mdp_format_params *fmt)
+static inline bool sde_mdp_is_p010_format(const struct sde_mdp_format_params *fmt)
 {
 	return fmt && sde_mdp_is_nv12_10b_format(fmt) &&
 			!fmt->unpack_tight;
 }
 
-static inline bool sde_mdp_is_yuv_format(struct sde_mdp_format_params *fmt)
+static inline bool sde_mdp_is_yuv_format(const struct sde_mdp_format_params *fmt)
 {
 	return fmt && fmt->is_yuv;
 }
 
-static inline bool sde_mdp_is_rgb_format(struct sde_mdp_format_params *fmt)
+static inline bool sde_mdp_is_rgb_format(const struct sde_mdp_format_params *fmt)
 {
 	return !sde_mdp_is_yuv_format(fmt);
 }
 
-static inline bool sde_mdp_is_private_format(struct sde_mdp_format_params *fmt)
+static inline bool sde_mdp_is_private_format(const struct sde_mdp_format_params *fmt)
 {
 	return fmt && (fmt->flag & SDE_MDP_FORMAT_FLAG_PRIVATE);
 }
 
-static inline int sde_mdp_format_blk_size(struct sde_mdp_format_params *fmt)
+static inline int sde_mdp_format_blk_size(const struct sde_mdp_format_params *fmt)
 {
 	return sde_mdp_is_tp10_format(fmt) ? 96 : 128;
 }

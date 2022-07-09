@@ -173,17 +173,17 @@ static inline u32 sde_mdp_general_align(u32 data, u32 alignment)
 }
 
 void sde_rot_data_calc_offset(struct sde_mdp_data *data, u16 x, u16 y,
-	struct sde_mdp_plane_sizes *ps, struct sde_mdp_format_params *fmt);
+	struct sde_mdp_plane_sizes *ps, const struct sde_mdp_format_params *fmt);
 
 int sde_validate_offset_for_ubwc_format(
-	struct sde_mdp_format_params *fmt, u16 x, u16 y);
+	const struct sde_mdp_format_params *fmt, u16 x, u16 y);
 
 int sde_mdp_data_get_and_validate_size(struct sde_mdp_data *data,
 	struct sde_fb_data *planes, int num_planes, u32 flags,
 	struct device *dev, bool rotator, int dir,
 	struct sde_layer_buffer *buffer);
 
-int sde_mdp_get_plane_sizes(struct sde_mdp_format_params *fmt, u32 w, u32 h,
+int sde_mdp_get_plane_sizes(const struct sde_mdp_format_params *fmt, u32 w, u32 h,
 	struct sde_mdp_plane_sizes *ps, u32 bwc_mode,
 	bool rotation);
 
@@ -191,7 +191,7 @@ int sde_mdp_data_map(struct sde_mdp_data *data, bool rotator, int dir);
 
 int sde_mdp_data_check(struct sde_mdp_data *data,
 			struct sde_mdp_plane_sizes *ps,
-			struct sde_mdp_format_params *fmt);
+			const struct sde_mdp_format_params *fmt);
 
 void sde_mdp_data_free(struct sde_mdp_data *data, bool rotator, int dir);
 
