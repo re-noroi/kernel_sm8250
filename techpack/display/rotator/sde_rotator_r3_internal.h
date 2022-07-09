@@ -59,7 +59,7 @@ enum sde_rotator_regdma_mode {
  * @addr:      source surface address
  */
 struct sde_hw_rot_sspp_cfg {
-	struct sde_mdp_format_params *fmt;
+	const struct sde_mdp_format_params *fmt;
 	struct sde_mdp_plane_sizes    src_plane;
 	struct sde_rect              *src_rect;
 	struct sde_mdp_data          *data;
@@ -80,7 +80,7 @@ struct sde_hw_rot_sspp_cfg {
  *  @prefill_bw: prefill bandwidth in Bps
  */
 struct sde_hw_rot_wb_cfg {
-	struct sde_mdp_format_params   *fmt;
+	const struct sde_mdp_format_params   *fmt;
 	struct sde_mdp_plane_sizes      dst_plane;
 	struct sde_rect                *dst_rect;
 	struct sde_mdp_data            *data;

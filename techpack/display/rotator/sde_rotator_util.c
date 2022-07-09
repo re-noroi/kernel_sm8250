@@ -132,7 +132,7 @@ bool sde_rect_overlap_check(struct sde_rect *rect1, struct sde_rect *rect2)
 }
 
 int sde_mdp_get_rau_strides(u32 w, u32 h,
-			       struct sde_mdp_format_params *fmt,
+			       const struct sde_mdp_format_params *fmt,
 			       struct sde_mdp_plane_sizes *ps)
 {
 	if (fmt->is_yuv) {
@@ -172,7 +172,7 @@ int sde_mdp_get_rau_strides(u32 w, u32 h,
 	return 0;
 }
 
-static int sde_mdp_get_a5x_plane_size(struct sde_mdp_format_params *fmt,
+static int sde_mdp_get_a5x_plane_size(const struct sde_mdp_format_params *fmt,
 	u32 width, u32 height, struct sde_mdp_plane_sizes *ps)
 {
 	int rc = 0;
@@ -301,7 +301,7 @@ done:
 	return rc;
 }
 
-int sde_mdp_get_plane_sizes(struct sde_mdp_format_params *fmt, u32 w, u32 h,
+int sde_mdp_get_plane_sizes(const struct sde_mdp_format_params *fmt, u32 w, u32 h,
 	struct sde_mdp_plane_sizes *ps, u32 bwc_mode, bool rotation)
 {
 	int i, rc = 0;
@@ -444,7 +444,7 @@ int sde_mdp_get_plane_sizes(struct sde_mdp_format_params *fmt, u32 w, u32 h,
 
 static int sde_mdp_a5x_data_check(struct sde_mdp_data *data,
 			struct sde_mdp_plane_sizes *ps,
-			struct sde_mdp_format_params *fmt)
+			const struct sde_mdp_format_params *fmt)
 {
 	int i, inc;
 	unsigned long data_size = 0;
@@ -560,7 +560,7 @@ end:
 
 int sde_mdp_data_check(struct sde_mdp_data *data,
 			struct sde_mdp_plane_sizes *ps,
-			struct sde_mdp_format_params *fmt)
+			const struct sde_mdp_format_params *fmt)
 {
 	struct sde_mdp_img_data *prev, *curr;
 	int i;
@@ -603,7 +603,7 @@ int sde_mdp_data_check(struct sde_mdp_data *data,
 }
 
 int sde_validate_offset_for_ubwc_format(
-	struct sde_mdp_format_params *fmt, u16 x, u16 y)
+	const struct sde_mdp_format_params *fmt, u16 x, u16 y)
 {
 	int ret;
 	u16 micro_w = 0, micro_h = 0;
@@ -630,7 +630,7 @@ int sde_validate_offset_for_ubwc_format(
 
 /* x and y are assumed to be valid, expected to line up with start of tiles */
 void sde_rot_ubwc_data_calc_offset(struct sde_mdp_data *data, u16 x, u16 y,
-	struct sde_mdp_plane_sizes *ps, struct sde_mdp_format_params *fmt)
+	struct sde_mdp_plane_sizes *ps, const struct sde_mdp_format_params *fmt)
 {
 	u16 macro_w, micro_w, micro_h;
 	u32 offset = 0;
@@ -721,7 +721,7 @@ done:
 }
 
 void sde_rot_data_calc_offset(struct sde_mdp_data *data, u16 x, u16 y,
-	struct sde_mdp_plane_sizes *ps, struct sde_mdp_format_params *fmt)
+	struct sde_mdp_plane_sizes *ps, const struct sde_mdp_format_params *fmt)
 {
 	if ((x == 0) && (y == 0))
 		return;
@@ -1063,7 +1063,7 @@ int sde_mdp_data_get_and_validate_size(struct sde_mdp_data *data,
 	struct device *dev, bool rotator, int dir,
 	struct sde_layer_buffer *buffer)
 {
-	struct sde_mdp_format_params *fmt;
+	const struct sde_mdp_format_params *fmt;
 	struct sde_mdp_plane_sizes ps;
 	int ret, i;
 	unsigned long total_buf_len = 0;
