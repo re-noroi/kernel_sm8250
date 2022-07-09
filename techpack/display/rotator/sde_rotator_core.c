@@ -704,7 +704,7 @@ static int sde_rotator_map_and_check_data(struct sde_rot_entry *entry)
 	int ret;
 	struct sde_layer_buffer *input;
 	struct sde_layer_buffer *output;
-	struct sde_mdp_format_params *in_fmt, *out_fmt;
+	const struct sde_mdp_format_params *in_fmt, *out_fmt;
 	struct sde_mdp_plane_sizes ps;
 	bool rotation;
 	bool secure;
@@ -1318,7 +1318,7 @@ void sde_rotator_queue_request(struct sde_rot_mgr *mgr,
 	}
 }
 
-static u32 sde_rotator_calc_buf_bw(struct sde_mdp_format_params *fmt,
+static u32 sde_rotator_calc_buf_bw(const struct sde_mdp_format_params *fmt,
 		uint32_t width, uint32_t height, uint32_t frame_rate)
 {
 	u32 bw;
@@ -1359,7 +1359,7 @@ static int sde_rotator_calc_perf(struct sde_rot_mgr *mgr,
 {
 	struct sde_rotation_config *config = &perf->config;
 	u32 read_bw, write_bw;
-	struct sde_mdp_format_params *in_fmt, *out_fmt;
+	const struct sde_mdp_format_params *in_fmt, *out_fmt;
 	struct sde_rotator_device *rot_dev;
 	int max_fps;
 
@@ -1778,8 +1778,8 @@ static void sde_rotator_done_handler(struct kthread_work *work)
 }
 
 static bool sde_rotator_verify_format(struct sde_rot_mgr *mgr,
-	struct sde_mdp_format_params *in_fmt,
-	struct sde_mdp_format_params *out_fmt, bool rotation, u32 mode)
+	const struct sde_mdp_format_params *in_fmt,
+	const struct sde_mdp_format_params *out_fmt, bool rotation, u32 mode)
 {
 	u8 in_v_subsample, in_h_subsample;
 	u8 out_v_subsample, out_h_subsample;
@@ -1848,11 +1848,11 @@ verify_error:
 	return false;
 }
 
-static struct sde_mdp_format_params *__verify_input_config(
+static const struct sde_mdp_format_params *__verify_input_config(
 		struct sde_rot_mgr *mgr,
 		struct sde_rotation_config *config)
 {
-	struct sde_mdp_format_params *in_fmt;
+	const struct sde_mdp_format_params *in_fmt;
 	u8 in_v_subsample, in_h_subsample;
 	u32 input;
 	int verify_input_only;
@@ -1891,11 +1891,11 @@ static struct sde_mdp_format_params *__verify_input_config(
 	return in_fmt;
 }
 
-static struct sde_mdp_format_params *__verify_output_config(
+static const struct sde_mdp_format_params *__verify_output_config(
 		struct sde_rot_mgr *mgr,
 		struct sde_rotation_config *config)
 {
-	struct sde_mdp_format_params *out_fmt;
+	const struct sde_mdp_format_params *out_fmt;
 	u8 out_v_subsample, out_h_subsample;
 	u32 output;
 	int verify_input_only;
@@ -1937,7 +1937,7 @@ static struct sde_mdp_format_params *__verify_output_config(
 int sde_rotator_verify_config_input(struct sde_rot_mgr *mgr,
 		struct sde_rotation_config *config)
 {
-	struct sde_mdp_format_params *in_fmt;
+	const struct sde_mdp_format_params *in_fmt;
 
 	in_fmt = __verify_input_config(mgr, config);
 	if (!in_fmt)
@@ -1949,7 +1949,7 @@ int sde_rotator_verify_config_input(struct sde_rot_mgr *mgr,
 int sde_rotator_verify_config_output(struct sde_rot_mgr *mgr,
 		struct sde_rotation_config *config)
 {
-	struct sde_mdp_format_params *out_fmt;
+	const struct sde_mdp_format_params *out_fmt;
 
 	out_fmt = __verify_output_config(mgr, config);
 	if (!out_fmt)
@@ -1961,7 +1961,7 @@ int sde_rotator_verify_config_output(struct sde_rot_mgr *mgr,
 int sde_rotator_verify_config_all(struct sde_rot_mgr *mgr,
 	struct sde_rotation_config *config)
 {
-	struct sde_mdp_format_params *in_fmt, *out_fmt;
+	const struct sde_mdp_format_params *in_fmt, *out_fmt;
 	bool rotation;
 	u32 mode;
 
@@ -2019,7 +2019,7 @@ static int sde_rotator_validate_item_matches_session(
 /* Only need to validate x and y offset for ubwc dst fmt */
 static int sde_rotator_validate_img_roi(struct sde_rotation_item *item)
 {
-	struct sde_mdp_format_params *fmt;
+	const struct sde_mdp_format_params *fmt;
 	int ret = 0;
 
 	fmt = sde_get_format_params(item->output.format);
@@ -2039,7 +2039,7 @@ static int sde_rotator_validate_img_roi(struct sde_rotation_item *item)
 static int sde_rotator_validate_fmt_and_item_flags(
 	struct sde_rotation_config *config, struct sde_rotation_item *item)
 {
-	struct sde_mdp_format_params *in_fmt, *out_fmt;
+	const struct sde_mdp_format_params *in_fmt, *out_fmt;
 	struct sde_rot_data_type *mdata = sde_rot_get_mdata();
 	bool has_ubwc;
 

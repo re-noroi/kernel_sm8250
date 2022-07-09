@@ -395,7 +395,7 @@ static int sde_rotator_hw_validate_entry(struct sde_rot_mgr *mgr,
 	int ret = 0;
 	u16 src_w, src_h, dst_w, dst_h, bit;
 	struct sde_rotation_item *item = &entry->item;
-	struct sde_mdp_format_params *fmt;
+	const struct sde_mdp_format_params *fmt;
 
 	src_w = item->src_rect.w;
 	src_h = item->src_rect.h;

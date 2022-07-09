@@ -537,7 +537,7 @@ static struct sde_rot_regdump sde_rot_r3_regdump[] = {
 
 struct sde_rot_cdp_params {
 	bool enable;
-	struct sde_mdp_format_params *fmt;
+	const struct sde_mdp_format_params *fmt;
 	u32 offset;
 };
 
@@ -1609,7 +1609,7 @@ static void sde_hw_rotator_setup_fetchengine(struct sde_hw_rotator_context *ctx,
 		u32 dnsc_factor_w, u32 dnsc_factor_h, u32 flags)
 {
 	struct sde_hw_rotator *rot = ctx->rot;
-	struct sde_mdp_format_params *fmt;
+	const struct sde_mdp_format_params *fmt;
 	struct sde_mdp_data *data;
 	struct sde_rot_cdp_params cdp_params = {0};
 	struct sde_rot_data_type *mdata = sde_rot_get_mdata();
@@ -1818,7 +1818,7 @@ static void sde_hw_rotator_setup_wbengine(struct sde_hw_rotator_context *ctx,
 		u32 flags)
 {
 	struct sde_rot_data_type *mdata = sde_rot_get_mdata();
-	struct sde_mdp_format_params *fmt;
+	const struct sde_mdp_format_params *fmt;
 	struct sde_rot_cdp_params cdp_params = {0};
 	char __iomem *wrptr;
 	u32 pack = 0;
@@ -3536,7 +3536,7 @@ static int sde_hw_rotator_validate_entry(struct sde_rot_mgr *mgr,
 	int ret = 0;
 	u16 src_w, src_h, dst_w, dst_h;
 	struct sde_rotation_item *item = &entry->item;
-	struct sde_mdp_format_params *fmt;
+	const struct sde_mdp_format_params *fmt;
 
 	if (!mgr || !entry || !mgr->hw_data) {
 		SDEROT_ERR("invalid parameters\n");
