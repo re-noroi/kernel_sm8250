@@ -124,8 +124,16 @@ enum icnss_debug_quirks {
 	FW_REJUVENATE_ENABLE,
 };
 
+#ifdef CONFIG_DEBUG_FS
 void icnss_debug_init(void);
 void icnss_debug_deinit(void);
 int icnss_debugfs_create(struct icnss_priv *priv);
 void icnss_debugfs_destroy(struct icnss_priv *priv);
+#else
+static inline void icnss_debug_init(void) { };
+static inline void icnss_debug_deinit(void) { };
+static inline int icnss_debugfs_create(struct icnss_priv *priv) { return 0; };
+static inline void icnss_debugfs_destroy(struct icnss_priv *priv) { };
+#endif
+
 #endif /* _ICNSS_DEBUG_H */
