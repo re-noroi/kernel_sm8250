@@ -10774,6 +10774,9 @@ static void hdd_init_channel_avoidance(struct hdd_context *hdd_ctx)
 	unsafe_channel_count = QDF_MIN((uint16_t)hdd_ctx->unsafe_channel_count,
 				       (uint16_t)NUM_CHANNELS);
 
+	if (!unsafe_channel_count)
+		return;
+	
 	for (index = 0; index < unsafe_channel_count; index++) {
 		hdd_debug("channel frequency %d is not safe",
 			  hdd_ctx->unsafe_channel_list[index]);
