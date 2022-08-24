@@ -2113,6 +2113,8 @@ struct wlan_objmgr_peer *wlan_objmgr_get_peer_by_mac_debug(
 
 	if (!macaddr)
 		return NULL;
+	if (!psoc)
+		return NULL;
 
 	/* psoc lock should be taken before peer list lock */
 	wlan_psoc_obj_lock(psoc);
@@ -2148,6 +2150,8 @@ struct wlan_objmgr_peer *wlan_objmgr_get_peer_by_mac(
 	struct wlan_peer_list *peer_list;
 
 	if (!macaddr)
+		return NULL;
+	if (!psoc)
 		return NULL;
 
 	/* psoc lock should be taken before peer list lock */
