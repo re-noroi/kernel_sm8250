@@ -2157,29 +2157,20 @@ static void free_note_info(struct elf_note_info *info)
 
 #endif
 
-static struct vm_area_struct *first_vma(struct task_struct *tsk,
-					struct vm_area_struct *gate_vma)
-{
-	struct vm_area_struct *ret = tsk->mm->mmap;
-
-	if (ret)
-		return ret;
-	return gate_vma;
-}
 /*
  * Helper function for iterating across a vma list.  It ensures that the caller
  * will visit `gate_vma' prior to terminating the search.
  */
-static struct vm_area_struct *next_vma(struct vm_area_struct *this_vma,
-					struct vm_area_struct *gate_vma)
+static struct vm_area_struct *coredump_next_vma(struct ma_state *mas,
+				       struct vm_area_struct *vma,
+				       struct vm_area_struct *gate_vma)
 {
-	struct vm_area_struct *ret;
-
-	ret = this_vma->vm_next;
-	if (ret)
-		return ret;
-	if (this_vma == gate_vma)
+	if (gate_vma && (vma == gate_vma))
 		return NULL;
+
+	vma = mas_next(mas, ULONG_MAX);
+	if (vma)
+		return vma;
 	return gate_vma;
 }
 
@@ -2213,6 +2204,7 @@ static int elf_core_dump(struct coredump_params *cprm)
 	int segs, i;
 	size_t vma_data_size = 0;
 	struct vm_area_struct *vma, *gate_vma;
+	MA_STATE(mas, &current->mm->mm_mt, 0, 0);
 	struct elfhdr *elf = NULL;
 	loff_t offset = 0, dataoff;
 	struct elf_note_info info = { };
@@ -2295,8 +2287,9 @@ static int elf_core_dump(struct coredump_params *cprm)
 	if (ZERO_OR_NULL_PTR(vma_filesz))
 		goto end_coredump;
 
-	for (i = 0, vma = first_vma(current, gate_vma); vma != NULL;
-			vma = next_vma(vma, gate_vma)) {
+	mas_set(&mas, 0);
+	for (i = 0, vma = coredump_next_vma(&mas, NULL, gate_vma); vma != NULL;
+			vma = coredump_next_vma(&mas, vma, gate_vma)) {
 		unsigned long dump_size;
 
 		dump_size = vma_dump_size(vma, cprm->mm_flags);
@@ -2324,8 +2317,9 @@ static int elf_core_dump(struct coredump_params *cprm)
 		goto end_coredump;
 
 	/* Write program headers for segments dump */
-	for (i = 0, vma = first_vma(current, gate_vma); vma != NULL;
-			vma = next_vma(vma, gate_vma)) {
+	mas_set(&mas, 0);
+	for (i = 0, vma = coredump_next_vma(&mas, NULL, gate_vma); vma != NULL;
+			vma = coredump_next_vma(&mas, vma, gate_vma)) {
 		struct elf_phdr phdr;
 
 		phdr.p_type = PT_LOAD;
@@ -2360,8 +2354,9 @@ static int elf_core_dump(struct coredump_params *cprm)
 	if (!dump_skip(cprm, dataoff - cprm->pos))
 		goto end_coredump;
 
-	for (i = 0, vma = first_vma(current, gate_vma); vma != NULL;
-			vma = next_vma(vma, gate_vma)) {
+	mas_set(&mas, 0);
+	for (i = 0, vma = coredump_next_vma(&mas, NULL, gate_vma); vma != NULL;
+			vma = coredump_next_vma(&mas, vma, gate_vma)) {
 		unsigned long addr;
 		unsigned long end;
 
