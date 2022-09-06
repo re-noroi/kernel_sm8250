@@ -77,6 +77,7 @@ static unsigned long *efi_tables[] = {
 
 struct mm_struct efi_mm = {
 	.mm_rb			= RB_ROOT,
+	.mm_mt			= MTREE_INIT_EXT(mm_mt, MM_MT_FLAGS, efi_mm.mmap_sem),
 	.mm_users		= ATOMIC_INIT(2),
 	.mm_count		= ATOMIC_INIT(1),
 	.mmap_sem		= __RWSEM_INITIALIZER(efi_mm.mmap_sem),
