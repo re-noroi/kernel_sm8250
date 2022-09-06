@@ -796,7 +796,7 @@ static int vma_link(struct mm_struct *mm, struct vm_area_struct *vma,
  * mm's list and rbtree.  It has already been inserted into the interval tree.
  */
 static void __insert_vm_struct(struct mm_struct *mm, struct ma_state *mas,
-			       struct vm_area_struct *vma)
+		struct vm_area_struct *vma, unsigned long location)
 {
 	struct vm_area_struct *prev;
 	struct rb_node **rb_link, *rb_parent;
@@ -805,6 +805,7 @@ static void __insert_vm_struct(struct mm_struct *mm, struct ma_state *mas,
 			   &prev, &rb_link, &rb_parent))
 		BUG();
 
+	mas_set(mas, location);
 	vma_mas_store(vma, mas);
 	__vma_link_list(mm, vma, prev, rb_parent);
 	__vma_link_rb(mm, vma, rb_link, rb_parent);
@@ -863,10 +864,12 @@ int __vma_adjust(struct vm_area_struct *vma, unsigned long start,
 	struct anon_vma *anon_vma = NULL;
 	struct file *file = vma->vm_file;
 	bool start_changed = false, end_changed = false;
+	bool vma_changed = false;
 	long adjust_next = 0;
 	int remove_next = 0;
 	MA_STATE(mas, &mm->mm_mt, 0, 0);
 	struct vm_area_struct *exporter = NULL, *importer = NULL;
+	unsigned long ll_prev = vma->vm_start; /* linked list prev. */
 
 	validate_mm(mm);
 	validate_mm_mt(mm);
@@ -1001,20 +1004,35 @@ int __vma_adjust(struct vm_area_struct *vma, unsigned long start,
 
 	if (start != vma->vm_start) {
 		unsigned long old_start = vma->vm_start;
-		vma->vm_start = start;
-		if (old_start < start)
+
+		if ((vma->vm_start < start) &&
+		    (!insert || (insert->vm_end != start))) {
 			vma_mas_szero(&mas, old_start, start);
+			VM_WARN_ON(insert && insert->vm_start > old_start);
+		} else {
+			vma_changed = true;
+		}
+		vma->vm_start = start;
 		start_changed = true;
 	}
 	if (end != vma->vm_end) {
 		unsigned long old_end = vma->vm_end;
+
+		if (vma->vm_end > end) {
+			if (!insert || (insert->vm_start != end)) {
+				vma_mas_szero(&mas, end, old_end);
+				VM_WARN_ON(insert && insert->vm_end < old_end);
+			} else if (insert->vm_start == end) {
+				ll_prev = old_end;
+			}
+		} else {
+			vma_changed = true;
+		}
 		vma->vm_end = end;
-		if (old_end > end)
-			vma_mas_szero(&mas, end, old_end);
 		end_changed = true;
 	}
 
-	if (end_changed || start_changed)
+	if (vma_changed)
 		vma_mas_store(vma, &mas);
 
 	vma->vm_pgoff = pgoff;
@@ -1065,7 +1083,7 @@ int __vma_adjust(struct vm_area_struct *vma, unsigned long start,
 		 * us to insert it before dropping the locks
 		 * (it may either follow vma or precede it).
 		 */
-		__insert_vm_struct(mm, &mas, insert);
+		__insert_vm_struct(mm, &mas, insert, ll_prev);
 	} else {
 		if (start_changed)
 			vma_gap_update(vma);
@@ -1162,6 +1180,7 @@ again:
 	if (insert && file)
 		uprobe_mmap(insert);
 
+	mas_destroy(&mas);
 	validate_mm(mm);
 	validate_mm_mt(mm);
 
