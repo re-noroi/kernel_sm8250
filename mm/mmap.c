@@ -268,7 +268,10 @@ SYSCALL_DEFINE1(brk, unsigned long, brk)
 		mm->brk = brk;
 		mas.last = oldbrk - 1;
 		ret = do_brk_munmap(&mas, brkvma, newbrk, oldbrk, &uf);
-		if (!ret)
+		if (ret == 1) {
+			downgraded = true;
+			goto success;
+		} else if (!ret)
 			goto success;
 
 		mm->brk = origbrk;
@@ -297,7 +300,10 @@ success:
 set_brk:
 	mm->brk = brk;
 	populate = newbrk > oldbrk && (mm->def_flags & VM_LOCKED) != 0;
-	up_write(&mm->mmap_sem);
+	if (!downgraded)
+		up_write(&mm->mmap_sem);
+	else
+		up_read(&mm->mmap_sem);
 	userfaultfd_unmap_complete(mm, &uf);
 	if (populate)
 		mm_populate(oldbrk, newbrk - oldbrk);
@@ -3110,7 +3116,7 @@ static int do_brk_munmap(struct ma_state *mas, struct vm_area_struct *vma,
 	int ret;
 
 	arch_unmap(mm, vma, newbrk, oldbrk);
-	ret = do_munmap(mm, newbrk, oldbrk - newbrk, uf);
+	ret = do_mas_align_munmap(mas, vma, mm, newbrk, oldbrk, uf, true);
 	validate_mm_mt(mm);
 	return ret;
 }
