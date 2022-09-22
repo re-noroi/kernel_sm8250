@@ -1556,7 +1556,7 @@ dp_hif_update_pipe_callback(struct dp_soc *dp_soc,
 			    QDF_STATUS (*callback)(void *, qdf_nbuf_t, uint8_t),
 			    uint8_t pipe_id)
 {
-	struct hif_msg_callbacks hif_pipe_callbacks;
+	struct hif_msg_callbacks hif_pipe_callbacks = { 0 };
 
 	/* TODO: Temporary change to bypass HTC connection for this new
 	 * HIF pipe, which will be used for packet log and other high-
