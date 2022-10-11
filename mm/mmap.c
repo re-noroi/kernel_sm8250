@@ -3696,6 +3696,14 @@ struct vm_area_struct *copy_vma(struct vm_area_struct **vmap,
 	validate_mm_mt(mm);
 	return new_vma;
 
+out_vma_link:
+	if (new_vma->vm_ops && new_vma->vm_ops->close)
+		new_vma->vm_ops->close(new_vma);
+
+	if (new_vma->vm_file)
+		fput(new_vma->vm_file);
+
+	unlink_anon_vmas(new_vma);
 out_free_mempol:
 	mpol_put(vma_policy(new_vma));
 out_free_vma:
