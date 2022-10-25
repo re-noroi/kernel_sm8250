@@ -3296,6 +3296,8 @@ SYSCALL_DEFINE5(remap_file_pages, unsigned long, start, unsigned long, size,
 
 			if (start + size <= next->vm_end)
 				break;
+
+			prev = next;
 		}
 
 		if (!next)
