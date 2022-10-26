@@ -1081,7 +1081,6 @@ static int exec_mmap(struct mm_struct *mm)
 	active_mm = tsk->active_mm;
 	tsk->active_mm = mm;
 	tsk->mm = mm;
-	lru_gen_add_mm(mm);
 	/*
 	 * This prevents preemption while active_mm is being loaded and
 	 * it and mm are being updated, which could cause problems for
@@ -1096,6 +1095,7 @@ static int exec_mmap(struct mm_struct *mm)
 		local_irq_enable();
 	lru_gen_use_mm(mm);
 	tsk->mm->vmacache_seqnum = 0;
+	lru_gen_add_mm(mm);
 	vmacache_flush(tsk);
 	task_unlock(tsk);
 	if (old_mm) {
