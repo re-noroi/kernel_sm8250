@@ -609,17 +609,7 @@ void exit_tasks_rcu_finish(void) __releases(&tasks_rcu_exit_srcu)
 	struct task_struct *t = current;
 
 	__srcu_read_unlock(&tasks_rcu_exit_srcu, t->rcu_tasks_idx);
-}
-
-/*
- * Contribute to protect against tasklist scan blind spot while the
- * task is exiting and may be removed from the tasklist. See
- * corresponding synchronize_srcu() for further details.
- */
-void exit_tasks_rcu_finish(void)
-{
-	exit_tasks_rcu_stop();
-	exit_tasks_rcu_finish_trace(current);
+	exit_tasks_rcu_finish_trace(t);
 }
 
 #else /* #ifdef CONFIG_TASKS_RCU */
