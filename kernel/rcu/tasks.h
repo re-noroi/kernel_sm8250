@@ -604,7 +604,7 @@ void exit_tasks_rcu_start(void) __acquires(&tasks_rcu_exit_srcu)
  * task is exiting and may be removed from the tasklist. See
  * corresponding synchronize_srcu() for further details.
  */
-void exit_tasks_rcu_stop(void) __releases(&tasks_rcu_exit_srcu)
+void exit_tasks_rcu_finish(void) __releases(&tasks_rcu_exit_srcu)
 {
 	struct task_struct *t = current;
 
