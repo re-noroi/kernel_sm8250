@@ -214,6 +214,7 @@ static int swapin_walk_pmd_entry(pmd_t *pmd, unsigned long start,
 		if (page)
 			put_page(page);
 	}
+	cond_resched();
 
 	return 0;
 }
