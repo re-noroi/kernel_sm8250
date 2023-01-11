@@ -1301,8 +1301,19 @@ static void retract_page_tables(struct address_space *mapping, pgoff_t pgoff)
 		 * re-fault. Not ideal, but it's more important to not disturb
 		 * the system too much.
 		 */
-		if (down_write_trylock(&mm->mmap_sem)) {
-			if (!khugepaged_test_exit(mm)) {
+		if (mmap_write_trylock(mm)) {
+			/*
+			 * Re-check whether we have an ->anon_vma, because
+			 * retracting the page table requires that either no
+			 * ->anon_vma exists or the anon_vma is locked.
+			 * We already checked ->anon_vma above, but that check
+			 * is racy because ->anon_vma can be populated under the
+			 * mmap lock in read mode.
+			 */
+			/* trylock for the same lock inversion as above */
+			if (vma_try_start_write(vma) && !vma->anon_vma &&
+			    !khugepaged_test_exit(mm)) {
+				struct mmu_notifier_range range;
 				spinlock_t *ptl;
 				unsigned long end = addr + HPAGE_PMD_SIZE;
 
