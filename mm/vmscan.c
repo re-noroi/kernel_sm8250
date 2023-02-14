@@ -2696,13 +2696,6 @@ static struct lruvec *get_lruvec(struct mem_cgroup *memcg, int nid)
 static int get_swappiness(struct lruvec *lruvec, struct scan_control *sc)
 {
 	struct mem_cgroup *memcg = lruvec_memcg(lruvec);
-
-	if (mem_cgroup_get_nr_swap_pages(memcg) < MIN_LRU_BATCH) {
-		count_vm_event(current_is_kswapd() ? LRU_KSWAPD_SWAP_FULL:
-						     LRU_DIRECT_SWAP_FULL);
-		return 0;
-	}
-
 	return mem_cgroup_swappiness(memcg);
 }
 
