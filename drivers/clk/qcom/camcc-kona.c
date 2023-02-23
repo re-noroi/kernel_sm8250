@@ -40,6 +40,7 @@
 static DEFINE_VDD_REGULATORS(vdd_mm, VDD_NUM_MM, 1, vdd_corner);
 static DEFINE_VDD_REGULATORS(vdd_mx, VDD_NUM, 1, vdd_corner);
 
+#ifdef CONFIG_DEBUG_FS
 static struct msm_bus_vectors clk_debugfs_vectors[] = {
 	MSM_BUS_VECTOR(MSM_BUS_MASTER_AMPSS_M0,
 			MSM_BUS_SLAVE_CAMERA_CFG, 0, 0),
@@ -63,6 +64,7 @@ static struct msm_bus_scale_pdata clk_debugfs_scale_table = {
 	.num_usecases = ARRAY_SIZE(clk_debugfs_usecases),
 	.name = "clk_camcc_debugfs",
 };
+#endif
 
 enum {
 	P_BI_TCXO,
@@ -2772,11 +2774,13 @@ static int cam_cc_kona_probe(struct platform_device *pdev)
 		return PTR_ERR(vdd_mm.regulator[0]);
 	}
 
+#ifdef CONFIG_DEBUG_FS
 	camcc_bus_id = msm_bus_scale_register_client(&clk_debugfs_scale_table);
 	if (!camcc_bus_id) {
 		dev_err(&pdev->dev, "Unable to register for bw voting\n");
 		return -EPROBE_DEFER;
 	}
+#endif
 
 	for (i = 0; i < ARRAY_SIZE(cam_cc_kona_clocks); i++)
 		if (cam_cc_kona_clocks[i])
