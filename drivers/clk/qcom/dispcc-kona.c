@@ -41,6 +41,7 @@ static DEFINE_VDD_REGULATORS(vdd_mm, VDD_NUM_MM, 1, vdd_corner);
 	.ib = _ib,				\
 }
 
+#ifdef CONFIG_DEBUG_FS
 static struct msm_bus_vectors clk_debugfs_vectors[] = {
 	MSM_BUS_VECTOR(MSM_BUS_MASTER_AMPSS_M0,
 			MSM_BUS_SLAVE_DISPLAY_CFG, 0, 0),
@@ -64,6 +65,7 @@ static struct msm_bus_scale_pdata clk_debugfs_scale_table = {
 	.num_usecases = ARRAY_SIZE(clk_debugfs_usecases),
 	.name = "clk_dispcc_debugfs",
 };
+#endif
 
 #define DISP_CC_MISC_CMD	0x8000
 
@@ -1548,11 +1550,13 @@ static int disp_cc_kona_probe(struct platform_device *pdev)
 		return PTR_ERR(vdd_mm.regulator[0]);
 	}
 
+#ifdef CONFIG_DEBUG_FS
 	dispcc_bus_id = msm_bus_scale_register_client(&clk_debugfs_scale_table);
 	if (!dispcc_bus_id) {
 		dev_err(&pdev->dev, "Unable to register for bw voting\n");
 		return -EPROBE_DEFER;
 	}
+#endif
 	for (i = 0; i < ARRAY_SIZE(disp_cc_kona_clocks); i++)
 		if (disp_cc_kona_clocks[i])
 			*(unsigned int *)(void *)
