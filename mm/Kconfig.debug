@@ -122,3 +122,10 @@ config DEBUG_RODATA_TEST
     depends on STRICT_KERNEL_RWX
 	help
       This option enables a testcase for the setting rodata read-only.
+
+config PER_VMA_LOCK_STATS
+	bool "Statistics for per-vma locks"
+	depends on PER_VMA_LOCK
+	default y
+	help
+	  Statistics for per-vma locks.
