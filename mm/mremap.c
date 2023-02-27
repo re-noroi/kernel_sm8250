@@ -523,6 +523,8 @@ static unsigned long move_vma(struct vm_area_struct *vma,
 			return -ENOMEM;
 	}
 
+	vma_start_write(vma);
+
 	/*
 	 * To account mlock()'d pages correctly in the MREMAP_DONTUNMAP
 	 * case perform any split ahead of time for an mlock()'d VMA.
@@ -535,6 +537,7 @@ static unsigned long move_vma(struct vm_area_struct *vma,
 		if (err)
 			return err;
 	}
+
 
 	new_pgoff = vma->vm_pgoff + ((old_addr - vma->vm_start) >> PAGE_SHIFT);
 	new_vma = copy_vma(&vma, new_addr, new_len, new_pgoff,
