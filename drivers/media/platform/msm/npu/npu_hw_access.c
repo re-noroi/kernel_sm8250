@@ -190,10 +190,6 @@ void *npu_ipc_addr(void)
  * Functions - Interrupt
  * -------------------------------------------------------------------------
  */
-void npu_interrupt_ack(struct npu_device *npu_dev, uint32_t intr_num)
-{
-}
-
 int32_t npu_interrupt_raise_m0(struct npu_device *npu_dev)
 {
 	npu_apss_shared_reg_write(npu_dev, APSS_SHARED_IPC_INTERRUPT_1, 0x40);

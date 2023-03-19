@@ -922,8 +922,6 @@ irqreturn_t npu_ipc_intr_hdlr(int irq, void *ptr)
 	struct npu_device *npu_dev = (struct npu_device *)ptr;
 	struct npu_host_ctx *host_ctx = &npu_dev->host_ctx;
 
-	INTERRUPT_ACK(npu_dev, irq);
-
 	/* Check that the event thread currently is running */
 	if (host_ctx->wq)
 		queue_work(host_ctx->wq_pri, &host_ctx->ipc_irq_work);
