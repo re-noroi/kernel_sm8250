@@ -146,12 +146,12 @@ static const char * const npu_require_reset_clocks[] = {
 };
 
 static const struct npu_irq npu_irq_info[] = {
-	{"ipc_irq", 0, IRQF_TRIGGER_RISING | IRQF_ONESHOT, npu_ipc_intr_hdlr},
+	{"ipc_irq", 0, IRQF_TRIGGER_RISING | IRQF_ONESHOT, NULL, npu_ipc_intr_hdlr},
 	{"general_irq", 0,  IRQF_TRIGGER_HIGH | IRQF_ONESHOT,
-		npu_general_intr_hdlr},
-	{"error_irq", 0,  IRQF_TRIGGER_HIGH | IRQF_ONESHOT, npu_err_intr_hdlr},
+		npu_general_intr_hdlr, NULL},
+	{"error_irq", 0,  IRQF_TRIGGER_HIGH | IRQF_ONESHOT, NULL, npu_err_intr_hdlr},
 	{"wdg_bite_irq", 0,  IRQF_TRIGGER_RISING | IRQF_ONESHOT,
-		npu_wdg_intr_hdlr}
+		NULL, npu_wdg_intr_hdlr}
 };
 
 static struct npu_device *g_npu_dev;
@@ -2122,10 +2122,10 @@ static int npu_irq_init(struct npu_device *npu_dev)
 			npu_dev->irq[i].irq);
 		irq_set_status_flags(npu_dev->irq[i].irq,
 						IRQ_NOAUTOEN);
-		ret = devm_request_irq(&npu_dev->pdev->dev,
+		ret = devm_request_threaded_irq(&npu_dev->pdev->dev,
 				npu_dev->irq[i].irq, npu_dev->irq[i].handler,
-				irq_type, npu_dev->irq[i].name,
-				npu_dev);
+				npu_dev->irq[i].thread_fn, irq_type,
+				npu_dev->irq[i].name, npu_dev);
 		if (ret) {
 			NPU_ERR("devm_request_irq(%s:%d) failed\n",
 				npu_dev->irq[i].name,
