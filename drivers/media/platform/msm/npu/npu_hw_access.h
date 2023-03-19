@@ -30,7 +30,6 @@
 #define MEMR(npu_dev, src, dst, size) npu_mem_read(npu_dev, (void *)(src),\
 	(void *)(dst), size)
 #define IPC_ADDR npu_ipc_addr()
-#define INTERRUPT_ACK(npu_dev, num) npu_interrupt_ack(npu_dev, num)
 #define INTERRUPT_RAISE_NPU(npu_dev) npu_interrupt_raise_m0(npu_dev)
 #define INTERRUPT_RAISE_DSP(npu_dev) npu_interrupt_raise_dsp(npu_dev)
 
@@ -70,7 +69,6 @@ void npu_mem_invalidate(struct npu_client *client, int buf_hdl);
 bool npu_mem_verify_addr(struct npu_client *client, uint64_t addr);
 
 void *npu_ipc_addr(void);
-void npu_interrupt_ack(struct npu_device *npu_dev, uint32_t intr_num);
 int32_t npu_interrupt_raise_m0(struct npu_device *npu_dev);
 int32_t npu_interrupt_raise_dsp(struct npu_device *npu_dev);
 
