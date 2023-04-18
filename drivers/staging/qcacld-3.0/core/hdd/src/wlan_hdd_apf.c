@@ -495,6 +495,13 @@ static int hdd_apf_read_memory(struct hdd_adapter *adapter, struct nlattr **tb)
 	int ret = 0;
 	struct sk_buff *skb = NULL;
 	uint8_t *bufptr;
+	mac_handle_t mac_handle;
+
+	mac_handle = hdd_adapter_get_mac_handle(adapter);
+	if (!mac_handle) {
+		hdd_debug("mac ctx NULL");
+		return -EINVAL;
+	}
 
 	if (context->apf_enabled) {
 		hdd_err("Cannot get/set while interpreter is enabled");
@@ -536,8 +543,7 @@ static int hdd_apf_read_memory(struct hdd_adapter *adapter, struct nlattr **tb)
 	context->buf_len = read_mem_params.length;
 	context->magic = APF_CONTEXT_MAGIC;
 
-	status = sme_apf_read_work_memory(hdd_adapter_get_mac_handle(adapter),
-					  &read_mem_params,
+	status = sme_apf_read_work_memory(mac_handle, &read_mem_params,
 					  hdd_apf_read_memory_callback);
 	if (QDF_IS_STATUS_ERROR(status)) {
 		hdd_err("Unable to post sme APF read memory message (status-%d)",
