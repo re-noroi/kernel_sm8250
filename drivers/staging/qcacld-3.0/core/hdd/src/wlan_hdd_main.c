@@ -17707,6 +17707,11 @@ int hdd_get_rssi_snr_by_bssid(struct hdd_adapter *adapter, const uint8_t *bssid,
 
 	roam_profile = hdd_roam_profile(adapter);
 	mac_handle = hdd_adapter_get_mac_handle(adapter);
+	if (!mac_handle) {
+		hdd_err("mac context NULL");
+		return -EINVAL;
+	}
+
 	status = sme_get_rssi_snr_by_bssid(mac_handle,
 					   roam_profile, bssid, rssi, snr);
 	if (QDF_STATUS_SUCCESS != status) {
