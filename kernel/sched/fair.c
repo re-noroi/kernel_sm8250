@@ -6049,23 +6049,13 @@ static inline void hrtick_update(struct rq *rq)
 #endif
 
 #ifdef CONFIG_SMP
-#ifdef CONFIG_SCHED_WALT
-bool __cpu_overutilized(int cpu, int delta)
+bool cpu_overutilized(int cpu)
 {
-	return (capacity_orig_of(cpu) * 1024) <
-		((cpu_util(cpu) + delta) * sched_capacity_margin_up[cpu]);
-}
+	unsigned long rq_util_min = uclamp_rq_get(cpu_rq(cpu), UCLAMP_MIN);
+	unsigned long rq_util_max = uclamp_rq_get(cpu_rq(cpu), UCLAMP_MAX);
 
-bool cpu_overutilized(int cpu)
-{
-	return __cpu_overutilized(cpu, 0);
+	return !util_fits_cpu(cpu_util(cpu), rq_util_min, rq_util_max, cpu);
 }
-#else
-bool cpu_overutilized(int cpu)
-{
-	return !fits_capacity(cpu_util(cpu), capacity_of(cpu));
-}
-#endif
 
 #ifdef CONFIG_SCHED_WALT
 static bool sd_overutilized(struct sched_domain *sd)
