@@ -4304,6 +4304,8 @@ static vm_fault_t __handle_mm_fault(struct vm_area_struct *vma,
 vm_fault_t handle_mm_fault(struct vm_area_struct *vma, unsigned long address,
 		unsigned int flags)
 {
+	/* If the fault handler drops the mmap_lock, vma may be freed */
+	struct mm_struct *mm = vma->vm_mm;
 	vm_fault_t ret;
 
 	__set_current_state(TASK_RUNNING);
@@ -4319,16 +4321,16 @@ vm_fault_t handle_mm_fault(struct vm_area_struct *vma, unsigned long address,
 		return VM_FAULT_SIGSEGV;
 #endif
 
-	count_vm_event(PGFAULT);
-	count_memcg_event_mm(vma->vm_mm, PGFAULT);
 
 	/* do counter updates before entering really critical section. */
 	check_sync_rss_stat(current);
 
 	if (!arch_vma_access_permitted(vma, flags & FAULT_FLAG_WRITE,
 					    flags & FAULT_FLAG_INSTRUCTION,
-					    flags & FAULT_FLAG_REMOTE))
-		return VM_FAULT_SIGSEGV;
+					    flags & FAULT_FLAG_REMOTE)) {
+		ret = VM_FAULT_SIGSEGV;
+		goto out;
+	}
 
 	if ((flags & FAULT_FLAG_VMA_LOCK) && !vma_is_anonymous(vma)) {
 		vma_end_read(vma);
@@ -4343,7 +4345,7 @@ vm_fault_t handle_mm_fault(struct vm_area_struct *vma, unsigned long address,
 		mem_cgroup_enter_user_fault();
 
 	if (unlikely(is_vm_hugetlb_page(vma)))
-		ret = hugetlb_fault(vma->vm_mm, vma, address, flags);
+		ret = hugetlb_fault(mm, vma, address, flags);
 	else
 		ret = __handle_mm_fault(vma, address, flags);
 
@@ -4357,6 +4359,12 @@ vm_fault_t handle_mm_fault(struct vm_area_struct *vma, unsigned long address,
 		 */
 		if (task_in_memcg_oom(current) && !(ret & VM_FAULT_OOM))
 			mem_cgroup_oom_synchronize(false);
+	}
+out:
+	/* Incomplete faults will be accounted upon completion. */
+	if (!(ret & VM_FAULT_RETRY)) {
+		count_vm_event(PGFAULT);
+		count_memcg_event_mm(mm, PGFAULT);
 	}
 
 	return ret;
