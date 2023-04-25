@@ -460,6 +460,10 @@ __alloc_workqueue_key(const char *fmt, unsigned int flags, int max_active,
 #define create_singlethread_workqueue(name)				\
 	alloc_ordered_workqueue("%s", __WQ_LEGACY | WQ_MEM_RECLAIM, name)
 
+#define create_singlethread_power_efficient_workqueue(name)             \
+        alloc_ordered_workqueue("%s", __WQ_LEGACY | WQ_MEM_RECLAIM | \
+				WQ_POWER_EFFICIENT, name)
+
 extern void destroy_workqueue(struct workqueue_struct *wq);
 
 struct workqueue_attrs *alloc_workqueue_attrs(gfp_t gfp_mask);
