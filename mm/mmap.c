@@ -1050,6 +1050,13 @@ int __vma_adjust(struct vm_area_struct *vma, unsigned long start,
 				return error;
 		}
 	}
+
+	if (adjust_next < 0)
+		mas_set_range(&mas, next->vm_start + adjust_next,
+			      next->vm_end - 1);
+	else if (insert)
+		mas_set_range(&mas, insert->vm_start, insert->vm_end - 1);
+
 	if (mas_preallocate(&mas, vma, GFP_KERNEL))
 		return -ENOMEM;
 
@@ -1098,13 +1105,10 @@ int __vma_adjust(struct vm_area_struct *vma, unsigned long start,
 	}
 
 	if (start != vma->vm_start) {
-		unsigned long old_start = vma->vm_start;
-
-		if ((vma->vm_start < start) &&
-		    (!insert || (insert->vm_end != start))) {
-			vma_mas_szero(&mas, old_start, start);
-			VM_WARN_ON(insert && insert->vm_start > old_start);
-		} else {
+		if ((vma->vm_start < start) && !insert) {
+			vma_mas_szero(&mas, vma->vm_start, start);
+			VM_WARN_ON(insert && insert->vm_start > vma->vm_start);
+		} else if (!insert) {
 			vma_changed = true;
 		}
 		vma->vm_start = start;
@@ -1122,7 +1126,7 @@ int __vma_adjust(struct vm_area_struct *vma, unsigned long start,
 			} else if (insert->vm_start == end) {
 				ll_prev = old_end;
 			}
-		} else {
+		} else if (!insert) {
 			vma_changed = true;
 		}
 		vma->vm_end = end;
