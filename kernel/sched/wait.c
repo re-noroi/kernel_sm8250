@@ -389,11 +389,6 @@ int __sched autoremove_wake_function(struct wait_queue_entry *wq_entry,
 }
 EXPORT_SYMBOL(autoremove_wake_function);
 
-static inline bool is_kthread_should_stop(void)
-{
-	return (current->flags & PF_KTHREAD) && kthread_should_stop();
-}
-
 /*
  * DEFINE_WAIT_FUNC(wait, woken_wake_func);
  *
@@ -424,7 +419,7 @@ long __sched wait_woken(struct wait_queue_entry *wq_entry, unsigned int mode,
 	 * or woken_wake_function() sees our store to current->state.
 	 */
 	set_current_state(mode); /* A */
-	if (!(wq_entry->flags & WQ_FLAG_WOKEN) && !is_kthread_should_stop())
+	if (!(wq_entry->flags & WQ_FLAG_WOKEN) && !kthread_should_stop_or_park())
 		timeout = schedule_timeout(timeout);
 	__set_current_state(TASK_RUNNING);
 
