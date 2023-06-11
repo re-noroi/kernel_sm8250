@@ -65,7 +65,7 @@ irqreturn_t sde_irq(struct msm_kms *kms)
 			goto error;
 		}
 
-		rc = generic_handle_irq(mapping);
+		rc = generic_handle_irq_safe(mapping);
 		if (rc < 0) {
 			SDE_EVT32(hwirq, mapping, rc, SDE_EVTLOG_ERROR);
 			goto error;
