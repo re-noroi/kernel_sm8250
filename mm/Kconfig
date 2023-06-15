@@ -841,6 +841,11 @@ config GUP_BENCHMARK
 config ARCH_HAS_PTE_SPECIAL
 	bool
 
+config LOCK_MM_AND_FIND_VMA
+	bool
+	depends on !STACK_GROWSUP
+
+
 endmenu
 
 config FORCE_ALLOC_FROM_DMA_ZONE
