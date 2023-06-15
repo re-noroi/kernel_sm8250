@@ -2481,6 +2481,11 @@ QDF_STATUS hif_post_recv_buffers_for_pipe(struct HIF_CE_pipe_info *pipe_info)
 	}
 
 	ce_hdl = pipe_info->ce_hdl;
+	if (!ce_hdl) {
+		hif_err("ce_hdl is NULL");
+		return QDF_STATUS_E_INVAL;
+	}
+
 	ce_id = ((struct CE_state *)ce_hdl)->id;
 
 	qdf_spin_lock_bh(&pipe_info->recv_bufs_needed_lock);
