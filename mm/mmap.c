@@ -1113,8 +1113,10 @@ int __vma_adjust(struct vm_area_struct *vma, unsigned long start,
 		unsigned long old_end = vma->vm_end;
 
 		if (vma->vm_end > end) {
-			if (!insert || (insert->vm_start != end)) {
+			if ((vma->vm_end + (adjust_next << PAGE_SHIFT) != end) &&
+			    (!insert || (insert->vm_start != end))) {
 				vma_mas_szero(&mas, end, old_end);
+				mas_reset(&mas);
 				VM_WARN_ON(insert && insert->vm_end < old_end);
 			} else if (insert->vm_start == end) {
 				ll_prev = old_end;
