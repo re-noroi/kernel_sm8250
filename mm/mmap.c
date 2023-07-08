@@ -2221,6 +2221,8 @@ cannot_expand:
 	if (find_vma_links(mm, vma->vm_start, vma->vm_end,
 			   &prev, &rb_link, &rb_parent))
 		BUG();
+	/* The VMA is modified after insertion into the VMA tree. */
+	vma_start_write(vma);
 	if (vma_link(mm, vma, prev, rb_link, rb_parent)) {
 		error = -ENOMEM;
 		if (file)
