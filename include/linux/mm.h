@@ -605,6 +605,7 @@ static inline void vma_end_read(struct vm_area_struct *vma)
 	rcu_read_unlock();
 }
 
+/* WARNING! Can only be used if mmap_lock is expected to be write-locked */
 static inline void vma_mark_detached(struct vm_area_struct *vma, bool detached)
 {
 	vma->detached = detached;
@@ -622,6 +623,7 @@ static inline void release_fault_lock(struct vm_fault *vmf)
 	else
 		mmap_read_unlock(vmf->vma->vm_mm);
 }
+
 
 static bool __is_vma_write_locked(struct vm_area_struct *vma, int *mm_lock_seq)
 {
@@ -682,12 +684,32 @@ static inline bool vma_try_start_write(struct vm_area_struct *vma)
 
 static inline void vma_assert_write_locked(struct vm_area_struct *vma)
 {
+	int mm_lock_seq;
+
 	mmap_assert_write_locked(vma->vm_mm);
-	/*
-	 * current task is holding mmap_write_lock, both vma->vm_lock_seq and
-	 * mm->mm_lock_seq can't be concurrently modified.
-	 */
-	VM_BUG_ON_VMA(vma->vm_lock_seq != READ_ONCE(vma->vm_mm->mm_lock_seq), vma);
+	VM_BUG_ON_VMA(!__is_vma_write_locked(vma, &mm_lock_seq), vma);
+}
+
+static inline void vma_assert_locked(struct vm_area_struct *vma)
+{
+	if (!rwsem_is_locked(&vma->lock))
+		vma_assert_write_locked(vma);
+}
+
+static inline void vma_mark_detached(struct vm_area_struct *vma, bool detached)
+{
+	/* When detaching vma should be write-locked */
+	if (detached)
+		vma_assert_write_locked(vma);
+	vma->detached = detached;
+}
+
+static inline void assert_fault_locked(struct vm_fault *vmf)
+{
+	if (vmf->flags & FAULT_FLAG_VMA_LOCK)
+		vma_assert_locked(vmf->vma);
+	else
+		mmap_assert_locked(vmf->vma->vm_mm);
 }
 
 struct vm_area_struct *lock_vma_under_rcu(struct mm_struct *mm,
@@ -708,6 +730,7 @@ static inline bool vma_try_start_write(struct vm_area_struct *vma)
 		{ return true; }
 static inline void vma_assert_write_locked(struct vm_area_struct *vma)
 		{ mmap_assert_write_locked(vma->vm_mm); }
+static inline void vma_assert_locked(struct vm_area_struct *vma) {}
 static inline void vma_mark_detached(struct vm_area_struct *vma,
 				     bool detached) {}
 
