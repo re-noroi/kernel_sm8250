@@ -1023,7 +1023,7 @@ enum tcp_ca_ack_event_flags {
 #define TCP_CONG_WANTS_CE_EVENTS	0x100000
 #define TCP_CONG_MASK	(TCP_CONG_NON_RESTRICTED | TCP_CONG_NEEDS_ECN)
 
-union tcp_cc_info;
+#include <uapi/linux/inet_diag.h>
 
 struct ack_sample {
 	u32 pkts_acked;
