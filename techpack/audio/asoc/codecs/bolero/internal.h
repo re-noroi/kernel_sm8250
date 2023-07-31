@@ -83,7 +83,7 @@ struct bolero_priv {
 	u16 child_count;
 	struct wcd_ctrl_platform_data plat_data;
 	struct device *wcd_dev;
-	struct blocking_notifier_head notifier;
+	struct atomic_notifier_head notifier;
 	struct device *clk_dev;
 	rsc_clk_cb_t rsc_clk_cb;
 	s32 dmic_0_1_clk_cnt;
