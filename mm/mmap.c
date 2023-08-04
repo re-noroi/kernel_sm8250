@@ -847,6 +847,7 @@ inline int vma_expand(struct ma_state *mas, struct vm_area_struct *vma,
 	struct file *file = vma->vm_file;
 	bool remove_next = false;
 
+	vma_start_write(vma);
 	if (next && (vma != next) && (end == next->vm_end)) {
 		remove_next = true;
 		if (next->anon_vma && !vma->anon_vma) {
@@ -3058,6 +3059,9 @@ int __split_vma(struct mm_struct *mm, struct vm_area_struct *vma,
 
 	if (new->vm_ops && new->vm_ops->open)
 		new->vm_ops->open(new);
+
+	vma_start_write(vma);
+	vma_start_write(new);
 
 	if (new_below)
 		err = vma_adjust(vma, addr, vma->vm_end, vma->vm_pgoff +
