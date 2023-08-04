@@ -783,7 +783,7 @@ static const struct mm_walk_ops hmm_walk_ops = {
 	.pmd_entry	= hmm_vma_walk_pmd,
 	.pte_hole	= hmm_vma_walk_hole,
 	.hugetlb_entry	= NULL,
-	.test_walk	= NULL,
+	.walk_lock	= PGWALK_RDLOCK,
 };
 
 /*
