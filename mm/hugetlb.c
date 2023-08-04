@@ -3327,8 +3327,10 @@ int copy_hugetlb_page_range(struct mm_struct *dst, struct mm_struct *src,
 
 	mmun_start = vma->vm_start;
 	mmun_end = vma->vm_end;
-	if (cow)
+	if (cow) {
 		mmu_notifier_invalidate_range_start(src, mmun_start, mmun_end);
+		vma_assert_write_locked(vma);
+	}
 
 	for (addr = vma->vm_start; addr < vma->vm_end; addr += sz) {
 		spinlock_t *src_ptl, *dst_ptl;

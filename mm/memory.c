@@ -1056,7 +1056,7 @@ int copy_page_range(struct mm_struct *dst_mm, struct mm_struct *src_mm,
 	mmun_start = addr;
 	mmun_end   = end;
 	if (is_cow) {
-		mmap_assert_write_locked(src_mm);
+		vma_assert_write_locked(vma);
 		raw_write_seqcount_begin(&src_mm->write_protect_seq);
 		mmu_notifier_invalidate_range_start(src_mm, mmun_start,
 						    mmun_end);
