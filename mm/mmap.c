@@ -751,6 +751,8 @@ static int vma_link(struct mm_struct *mm, struct vm_area_struct *vma,
 	if (mas_preallocate(&mas, vma, GFP_KERNEL))
 		return -ENOMEM;
 
+	vma_start_write(vma);
+
 	if (vma->vm_file) {
 		mapping = vma->vm_file->f_mapping;
 		i_mmap_lock_write(mapping);
@@ -1084,8 +1086,10 @@ int __vma_adjust(struct vm_area_struct *vma, unsigned long start,
 	if (adjust_next < 0)
 		mas_set_range(&mas, next->vm_start + (adjust_next << PAGE_SHIFT),
 			      next->vm_end - 1);
-	else if (insert)
+	else if (insert) {
+		vma_start_write(insert);
 		mas_set_range(&mas, insert->vm_start, insert->vm_end - 1);
+	}
 
 	if (mas_preallocate(&mas, vma, GFP_KERNEL)) {
 		if (anon_dup)
@@ -3464,6 +3468,7 @@ static int do_brk_flags(unsigned long addr, unsigned long len, unsigned long fla
 	vma->vm_pgoff = pgoff;
 	vma->vm_flags = flags;
 	vma->vm_page_prot = vm_get_page_prot(flags);
+	vma_start_write(vma);
 	if (vma_link(mm, vma, prev, rb_link, rb_parent))
 		goto no_vma_link;
 
