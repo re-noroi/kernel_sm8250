@@ -18,6 +18,11 @@
  * 0-lag point or until is has exhausted it's slice.
  */
 #define SCHED_FEAT_RUN_TO_PARITY 1
+/*
+ * Allow wakeup of tasks with a shorter slice to cancel RESPECT_SLICE for
+ * current.
+ */
+#define SCHED_FEAT_PREEMPT_SHORT 1
 
 /*
  * Prefer to schedule the task we woke last (assuming it failed
