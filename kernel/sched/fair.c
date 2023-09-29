@@ -12418,8 +12418,6 @@ static int newidle_balance(struct rq *this_rq, struct rq_flags *rf)
 
 	if (!get_rd_overloaded(this_rq->rd) ||
 	    this_rq->avg_idle < sd->max_newidle_lb_cost) {
-
-		update_next_balance(sd, &next_balance);
 		rcu_read_unlock();
 		goto out;
 	}
@@ -12439,8 +12437,6 @@ static int newidle_balance(struct rq *this_rq, struct rq_flags *rf)
 	for_each_domain(this_cpu, sd) {
 		int continue_balancing = 1;
 		u64 domain_cost;
-
-		update_next_balance(sd, &next_balance);
 
 		if (avg_idle < curr_cost + sd->max_newidle_lb_cost)
 			break;
@@ -12469,6 +12465,10 @@ static int newidle_balance(struct rq *this_rq, struct rq_flags *rf)
 
 			t1 = sched_clock_cpu(this_cpu);
 			domain_cost = t1 - t0;
+
+			sd->last_balance = jiffies;
+			update_next_balance(sd, &next_balance);
+
 			curr_cost += domain_cost;
 			t0 = t1;
 
