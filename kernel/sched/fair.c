@@ -12123,7 +12123,7 @@ static inline int find_new_ilb(void)
 			return ilb;
 	}
 
-	return nr_cpu_ids;
+	return -1;
 }
 
 /*
@@ -12142,8 +12142,7 @@ static void kick_ilb(unsigned int flags)
 		nohz.next_balance = jiffies+1;
 
 	ilb_cpu = find_new_ilb();
-
-	if (ilb_cpu >= nr_cpu_ids)
+	if (ilb_cpu < 0)
 		return;
 
 	flags = atomic_fetch_or(flags, nohz_flags(ilb_cpu));
