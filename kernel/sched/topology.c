@@ -2102,7 +2102,14 @@ build_sched_domains(const struct cpumask *cpu_map, struct sched_domain_attr *att
 	/* Attach the domains */
 	rcu_read_lock();
 	for_each_cpu(i, cpu_map) {
+		unsigned long capacity = arch_scale_cpu_capacity(i);
 		sd = *per_cpu_ptr(d.sd, i);
+
+		if (capacity > d.rd->max_cpu_capacity.val) {
+			d.rd->max_cpu_capacity.val = capacity;
+			d.rd->max_cpu_capacity.cpu = i;
+		}
+
 		cpu_attach_domain(sd, d.rd, i);
 	}
 

@@ -4891,8 +4891,8 @@ bias_to_this_cpu(struct task_struct *p, int cpu, int start_cpu)
 {
 	bool base_test = cpumask_test_cpu(cpu, &p->cpus_allowed) &&
 						   cpu_active(cpu);
-	bool start_cap_test = (capacity_orig_of(cpu) >=
-					capacity_orig_of(start_cpu));
+	bool start_cap_test = (arch_scale_cpu_capacity(cpu) >=
+					arch_scale_cpu_capacity(start_cpu));
 
 	return base_test && start_cap_test;
 }
@@ -4914,14 +4914,14 @@ static inline int util_fits_cpu(unsigned long util,
 		return fits;
 
 	/*
-	 * We must use capacity_orig_of() for comparing against uclamp_min and
+	 * We must use arch_scale_cpu_capacity() for comparing against uclamp_min and
 	 * uclamp_max. We only care about capacity pressure (by using
 	 * capacity_of()) for comparing against the real util.
 	 *
 	 * If a task is boosted to 1024 for example, we don't want a tiny
 	 * pressure to skew the check whether it fits a CPU or not.
 	 *
-	 * Similarly if a task is capped to capacity_orig_of(little_cpu), it
+	 * Similarly if a task is capped to arch_scale_cpu_capacity(little_cpu), it
 	 * should fit a little cpu even if there's some pressure.
 	 *
 	 * Only exception is for thermal pressure since it has a direct impact
@@ -4937,8 +4937,8 @@ static inline int util_fits_cpu(unsigned long util,
 	 * honour the inverted capacity for both uclamp_min and uclamp_max all
 	 * the time.
 	 */
-	capacity_orig = capacity_orig_of(cpu);
-	capacity_orig_thermal = capacity_orig; // FIXME: thermal_pressure
+	capacity_orig = arch_scale_cpu_capacity(cpu);
+	capacity_orig_thermal = capacity_orig - arch_scale_thermal_pressure(cpu);
 
 	/*
 	 * We want to force a task to fit a cpu as implied by uclamp_max.
@@ -7371,7 +7371,7 @@ select_idle_capacity(struct task_struct *p, struct sched_domain *sd, int target)
 		 * Look for the CPU with best capacity.
 		 */
 		else if (fits < 0)
-			cpu_cap = capacity_orig_of(cpu) - thermal_load_avg(cpu_rq(cpu));
+			cpu_cap = arch_scale_cpu_capacity(cpu) - thermal_load_avg(cpu_rq(cpu));
 
 		/*
 		 * First, select CPU which fits better (-1 being better than 0).
@@ -7581,7 +7581,7 @@ static unsigned long cpu_util_without(int cpu, struct task_struct *p)
 	 * clamp to the maximum CPU capacity to ensure consistency with
 	 * the cpu_util call.
 	 */
-	return min_t(unsigned long, util, capacity_orig_of(cpu));
+	return min_t(unsigned long, util, arch_scale_cpu_capacity(cpu));
 }
 
 /*
@@ -7590,7 +7590,7 @@ static unsigned long cpu_util_without(int cpu, struct task_struct *p)
  */
 unsigned long capacity_curr_of(int cpu)
 {
-	unsigned long max_cap = cpu_rq(cpu)->cpu_capacity_orig;
+	unsigned long max_cap = arch_scale_cpu_capacity(cpu);
 	unsigned long scale_freq = arch_scale_freq_capacity(cpu);
 
 	return cap_scale(max_cap, scale_freq);
@@ -7675,7 +7675,7 @@ static void find_best_target(struct sched_domain *sd, cpumask_t *cpus,
 		goto out;
 
 	/* fast path for prev_cpu */
-	if (((capacity_orig_of(prev_cpu) == capacity_orig_of(start_cpu)) ||
+	if (((arch_scale_cpu_capacity(prev_cpu) == arch_scale_cpu_capacity(start_cpu)) ||
 		asym_cap_siblings(prev_cpu, start_cpu)) &&
 		cpu_online(prev_cpu) &&
 		idle_cpu(prev_cpu)) {
@@ -7687,7 +7687,7 @@ static void find_best_target(struct sched_domain *sd, cpumask_t *cpus,
 	do {
 		for_each_cpu_and(i, &p->cpus_allowed, sched_group_span(sg)) {
 			unsigned long capacity_curr = capacity_curr_of(i);
-			unsigned long capacity_orig = capacity_orig_of(i);
+			unsigned long capacity_orig = arch_scale_cpu_capacity(i);
 			unsigned long wake_util, new_util, new_util_cuml;
 			long spare_cap;
 			int idle_idx = INT_MAX;
@@ -7858,7 +7858,7 @@ static void find_best_target(struct sched_domain *sd, cpumask_t *cpus,
 			 * Skip processing placement further if we are visiting
 			 * cpus with lower capacity than start cpu
 			 */
-			if (capacity_orig < capacity_orig_of(start_cpu))
+			if (capacity_orig < arch_scale_cpu_capacity(start_cpu))
 				continue;
 
 			/*
@@ -7944,8 +7944,8 @@ static void find_best_target(struct sched_domain *sd, cpumask_t *cpus,
 			target_cpu = i;
 		}
 
-		next_group_higher_cap = (capacity_orig_of(group_first_cpu(sg)) <
-			capacity_orig_of(group_first_cpu(sg->next)));
+		next_group_higher_cap = (arch_scale_cpu_capacity(group_first_cpu(sg)) <
+			arch_scale_cpu_capacity(group_first_cpu(sg->next)));
 
 		/*
 		 * If we've found a cpu, but the boost is ON_ALL we continue
@@ -8085,7 +8085,7 @@ static unsigned long cpu_util_next(int cpu, struct task_struct *p, int dst_cpu)
 		util = max(util, util_est);
 	}
 
-	return min(util, capacity_orig_of(cpu));
+	return min(util, arch_scale_cpu_capacity(cpu));
 }
 
 /*
@@ -8211,7 +8211,7 @@ static void select_cpu_candidates(struct sched_domain *sd, cpumask_t *cpus,
 				continue;
 
 			if (idle_cpu(cpu)) {
-				cpu_cap = capacity_orig_of(cpu);
+				cpu_cap = arch_scale_cpu_capacity(cpu);
 				if (prefer_high_cap && cpu_cap < target_cap)
 					continue;
 				if (!prefer_high_cap && cpu_cap > target_cap)
@@ -10018,7 +10018,7 @@ static inline int
 check_cpu_capacity(struct rq *rq, struct sched_domain *sd)
 {
 	return ((rq->cpu_capacity * sd->imbalance_pct) <
-				(rq->cpu_capacity_orig * 100));
+				(arch_scale_cpu_capacity(cpu_of(rq)) * 100));
 }
 
 /* Check if the rq has a misfit task */
