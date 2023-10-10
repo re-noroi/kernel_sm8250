@@ -11223,6 +11223,7 @@ more_balance:
 				busiest->push_cpu = this_cpu;
 				active_balance = 1;
 			}
+			preempt_disable();
 			raw_spin_unlock_irqrestore(&busiest->lock, flags);
 
 			if (active_balance) {
@@ -11230,6 +11231,7 @@ more_balance:
 					active_load_balance_cpu_stop, busiest,
 					&busiest->active_balance_work);
 			}
+			preempt_enable();
 		}
 	} else {
 		sd->nr_balance_failed = 0;
