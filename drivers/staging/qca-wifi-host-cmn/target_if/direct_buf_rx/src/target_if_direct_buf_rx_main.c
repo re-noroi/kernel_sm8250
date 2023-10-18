@@ -2081,6 +2081,11 @@ QDF_STATUS target_if_direct_buf_rx_print_ring_stat(
 				WLAN_TARGET_IF_COMP_DIRECT_BUF_RX);
 	dbr_psoc_obj = wlan_objmgr_psoc_get_comp_private_obj(psoc,
 				WLAN_TARGET_IF_COMP_DIRECT_BUF_RX);
+	if (!dbr_psoc_obj) {
+		direct_buf_rx_err("dbr_psoc_obj is null");
+		return QDF_STATUS_E_INVAL;
+	}
+
 	hal_soc = dbr_psoc_obj->hal_soc;
 	num_modules = dbr_pdev_obj->num_modules;
 	direct_buf_rx_debug("--------------------------------------------------");
