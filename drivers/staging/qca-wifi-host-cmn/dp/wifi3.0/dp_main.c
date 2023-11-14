@@ -2578,11 +2578,13 @@ static int dp_hw_link_desc_pool_setup(struct dp_soc *soc)
 			} else {
 				rem_entries = num_entries_per_buf;
 				scatter_buf_num++;
-				if (scatter_buf_num >= num_scatter_bufs)
+				if (scatter_buf_num >= num_scatter_bufs) {
+					scatter_buf_num--;
 					break;
-				scatter_buf_ptr =
-					(uint8_t *)
-				(soc->wbm_idle_scatter_buf_base_vaddr[
+				}
+
+				scatter_buf_ptr = (uint8_t *)
+					(soc->wbm_idle_scatter_buf_base_vaddr[
 					 scatter_buf_num]);
 			}
 			count++;
@@ -2594,7 +2596,7 @@ static int dp_hw_link_desc_pool_setup(struct dp_soc *soc)
 			num_scatter_bufs, soc->wbm_idle_scatter_buf_size,
 			(uint32_t)(scatter_buf_ptr -
 			(uint8_t *)(soc->wbm_idle_scatter_buf_base_vaddr[
-			scatter_buf_num-1])), total_link_descs);
+			scatter_buf_num])), total_link_descs);
 	}
 	return 0;
 
