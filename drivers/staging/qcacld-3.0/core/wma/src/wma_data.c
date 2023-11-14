@@ -2445,6 +2445,12 @@ QDF_STATUS wma_tx_packet(void *wma_context, void *tx_frame, uint16_t frmLen,
 		cds_packet_free((void *)tx_frame);
 		return QDF_STATUS_E_FAILURE;
 	}
+
+	if (vdev_id >= wma_handle->max_bssid) {
+		wma_err("tx packet with invalid vdev_id :%d", vdev_id);
+		return QDF_STATUS_E_FAILURE;
+	}
+
 	iface = &wma_handle->interfaces[vdev_id];
 
 	if (!soc) {
@@ -2478,7 +2484,7 @@ QDF_STATUS wma_tx_packet(void *wma_context, void *tx_frame, uint16_t frmLen,
 	}
 
 #ifdef WLAN_FEATURE_11W
-	if ((iface && (iface->rmfEnabled || tx_flag & HAL_USE_PMF)) &&
+	if (((iface->rmfEnabled || tx_flag & HAL_USE_PMF)) &&
 	    (frmType == TXRX_FRM_802_11_MGMT) &&
 	    (pFc->subType == SIR_MAC_MGMT_DISASSOC ||
 	     pFc->subType == SIR_MAC_MGMT_DEAUTH ||
