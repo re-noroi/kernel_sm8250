@@ -102,6 +102,7 @@ bool cass_cpu_better(const struct cass_cpu_cand *a,
 		     const struct cass_cpu_cand *b, unsigned long p_util,
 		     int this_cpu, int prev_cpu, bool sync)
 {
+#define cass_cmp_r(a, b, c) ({ res = ((a) - (b)) * (abs((a) - (b)) > (c)); })
 #define cass_cmp(a, b) ({ res = (a) - (b); })
 #define cass_eq(a, b) ({ res = (a) == (b); })
 	long res;
@@ -132,7 +133,7 @@ bool cass_cpu_better(const struct cass_cpu_cand *a,
 		goto done;
 
 	/* Prefer the CPU with lower relative utilization */
-	if (cass_cmp(b->util, a->util))
+	if (cass_cmp_r(b->util, a->util, 128))
 		goto done;
 
 	/* Prefer the CPU that is idle (only relevant for uclamped tasks) */
@@ -144,12 +145,20 @@ bool cass_cpu_better(const struct cass_cpu_cand *a,
 		goto done;
 
 	/* Prefer the CPU with higher capacity */
-	if (cass_cmp(a->cap, b->cap))
+	if (cass_cmp_r(a->cap, b->cap, 128))
 		goto done;
 
 	/* Prefer the CPU with lower idle exit latency */
 	if (cass_cmp(b->exit_lat, a->exit_lat))
 		goto done;
+
+        /* Prefer the CPU with lower relative utilization */
+        if (cass_cmp_r(b->util, a->util, 64))
+                goto done;
+
+        /* Prefer the CPU with higher capacity */
+        if (cass_cmp_r(a->cap, b->cap, 64))
+                goto done;
 
 	/* Prefer the previous CPU */
 	if (cass_eq(a->cpu, prev_cpu) || !cass_cmp(b->cpu, prev_cpu))
@@ -158,6 +167,14 @@ bool cass_cpu_better(const struct cass_cpu_cand *a,
 	/* Prefer the CPU that shares a cache with the previous CPU */
 	if (cass_cmp(cpus_share_cache(a->cpu, prev_cpu),
 		     cpus_share_cache(b->cpu, prev_cpu)))
+		goto done;
+
+	/* Prefer the CPU with lower relative utilization */
+	if (cass_cmp(b->util, a->util))
+		goto done;
+
+	/* Prefer the CPU with higher capacity */
+	if (cass_cmp(a->cap, b->cap))
 		goto done;
 
 	/* @a isn't a better CPU than @b. @res must be <=0 to indicate such. */
