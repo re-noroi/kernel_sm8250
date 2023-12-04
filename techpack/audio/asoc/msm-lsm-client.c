@@ -2138,7 +2138,13 @@ static int msm_lsm_ioctl_compat(struct snd_pcm_substream *substream,
 			goto done;
 		}
 
-		size = sizeof(p_info_32) + p_info_32.param_size;
+		if (__builtin_uadd_overflow(sizeof(p_info_32), p_info_32.param_size, &size)) {
+			pr_err("%s: param size exceeds limit of %u bytes.\n",
+				__func__, UINT_MAX);
+			err = -EINVAL;
+			goto done;
+		}
+
 		param_info_rsp = kzalloc(size, GFP_KERNEL);
 
 		if (!param_info_rsp) {
