@@ -851,7 +851,7 @@ static int smb1355_parallel_get_prop(struct power_supply *psy,
 		val->intval = 0;
 		break;
 	default:
-		pr_err_ratelimited("parallel psy get prop %d not supported\n",
+		pr_debug_ratelimited("parallel psy get prop %d not supported\n",
 			prop);
 		return -EINVAL;
 	}

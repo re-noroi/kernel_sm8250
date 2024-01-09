@@ -314,7 +314,7 @@ static int smb138x_usb_get_prop(struct power_supply *psy,
 					      USB_PSY_VOTER);
 		break;
 	default:
-		pr_err("get prop %d is not supported\n", prop);
+		pr_debug("get prop %d is not supported\n", prop);
 		return -EINVAL;
 	}
 
@@ -549,7 +549,7 @@ static int smb138x_batt_get_prop(struct power_supply *psy,
 		val->intval = 0;
 		break;
 	default:
-		pr_err("batt power supply get prop %d not supported\n", prop);
+		pr_debug("batt power supply get prop %d not supported\n", prop);
 		return -EINVAL;
 	}
 
@@ -583,7 +583,7 @@ static int smb138x_batt_set_prop(struct power_supply *psy,
 		rc = smblib_set_prop_ship_mode(chg, val);
 		break;
 	default:
-		pr_err("batt power supply set prop %d not supported\n", prop);
+		pr_debug("batt power supply set prop %d not supported\n", prop);
 		return -EINVAL;
 	}
 
@@ -783,7 +783,7 @@ static int smb138x_parallel_get_prop(struct power_supply *psy,
 		val->intval = chip->dt.pl_batfet_mode;
 		break;
 	default:
-		pr_err("parallel power supply get prop %d not supported\n",
+		pr_debug("parallel power supply get prop %d not supported\n",
 			prop);
 		return -EINVAL;
 	}
