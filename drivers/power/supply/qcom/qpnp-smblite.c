@@ -444,7 +444,7 @@ static int smblite_usb_get_prop(struct power_supply *psy,
 		val->intval = 5000000;
 		break;
 	default:
-		pr_err("get prop %d is not supported in usb\n", psp);
+		pr_debug("get prop %d is not supported in usb\n", psp);
 		rc = -EINVAL;
 		break;
 	}
@@ -859,7 +859,7 @@ static int smblite_batt_get_prop(struct power_supply *psy,
 		rc = smblite_lib_get_prop_input_current_limited(chg, val);
 		break;
 	default:
-		pr_err("batt power supply prop %d not supported\n", psp);
+		pr_debug("batt power supply prop %d not supported\n", psp);
 		return -EINVAL;
 	}
 
