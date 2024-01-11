@@ -132,7 +132,7 @@ int us_afe_callback(int data)
 
 	get_monotonic_boottime(&ts);
 	el_data.timestamp = timespec_to_ns(&ts);
-	pr_info("%s: data = %d\n", __func__, data);
+	pr_debug("%s: data = %d\n", __func__, data);
 
 	if (!data)
 		el_data.data1 = 0;
