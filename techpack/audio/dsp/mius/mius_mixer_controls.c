@@ -801,7 +801,7 @@ int mius_system_configuration_param_get(
 	struct soc_mixer_control *mc =
 		(struct soc_mixer_control *)kcontrol->private_value;
 
-	pr_err("%s: reg: %d shift: %d\n", __func__, mc->reg, mc->shift);
+	pr_debug("%s: reg: %d shift: %d\n", __func__, mc->reg, mc->shift);
 
 	if (mc->reg != MIUS_SYSTEM_CONFIGURATION)
 		return -EINVAL;
