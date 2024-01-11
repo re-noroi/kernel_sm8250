@@ -3087,7 +3087,7 @@ static int afe_get_cal_topology_id(u16 port_id, u32 *topology_id,
 	struct audio_cal_info_afe_top   *afe_top_info = NULL;
 
 	if (this_afe.cal_data[cal_type_index] == NULL) {
-		pr_err("%s: cal_type %d not initialized\n", __func__,
+		pr_debug("%s: cal_type %d not initialized\n", __func__,
 			cal_type_index);
 		return -EINVAL;
 	}
@@ -3101,7 +3101,7 @@ static int afe_get_cal_topology_id(u16 port_id, u32 *topology_id,
 	cal_block = afe_find_cal_topo_id_by_port(
 		this_afe.cal_data[cal_type_index], port_id);
 	if (cal_block == NULL) {
-		pr_err("%s: cal_type %d not initialized for this port %d\n",
+		pr_debug("%s: cal_type %d not initialized for this port %d\n",
 			__func__, cal_type_index, port_id);
 		ret = -EINVAL;
 		goto unlock;
