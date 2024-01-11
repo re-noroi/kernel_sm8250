@@ -1009,7 +1009,7 @@ static int32_t afe_callback(struct apr_client_data *data, void *priv)
 #ifdef CONFIG_US_PROXIMITY
 	} else if (data->opcode == MI_ULTRASOUND_OPCODE) {
 		if (NULL != data->payload) {
-			printk(KERN_DEBUG "[MIUS] mi ultrasound afe afe cb");
+			pr_debug("[MIUS] mi ultrasound afe afe cb");
 			mius_process_apr_payload(data->payload);
 		} else
 			pr_err("[EXPORT_SYMBOLLUS]: payload ptr is Invalid");
