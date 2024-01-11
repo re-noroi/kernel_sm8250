@@ -2700,7 +2700,7 @@ static void binder_cleanup_deferred_txn_lists(struct list_head *sgc_head,
 static int binder_defer_copy(struct list_head *sgc_head, binder_size_t offset,
 			     const void __user *sender_uaddr, size_t length)
 {
-	struct binder_sg_copy *bc = kzalloc(sizeof(*bc), GFP_KERNEL);
+	struct binder_sg_copy *bc = kmalloc(sizeof(*bc), GFP_KERNEL);
 
 	if (!bc)
 		return -ENOMEM;
@@ -2743,7 +2743,7 @@ static int binder_defer_copy(struct list_head *sgc_head, binder_size_t offset,
 static int binder_add_fixup(struct list_head *pf_head, binder_size_t offset,
 			    binder_uintptr_t fixup, size_t skip_size)
 {
-	struct binder_ptr_fixup *pf = kzalloc(sizeof(*pf), GFP_KERNEL);
+	struct binder_ptr_fixup *pf = kmalloc(sizeof(*pf), GFP_KERNEL);
 	struct binder_ptr_fixup *tmppf;
 
 	if (!pf)
