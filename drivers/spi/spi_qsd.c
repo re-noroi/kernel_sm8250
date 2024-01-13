@@ -53,9 +53,9 @@
 ipc_log_string(log_ctx, x); \
 if (print) { \
 	if (dev) \
-		dev_err((dev), x); \
+		dev_dbg((dev), x); \
 	else \
-		pr_err(x); \
+		pr_dbg(x); \
 } \
 } while (0)
 
