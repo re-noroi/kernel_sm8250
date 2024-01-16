@@ -1236,7 +1236,7 @@ static void util_scan_scm_update_bss_with_esp_data(
 		struct scan_cache_entry *scan_entry)
 {
 	uint8_t air_time_fraction = 0;
-	struct wlan_esp_ie esp_information;
+	struct wlan_esp_ie esp_information = {0};
 
 	if (!scan_entry->ie_list.esp)
 		return;
