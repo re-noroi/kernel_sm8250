@@ -88,8 +88,6 @@ enum kgsl_event_results {
 #define KGSL_CONTEXT_ID(_context) \
 	((_context != NULL) ? (_context)->id : KGSL_MEMSTORE_GLOBAL)
 
-/* Allocate 600K for the snapshot static region*/
-#define KGSL_SNAPSHOT_MEMSIZE (600 * 1024)
 #define MAX_L3_LEVELS	3
 
 struct kgsl_device;
@@ -860,40 +858,7 @@ static inline int kgsl_sysfs_store(const char *buf, unsigned int *ptr)
 	dev_err((_d)->dev, \
 	"snapshot: not enough snapshot memory for section %s\n", (_s))
 
-/**
- * struct kgsl_snapshot_registers - list of registers to snapshot
- * @regs: Pointer to an array of register ranges
- * @count: Number of entries in the array
- */
-struct kgsl_snapshot_registers {
-	const unsigned int *regs;
-	unsigned int count;
-};
-
-size_t kgsl_snapshot_dump_registers(struct kgsl_device *device, u8 *buf,
-		size_t remain, void *priv);
-
-void kgsl_snapshot_indexed_registers(struct kgsl_device *device,
-	struct kgsl_snapshot *snapshot, unsigned int index,
-	unsigned int data, unsigned int start, unsigned int count);
-
-int kgsl_snapshot_get_object(struct kgsl_snapshot *snapshot,
-	struct kgsl_process_private *process, uint64_t gpuaddr,
-	uint64_t size, unsigned int type);
-
-int kgsl_snapshot_have_object(struct kgsl_snapshot *snapshot,
-	struct kgsl_process_private *process,
-	uint64_t gpuaddr, uint64_t size);
-
 struct adreno_ib_object_list;
-
-int kgsl_snapshot_add_ib_obj_list(struct kgsl_snapshot *snapshot,
-	struct adreno_ib_object_list *ib_obj_list);
-
-void kgsl_snapshot_add_section(struct kgsl_device *device, u16 id,
-	struct kgsl_snapshot *snapshot,
-	size_t (*func)(struct kgsl_device *, u8 *, size_t, void *),
-	void *priv);
 
 /**
  * kgsl_of_property_read_ddrtype - Get property from devicetree based on

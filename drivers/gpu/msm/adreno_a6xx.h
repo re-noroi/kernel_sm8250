@@ -261,10 +261,6 @@ void a6xx_preemption_callback(struct adreno_device *adreno_dev, int bit);
 int a6xx_preemption_context_init(struct kgsl_context *context);
 
 void a6xx_preemption_context_destroy(struct kgsl_context *context);
-
-static inline void a6xx_snapshot(struct adreno_device *adreno_dev,
-		struct kgsl_snapshot *snapshot) {}
-static inline void a6xx_crashdump_init(struct adreno_device *adreno_dev) {}
 int a6xx_gmu_sptprac_enable(struct adreno_device *adreno_dev);
 void a6xx_gmu_sptprac_disable(struct adreno_device *adreno_dev);
 bool a6xx_gmu_sptprac_is_on(struct adreno_device *adreno_dev);

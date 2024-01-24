@@ -484,7 +484,6 @@ struct gmu_core_ops rgmu_ops = {
 	.start = rgmu_start,
 	.stop = rgmu_stop,
 	.dcvs_set = rgmu_dcvs_set,
-	.snapshot = rgmu_snapshot,
 	.regulator_isenabled = rgmu_regulator_isenabled,
 	.suspend = rgmu_suspend,
 };

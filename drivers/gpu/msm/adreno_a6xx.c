@@ -182,8 +182,6 @@ static void a6xx_init(struct adreno_device *adreno_dev)
 			adreno_dev->highest_bank_bit = hbb;
 	}
 
-	a6xx_crashdump_init(adreno_dev);
-
 	/*
 	 * If the GMU is not enabled, rewrite the offset for the always on
 	 * counters to point to the CP always on instead of GMU always on
