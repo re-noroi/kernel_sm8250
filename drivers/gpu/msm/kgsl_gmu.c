@@ -1814,7 +1814,6 @@ struct gmu_core_ops gmu_ops = {
 	.start = gmu_start,
 	.stop = gmu_stop,
 	.dcvs_set = gmu_dcvs_set,
-	.snapshot = gmu_snapshot,
 	.regulator_isenabled = gmu_regulator_isenabled,
 	.suspend = gmu_suspend,
 	.acd_set = gmu_acd_set,

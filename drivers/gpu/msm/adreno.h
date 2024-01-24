@@ -828,34 +828,6 @@ struct adreno_debugbus_block {
 	unsigned int dwords;
 };
 
-/*
- * struct adreno_snapshot_section_sizes - Structure holding the size of
- * different sections dumped during device snapshot
- * @cp_pfp: CP PFP data section size
- * @cp_me: CP ME data section size
- * @vpc_mem: VPC memory section size
- * @cp_meq: CP MEQ size
- * @shader_mem: Size of shader memory of 1 shader section
- * @cp_merciu: CP MERCIU size
- * @roq: ROQ size
- */
-struct adreno_snapshot_sizes {
-	int cp_pfp;
-	int cp_me;
-	int vpc_mem;
-	int cp_meq;
-	int shader_mem;
-	int cp_merciu;
-	int roq;
-};
-
-/*
- * struct adreno_snapshot_data - Holds data used in snapshot
- * @sect_sizes: Has sections sizes
- */
-struct adreno_snapshot_data {
-	struct adreno_snapshot_sizes *sect_sizes;
-};
 
 enum adreno_cp_marker_type {
 	IFPC_DISABLE,
@@ -876,7 +848,6 @@ struct adreno_gpudev {
 
 	struct adreno_perfcounters *perfcounters;
 	const struct adreno_invalid_countables *invalid_countables;
-	struct adreno_snapshot_data *snapshot_data;
 
 	struct adreno_coresight *coresight[GPU_CORESIGHT_MAX];
 
@@ -890,8 +861,6 @@ struct adreno_gpudev {
 	/* GPU specific function hooks */
 	void (*irq_trace)(struct adreno_device *adreno_dev,
 				unsigned int status);
-	void (*snapshot)(struct adreno_device *adreno_dev,
-				struct kgsl_snapshot *snapshot);
 	void (*platform_setup)(struct adreno_device *adreno_dev);
 	void (*init)(struct adreno_device *adreno_dev);
 	void (*remove)(struct adreno_device *adreno_dev);
@@ -1047,10 +1016,6 @@ bool adreno_isidle(struct kgsl_device *device);
 int adreno_set_constraint(struct kgsl_device *device,
 				struct kgsl_context *context,
 				struct kgsl_device_constraint *constraint);
-
-static inline void adreno_snapshot(struct kgsl_device *device,
-		struct kgsl_snapshot *snapshot,
-		struct kgsl_context *context) {}
 
 int adreno_reset(struct kgsl_device *device, int fault);
 
