@@ -1985,7 +1985,7 @@ static int qg_get_ttf_param(void *data, enum ttf_param param, int *val)
 		*val = chip->charge_done;
 		break;
 	default:
-		pr_err("Unsupported property %d\n", param);
+		pr_debug("Unsupported property %d\n", param);
 		rc = -EINVAL;
 		break;
 	}

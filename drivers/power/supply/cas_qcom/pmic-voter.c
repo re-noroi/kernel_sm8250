@@ -486,12 +486,12 @@ int vote(struct votable *votable, const char *client_str, bool enabled, int val)
 			|| (effective_result != votable->effective_result)) {
 		if (strcmp(votable->name, "FG_WS") != 0) {
 			if (!votable->force_active && (votable->override_result == -EINVAL)) {
-				pr_info("%s: current vote is now %d voted by %s,%d, previous voted %d\n",
+				pr_debug("%s: current vote is now %d voted by %s,%d, previous voted %d\n",
 						votable->name, effective_result,
 						get_client_str(votable, effective_id),
 						effective_id, votable->effective_result);
 			} else {
-				pr_info("%s: current vote is now %d voted by vote_override %s\n",
+				pr_debug("%s: current vote is now %d voted by vote_override %s\n",
 						votable->name, votable->override_result,
 						votable->override_client);
 			}
@@ -499,12 +499,12 @@ int vote(struct votable *votable, const char *client_str, bool enabled, int val)
 		votable->effective_client_id = effective_id;
 		votable->effective_result = effective_result;
 		if (!votable->force_active && (votable->override_result == -EINVAL)) {
-			pr_info("%s: effective vote is now %d voted by %s,%d\n",
+			pr_debug("%s: effective vote is now %d voted by %s,%d\n",
 					votable->name, effective_result,
 					get_client_str(votable, effective_id),
 					effective_id);
 		} else {
-			pr_info("%s: override value is now %d voted by %s\n",
+			pr_debug("%s: override value is now %d voted by %s\n",
 					votable->name, votable->override_result,
 					votable->override_client);
 		}
@@ -551,7 +551,7 @@ int vote_override(struct votable *votable, const char *override_client,
 		return -EINVAL;
 
 	lock_votable(votable);
-	pr_info("%s: current overrivote enabled:%d val:%d voted by vote %s\n",
+	pr_debug("%s: current overrivote enabled:%d val:%d voted by vote %s\n",
 			votable->name, enabled, val,
 			override_client);
 	if (votable->force_active) {
@@ -571,7 +571,7 @@ int vote_override(struct votable *votable, const char *override_client,
 			votable->effective_result,
 			get_client_str(votable, votable->effective_client_id));
 		votable->override_result = -EINVAL;
-		pr_info("%s: current vote is now %d voted by vote_override %s\n",
+		pr_debug("%s: current vote is now %d voted by vote_override %s\n",
 			votable->name, votable->effective_result,
 			get_client_str(votable, votable->effective_client_id));
 	}
