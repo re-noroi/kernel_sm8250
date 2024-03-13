@@ -1461,6 +1461,11 @@ void target_if_cfr_update_global_cfg(struct wlan_objmgr_pdev *pdev)
 	modified_in_this_session =
 		(unsigned long *)&pcfr->rcc_param.modified_in_curr_session;
 
+	if (!pcfr) {
+		target_if_err("pcfr is null");
+		return;
+	}
+
 	for (grp_id = 0; grp_id < MAX_TA_RA_ENTRIES; grp_id++) {
 		if (qdf_test_bit(grp_id, modified_in_this_session)) {
 			/* Populating global config based on user's input */
