@@ -640,6 +640,9 @@ ucfg_pmo_get_runtime_pm_delay(struct wlan_objmgr_psoc *psoc)
 {
 	struct pmo_psoc_priv_obj *pmo_psoc_ctx = pmo_psoc_get_priv(psoc);
 
+	if (!pmo_psoc_ctx)
+		return 0;
+
 	return pmo_psoc_ctx->psoc_cfg.runtime_pm_delay;
 }
 #endif /* FEATURE_RUNTIME_PM */
