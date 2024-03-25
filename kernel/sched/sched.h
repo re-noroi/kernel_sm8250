@@ -892,6 +892,17 @@ extern void rq_attach_root(struct rq *rq, struct root_domain *rd);
 extern void sched_get_rd(struct root_domain *rd);
 extern void sched_put_rd(struct root_domain *rd);
 
+static inline int get_rd_overload(struct root_domain *rd)
+{
+	return READ_ONCE(rd->overload);
+}
+
+static inline void set_rd_overload(struct root_domain *rd, int status)
+{
+	if (get_rd_overload(rd) != status)
+		WRITE_ONCE(rd->overload, status);
+}
+
 #ifdef HAVE_RT_PUSH_IPI
 extern void rto_push_irq_work_func(struct irq_work *work);
 #endif
@@ -2092,8 +2103,7 @@ static inline void add_nr_running(struct rq *rq, unsigned count)
 
 	if (prev_nr < 2 && rq->nr_running >= 2) {
 #ifdef CONFIG_SMP
-		if (!READ_ONCE(rq->rd->overload))
-			WRITE_ONCE(rq->rd->overload, 1);
+		set_rd_overload(rq->rd, SG_OVERLOAD);
 #endif
 	}
 
