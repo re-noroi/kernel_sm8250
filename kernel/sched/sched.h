@@ -900,14 +900,14 @@ extern void rq_attach_root(struct rq *rq, struct root_domain *rd);
 extern void sched_get_rd(struct root_domain *rd);
 extern void sched_put_rd(struct root_domain *rd);
 
-static inline int get_rd_overload(struct root_domain *rd)
+static inline int get_rd_overloaded(struct root_domain *rd)
 {
 	return READ_ONCE(rd->overloaded);
 }
 
-static inline void set_rd_overload(struct root_domain *rd, int status)
+static inline void set_rd_overloaded(struct root_domain *rd, int status)
 {
-	if (get_rd_overload(rd) != status)
+	if (get_rd_overloaded(rd) != status)
 		WRITE_ONCE(rd->overloaded, status);
 }
 
@@ -2118,7 +2118,7 @@ static inline void add_nr_running(struct rq *rq, unsigned count)
 
 	if (prev_nr < 2 && rq->nr_running >= 2) {
 #ifdef CONFIG_SMP
-		set_rd_overload(rq->rd, SG_OVERLOAD);
+		set_rd_overloaded(rq->rd, SG_OVERLOAD);
 #endif
 	}
 
