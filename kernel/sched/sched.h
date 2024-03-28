@@ -824,7 +824,7 @@ struct max_cpu_capacity {
 };
 
 /* Scheduling group status flags */
-#define SG_OVERLOAD		0x1 /* More than one runnable task on a CPU. */
+#define SG_OVERLOADED		0x1 /* More than one runnable task on a CPU. */
 #define SG_OVERUTILIZED		0x2 /* One or more CPUs are over-utilized. */
 
 /*
@@ -2118,7 +2118,7 @@ static inline void add_nr_running(struct rq *rq, unsigned count)
 
 	if (prev_nr < 2 && rq->nr_running >= 2) {
 #ifdef CONFIG_SMP
-		set_rd_overloaded(rq->rd, SG_OVERLOAD);
+		set_rd_overloaded(rq->rd, SG_OVERLOADED);
 #endif
 	}
 
