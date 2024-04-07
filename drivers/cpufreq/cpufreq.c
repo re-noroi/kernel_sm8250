@@ -511,8 +511,8 @@ void cpufreq_disable_fast_switch(struct cpufreq_policy *policy)
 }
 EXPORT_SYMBOL_GPL(cpufreq_disable_fast_switch);
 
-static unsigned int __resolve_freq(struct cpufreq_policy *policy,
-		unsigned int target_freq, unsigned int relation)
+unsigned int __resolve_freq(struct cpufreq_policy *policy,
+	unsigned int target_freq, unsigned int relation)
 {
 	unsigned int idx;
 

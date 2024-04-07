@@ -414,7 +414,7 @@ is passed by the scheduler to the governor callback which causes the frequency
 to go up to the allowed maximum immediately and then draw back to the value
 returned by the above formula over time.
 
-This governor exposes only one tunable:
+This governor exposes two tunables:
 
 ``rate_limit_us``
 	Minimum time (in microseconds) that has to pass between two consecutive
@@ -423,6 +423,21 @@ This governor exposes only one tunable:
 
 	The purpose of this tunable is to reduce the scheduler context overhead
 	of the governor which might be excessive without it.
+
+``respone_time_ms``
+	Amount of time (in milliseconds) required to ramp the policy from
+	lowest to highest frequency. Can be decreased to speed up the
+	responsiveness of the system, or increased to slow the system down in
+	hope to save power. The best perf/watt will depend on the system
+	characteristics and the dominant workload you expect to run. For
+	userspace that has smart context on the type of workload running (like
+	in Android), one can tune this to suite the demand of that workload.
+
+	Note that when slowing the response down, you can end up effectively
+	chopping off the top frequencies for that policy as the util is capped
+	to 1024. On HMP systems this chopping effect will only occur on the
+	biggest core whose capacity is 1024. Don't rely on this behavior as
+	this is a limitation that can hopefully be improved in the future.
 
 This governor generally is regarded as a replacement for the older `ondemand`_
 and `conservative`_ governors (described below), as it is simpler and more
