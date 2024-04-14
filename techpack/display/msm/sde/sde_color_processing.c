@@ -278,7 +278,7 @@ static int set_dspp_pcc_feature(struct sde_hw_dspp *hw_dspp,
 {
 	int ret = 0;
 	struct drm_msm_pcc *pcc_cfg;
-	DRM_INFO("layer_flag %d %d\n", hw_crtc->mi_dimlayer_type, hw_cfg->mi_dimlayer_type);
+	/* DRM_INFO("layer_flag %d %d\n", hw_crtc->mi_dimlayer_type, hw_cfg->mi_dimlayer_type); */
 
 	if (!hw_dspp || !hw_dspp->ops.setup_pcc)
 		ret = -EINVAL;
