@@ -12,7 +12,7 @@
  *
  */
 
-#define pr_fmt(fmt)	"mi-dsi-panel:[%s:%d] " fmt, __func__, __LINE__
+#define pr_fmt(fmt)
 #include <linux/delay.h>
 #include <linux/slab.h>
 #include <linux/gpio.h>
