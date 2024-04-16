@@ -113,6 +113,50 @@ unsigned long find_first_bit(const unsigned long *addr, unsigned long size)
 EXPORT_SYMBOL(find_first_bit);
 #endif
 
+/*
+ * Find the first set bit in three memory regions.
+ */
+static inline unsigned long _find_first_and_and_bit(const unsigned long *addr1,
+						    const unsigned long *addr2,
+						    const unsigned long *addr3,
+						    unsigned long size)
+{
+	unsigned long idx, val;
+
+	for (idx = 0; idx * BITS_PER_LONG < size; idx++) {
+		val = addr1[idx] & addr2[idx] & addr3[idx];
+		if (val)
+			return min(idx * BITS_PER_LONG + __ffs(val), size);
+	}
+
+	return size;
+}
+
+/**
+ * find_first_and_and_bit - find the first set bit in 3 memory regions
+ * @addr1: The first address to base the search on
+ * @addr2: The second address to base the search on
+ * @addr3: The third address to base the search on
+ * @size: The bitmap size in bits
+ *
+ * Returns the bit number for the first set bit
+ * If no bits are set, returns @size.
+ */
+unsigned long find_first_and_and_bit(const unsigned long *addr1,
+				     const unsigned long *addr2,
+				     const unsigned long *addr3,
+				     unsigned long size)
+{
+	if (small_const_nbits(size)) {
+		unsigned long val = *addr1 & *addr2 & *addr3 & GENMASK(size - 1, 0);
+
+		return val ? __ffs(val) : size;
+	}
+
+	return _find_first_and_and_bit(addr1, addr2, addr3, size);
+}
+EXPORT_SYMBOL(find_first_and_and_bit);
+
 #ifndef find_first_zero_bit
 /*
  * Find the first cleared bit in a memory region.
