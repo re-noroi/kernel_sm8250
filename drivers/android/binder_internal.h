@@ -470,7 +470,7 @@ struct binder_proc {
 #endif
 	struct list_head delivered_death;
 	struct list_head delivered_freeze;
-	int max_threads;
+	u32 max_threads;
 	int requested_threads;
 	int requested_threads_started;
 	int tmp_ref;
