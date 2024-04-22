@@ -605,6 +605,7 @@ static int vote_clock_off(struct uart_port *uport)
 	usage_count = atomic_read(&uport->dev->power.usage_count);
 	IPC_LOG_MSG(port->ipc_log_pwr, "%s:%s ioctl:%d usage_count:%d\n",
 		__func__, current->comm, port->ioctl_count, usage_count);
+	atomic_set(&port->check_wakeup_byte, 1);
 	return 0;
 };
 
@@ -1908,21 +1909,26 @@ exit_handle_tx:
  * @uport: pointer to uart port
  * @size: size of rx data
  *
- * Return: true if wakeup byte found else false
+ * Return: offset of rx buffer where wakeup byte is present,
+ * if wakeup byte is not found returns error
  */
-static bool msm_geni_find_wakeup_byte(struct uart_port *uport, int size)
+static int msm_geni_find_wakeup_byte(struct uart_port *uport, int size)
 {
 	struct msm_geni_serial_port *port = GET_DEV_PORT(uport);
 	unsigned char *buf = (unsigned char *)port->rx_buf;
+	int i = 0;
 
-	if (buf[0] == port->wakeup_byte) {
+	for (; i < size; i++) {
+		if (buf[i] == port->wakeup_byte) {
+			IPC_LOG_MSG(port->ipc_log_rx,
+				    "%s Found wakeup byte\n", __func__);
+			atomic_set(&port->check_wakeup_byte, 0);
+			return i;
+		}
 		IPC_LOG_MSG(port->ipc_log_rx,
-			    "%s Found wakeup byte\n", __func__);
-		atomic_set(&port->check_wakeup_byte, 0);
-		return true;
+			    "%s Dropping 0x%x\n", __func__, buf[i]);
 	}
-	dump_ipc(port->ipc_log_rx, "Dropped Rx", buf, 0, size);
-	return false;
+	return -EINVAL;
 }
 
 static void check_rx_buf(char *buf, struct uart_port *uport, int size)
@@ -1964,7 +1970,7 @@ static int msm_geni_serial_handle_dma_rx(struct uart_port *uport, bool drop_rx)
 	struct msm_geni_serial_port *msm_port = GET_DEV_PORT(uport);
 	unsigned int rx_bytes = 0;
 	struct tty_port *tport;
-	int ret = 0;
+	int ret = 0, offset = 0;
 	unsigned int geni_status;
 
 	geni_status = geni_read_reg_nolog(uport->membase, SE_GENI_STATUS);
@@ -1995,12 +2001,9 @@ static int msm_geni_serial_handle_dma_rx(struct uart_port *uport, bool drop_rx)
 		return 0;
 
 	if (atomic_read(&msm_port->check_wakeup_byte)) {
-		ret = msm_geni_find_wakeup_byte(uport, rx_bytes);
-		if (!ret) {
+		offset = msm_geni_find_wakeup_byte(uport, rx_bytes);
+		if (atomic_read(&msm_port->check_wakeup_byte)) {
 			/* wakeup byte not found, drop the rx data */
-			IPC_LOG_MSG(msm_port->ipc_log_rx,
-				    "%s dropping Rx data as wakeup byte not found in %d bytes\n",
-				    __func__, rx_bytes);
 			memset(msm_port->rx_buf, 0, rx_bytes);
 			return 0;
 		}
@@ -2008,17 +2011,17 @@ static int msm_geni_serial_handle_dma_rx(struct uart_port *uport, bool drop_rx)
 
 	tport = &uport->state->port;
 	ret = tty_insert_flip_string(tport,
-				     (unsigned char *)(msm_port->rx_buf),
-				     rx_bytes);
-	if (ret != rx_bytes) {
-		IPC_LOG_MSG(msm_port->ipc_log_rx, "%s: ret %d rx_bytes %d\n",
-			    __func__, ret, rx_bytes);
-		WARN_ON_ONCE(1);
+				     (unsigned char *)(msm_port->rx_buf) +
+				     offset, (rx_bytes - offset));
+	if (ret != (rx_bytes - offset)) {
+		dev_err(uport->dev, "%s: ret %d rx_bytes %d\n",
+			__func__, ret, (rx_bytes - offset));
+		WARN_ON(1);
 	}
 	uport->icount.rx += ret;
 	tty_flip_buffer_push(tport);
 	dump_ipc(msm_port->ipc_log_rx, "DMA Rx",
-		 (char *)msm_port->rx_buf, 0, rx_bytes);
+		 (char *)msm_port->rx_buf + offset, 0, (rx_bytes - offset));
 
 	/*
 	 * DMA_DONE interrupt doesn't confirm that the DATA is copied to
@@ -2324,14 +2327,10 @@ static void msm_geni_wakeup_work(struct work_struct *work)
 	/* wait to receive wakeup byte in rx path */
 	if (!wait_for_completion_timeout(&port->wakeup_comp,
 					 msecs_to_jiffies(WAKEBYTE_TIMEOUT_MSEC
-					 ))) {
+					 )))
 		IPC_LOG_MSG(port->ipc_log_rx,
 			    "%s completion of wakeup_comp task timedout %dmsec\n",
 			    __func__, WAKEBYTE_TIMEOUT_MSEC);
-		/* Check if port is closed during the task timeout time */
-		if (!uport->state->port.tty)
-			return;
-	}
 	msm_geni_serial_power_off(uport);
 }
 
@@ -2368,7 +2367,7 @@ static irqreturn_t msm_geni_wakeup_isr(int isr, void *dev)
 	if (!tty) {
 		IPC_LOG_MSG(port->ipc_log_rx,
 			    "%s: Unexpected wakeup ISR\n", __func__);
-		WARN_ON_ONCE(1);
+		WARN_ON(1);
 		spin_unlock_irqrestore(&uport->lock, flags);
 		return IRQ_HANDLED;
 	}
@@ -2608,8 +2607,6 @@ static int msm_geni_serial_startup(struct uart_port *uport)
 	if (msm_port->wakeup_irq > 0) {
 		msm_port->wakeup_irq_wq = alloc_workqueue("%s", WQ_HIGHPRI, 1,
 							  dev_name(uport->dev));
-		if (!msm_port->wakeup_irq_wq)
-			return -ENOMEM;
 		INIT_DELAYED_WORK(&msm_port->wakeup_irq_dwork,
 				  msm_geni_wakeup_work);
 		ret = request_irq(msm_port->wakeup_irq, msm_geni_wakeup_isr,
