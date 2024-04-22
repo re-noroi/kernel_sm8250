@@ -2002,8 +2002,11 @@ static int msm_geni_serial_handle_dma_rx(struct uart_port *uport, bool drop_rx)
 
 	if (atomic_read(&msm_port->check_wakeup_byte)) {
 		offset = msm_geni_find_wakeup_byte(uport, rx_bytes);
-		if (atomic_read(&msm_port->check_wakeup_byte)) {
+		if (offset == -EINVAL) {
 			/* wakeup byte not found, drop the rx data */
+			IPC_LOG_MSG(msm_port->ipc_log_rx,
+				    "%s wakeup byte not found in %d bytes\n",
+				    __func__, rx_bytes);
 			memset(msm_port->rx_buf, 0, rx_bytes);
 			return 0;
 		}
