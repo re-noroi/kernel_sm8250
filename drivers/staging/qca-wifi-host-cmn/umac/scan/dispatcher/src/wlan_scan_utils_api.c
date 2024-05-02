@@ -1731,6 +1731,9 @@ static uint32_t util_gen_new_ie(uint8_t *ie, uint32_t ielen,
 	/* copy subelement as we need to change its content to
 	 * mark an ie after it is processed.
 	 */
+	if (subie_len == 0 || !subelement)
+		return 0;
+
 	sub_copy = qdf_mem_malloc(subie_len);
 	if (!sub_copy)
 		return 0;
