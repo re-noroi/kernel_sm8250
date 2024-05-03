@@ -202,15 +202,12 @@ static int wait_for_pll(struct clk_alpha_pll *pll, u32 mask, bool inverse,
 	u32 val;
 	int count;
 	int ret;
-	u64 time;
 	struct clk_hw *hw = &pll->clkr.hw;
 	const char *name = clk_hw_get_name(hw);
 
 	ret = regmap_read(pll->clkr.regmap, PLL_MODE(pll), &val);
 	if (ret)
 		return ret;
-
-	time = sched_clock();
 
 	for (count = 100; count > 0; count--) {
 		ret = regmap_read(pll->clkr.regmap, PLL_MODE(pll), &val);
@@ -223,9 +220,6 @@ static int wait_for_pll(struct clk_alpha_pll *pll, u32 mask, bool inverse,
 
 		udelay(1);
 	}
-	time = sched_clock() - time;
-
-	pr_err("PLL lock bit detection total wait time: %lld ns\n", time);
 
 	WARN_CLK(hw->core, name, 1, "failed to %s!\n", action);
 	return -ETIMEDOUT;
