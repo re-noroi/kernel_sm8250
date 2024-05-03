@@ -633,14 +633,12 @@ static inline void *to_virtual(const struct gpi_ring *const ring,
 #ifdef CONFIG_QCOM_GPI_DMA_DEBUG
 static inline u32 gpi_read_reg(struct gpii *gpii, void __iomem *addr)
 {
-	u64 time = sched_clock();
 	unsigned int index = atomic_inc_return(&gpii->dbg_index) - 1;
 	u32 val;
 
 	val = readl_relaxed(addr);
 	index &= (GPI_DBG_LOG_SIZE - 1);
 	(gpii->dbg_log + index)->addr = addr;
-	(gpii->dbg_log + index)->time = time;
 	(gpii->dbg_log + index)->val = val;
 	(gpii->dbg_log + index)->read = true;
 	GPII_REG(gpii, GPI_DBG_COMMON, "offset:0x%lx val:0x%x\n",
@@ -649,12 +647,10 @@ static inline u32 gpi_read_reg(struct gpii *gpii, void __iomem *addr)
 }
 static inline void gpi_write_reg(struct gpii *gpii, void __iomem *addr, u32 val)
 {
-	u64 time = sched_clock();
 	unsigned int index = atomic_inc_return(&gpii->dbg_index) - 1;
 
 	index &= (GPI_DBG_LOG_SIZE - 1);
 	(gpii->dbg_log + index)->addr = addr;
-	(gpii->dbg_log + index)->time = time;
 	(gpii->dbg_log + index)->val = val;
 	(gpii->dbg_log + index)->read = false;
 
@@ -720,8 +716,6 @@ static void gpi_dump_debug_reg(struct gpii *gpii)
 					(gpii->gpii_id) },
 		{ NULL },
 	};
-
-	dbg_reg_table->timestamp = sched_clock();
 
 	if (!dbg_reg_table->gpii_cntxt) {
 		dbg_reg_table->gpii_cntxt = kzalloc(sizeof(gpii_cntxt), gfp);
@@ -1156,7 +1150,6 @@ static void gpi_generate_cb_event(struct gpii_chan *gpii_chan,
 
 	msm_gpi_cb.cb_event = event;
 	msm_gpi_cb.status = status;
-	msm_gpi_cb.timestamp = sched_clock();
 	client_info->callback(&gpii_chan->vc.chan, &msm_gpi_cb,
 			      client_info->cb_param);
 }
