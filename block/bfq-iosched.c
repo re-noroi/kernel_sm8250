@@ -416,6 +416,8 @@ static struct bfq_io_cq *bfq_bic_lookup(struct bfq_data *bfqd,
  */
 void bfq_schedule_dispatch(struct bfq_data *bfqd)
 {
+	lockdep_assert_held(&bfqd->lock);
+
 	if (bfqd->queued != 0) {
 		bfq_log(bfqd, "schedule dispatch");
 		blk_mq_run_hw_queues(bfqd->queue, true);
@@ -4128,7 +4130,7 @@ static struct request *bfq_dispatch_request(struct blk_mq_hw_ctx *hctx)
 	struct bfq_data *bfqd = hctx->queue->elevator->elevator_data;
 	struct request *rq;
 	struct bfq_queue *in_serv_queue;
-	bool waiting_rq, idle_timer_disabled;
+	bool waiting_rq, idle_timer_disabled = false;
 
 	spin_lock_irq(&bfqd->lock);
 
@@ -4136,9 +4138,10 @@ static struct request *bfq_dispatch_request(struct blk_mq_hw_ctx *hctx)
 	waiting_rq = in_serv_queue && bfq_bfqq_wait_request(in_serv_queue);
 
 	rq = __bfq_dispatch_request(hctx);
-
-	idle_timer_disabled =
-		waiting_rq && !bfq_bfqq_wait_request(in_serv_queue);
+	if (in_serv_queue == bfqd->in_service_queue) {
+		idle_timer_disabled =
+			waiting_rq && !bfq_bfqq_wait_request(in_serv_queue);
+	}
 
 	spin_unlock_irq(&bfqd->lock);
 
@@ -5273,8 +5276,8 @@ bfq_idle_slice_timer_body(struct bfq_data *bfqd, struct bfq_queue *bfqq)
 	bfq_bfqq_expire(bfqd, bfqq, true, reason);
 
 schedule_dispatch:
-	spin_unlock_irqrestore(&bfqd->lock, flags);
 	bfq_schedule_dispatch(bfqd);
+	spin_unlock_irqrestore(&bfqd->lock, flags);
 }
 
 /*
