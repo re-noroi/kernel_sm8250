@@ -2091,10 +2091,6 @@ uint32_t policy_mgr_get_mode_specific_conn_info(
 		policy_mgr_err("Invalid Context");
 		return count;
 	}
-	if (!vdev_id) {
-		policy_mgr_err("Null pointer error");
-		return count;
-	}
 
 	count = policy_mgr_mode_specific_connection_count(
 				psoc, mode, list);
@@ -2103,16 +2099,17 @@ uint32_t policy_mgr_get_mode_specific_conn_info(
 		if (ch_freq_list)
 			*ch_freq_list =
 				pm_conc_connection_list[list[index]].freq;
-		*vdev_id =
-			pm_conc_connection_list[list[index]].vdev_id;
+		if (vdev_id)
+			*vdev_id = pm_conc_connection_list[list[index]].vdev_id;
 	} else {
 		for (index = 0; index < count; index++) {
 			if (ch_freq_list)
 				ch_freq_list[index] =
 				pm_conc_connection_list[list[index]].freq;
 
-			vdev_id[index] =
-			pm_conc_connection_list[list[index]].vdev_id;
+			if (vdev_id)
+				vdev_id[index] =
+				pm_conc_connection_list[list[index]].vdev_id;
 		}
 	}
 	qdf_mutex_release(&pm_ctx->qdf_conc_list_lock);
