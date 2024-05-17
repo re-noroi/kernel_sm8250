@@ -676,7 +676,7 @@ __poll_t ring_buffer_poll_wait(struct ring_buffer *buffer, int cpu,
 		work = &buffer->irq_work;
 	else {
 		if (!cpumask_test_cpu(cpu, buffer->cpumask))
-			return -EINVAL;
+			return EPOLLERR;
 
 		cpu_buffer = buffer->buffers[cpu];
 		work = &cpu_buffer->irq_work;
@@ -1343,6 +1343,8 @@ static void rb_free_cpu_buffer(struct ring_buffer_per_cpu *cpu_buffer)
 		bpage = list_entry(head, struct buffer_page, list);
 		free_buffer_page(bpage);
 	}
+
+	free_page((unsigned long)cpu_buffer->free_page);
 
 	kfree(cpu_buffer);
 }
@@ -2888,6 +2890,12 @@ rb_reserve_next_event(struct ring_buffer *buffer,
 	struct rb_event_info info;
 	int nr_loops = 0;
 	u64 diff;
+
+	/* ring buffer does cmpxchg, make sure it is safe in NMI context */
+	if (!IS_ENABLED(CONFIG_ARCH_HAVE_NMI_SAFE_CMPXCHG) &&
+	    (unlikely(in_nmi()))) {
+		return NULL;
+	}
 
 	rb_start_commit(cpu_buffer);
 
