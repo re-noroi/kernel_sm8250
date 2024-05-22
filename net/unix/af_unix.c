@@ -636,7 +636,7 @@ static int unix_listen(struct socket *sock, int backlog)
 	if (sock->type != SOCK_STREAM && sock->type != SOCK_SEQPACKET)
 		goto out;	/* Only stream/seqpacket sockets accept */
 	err = -EINVAL;
-	if (!u->addr)
+	if (!READ_ONCE(u->addr))
 		goto out;	/* No listens on an unbound socket */
 	unix_state_lock(sk);
 	if (sk->sk_state != TCP_CLOSE && sk->sk_state != TCP_LISTEN)
@@ -1154,7 +1154,7 @@ static int unix_dgram_connect(struct socket *sock, struct sockaddr *addr,
 			return -EINVAL;
 
 		if (test_bit(SOCK_PASSCRED, &sock->flags) &&
-		    !unix_sk(sk)->addr && (err = unix_autobind(sock)) != 0)
+		    !READ_ONCE(unix_sk(sk)->addr) && (err = unix_autobind(sock)) != 0)
 			goto out;
 
 restart:
@@ -1254,7 +1254,8 @@ static int unix_stream_connect(struct socket *sock, struct sockaddr *uaddr,
 		goto out;
 	addr_len = err;
 
-	if (test_bit(SOCK_PASSCRED, &sock->flags) && !u->addr &&
+	if (test_bit(SOCK_PASSCRED, &sock->flags) &&
+	    !READ_ONCE(u->addr) &&
 	    (err = unix_autobind(sock)) != 0)
 		goto out;
 
@@ -1689,7 +1690,7 @@ static int unix_dgram_sendmsg(struct socket *sock, struct msghdr *msg,
 			goto out;
 	}
 
-	if (test_bit(SOCK_PASSCRED, &sock->flags) && !u->addr
+	if (test_bit(SOCK_PASSCRED, &sock->flags) && !READ_ONCE(u->addr)
 	    && (err = unix_autobind(sock)) != 0)
 		goto out;
 
