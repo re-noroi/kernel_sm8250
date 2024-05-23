@@ -67,6 +67,7 @@
 #include <linux/syscalls.h>
 #include <linux/task_work.h>
 #include <linux/tsacct_kern.h>
+#include <linux/delayacct.h>
 
 #include <asm/tlb.h>
 
@@ -2211,6 +2212,19 @@ static inline void sub_nr_running(struct rq *rq, unsigned count)
 	rq->nr_running -= count;
 	/* Check if we still need preemption */
 	sched_update_tick_dependency(rq);
+}
+
+static inline void __block_task(struct rq *rq, struct task_struct *p)
+{
+	p->on_rq = 0;
+
+	if (p->sched_contributes_to_load)
+		rq->nr_uninterruptible++;
+
+	if (p->in_iowait) {
+		atomic_inc(&rq->nr_iowait);
+		delayacct_blkio_start();
+	}
 }
 
 extern void activate_task(struct rq *rq, struct task_struct *p, int flags);
