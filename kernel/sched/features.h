@@ -35,8 +35,11 @@
  * By delaying the dequeue for non-eligible tasks, they remain in the
  * competition and can burn off their negative lag. When they get selected
  * they'll have positive lag by definition.
+ *
+ * DELAY_ZERO clips the lag on dequeue (or wakeup) to 0.
  */
 #define SCHED_FEAT_DELAY_DEQUEUE 1
+#define SCHED_FEAT_DELAY_ZERO 1
 
 /*
  * Allow wakeup-time preemption of the current task:
