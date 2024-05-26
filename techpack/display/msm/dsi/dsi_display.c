@@ -7743,80 +7743,15 @@ static int dsi_display_cb_error_handler(void *data,
 		uint32_t data0, uint32_t data1,
 		uint32_t data2, uint32_t data3)
 {
-	struct dsi_display *display =  data;
-
-	if (!display || !(display->err_workq))
-		return -EINVAL;
-
-	switch (event_idx) {
-	case DSI_FIFO_UNDERFLOW:
-		queue_work(display->err_workq, &display->fifo_underflow_work);
-		break;
-	case DSI_FIFO_OVERFLOW:
-		queue_work(display->err_workq, &display->fifo_overflow_work);
-		break;
-	case DSI_LP_Rx_TIMEOUT:
-		queue_work(display->err_workq, &display->lp_rx_timeout_work);
-		break;
-	default:
-		DSI_WARN("unhandled error interrupt: %d\n", event_idx);
-		break;
-	}
-
 	return 0;
 }
 
 static void dsi_display_register_error_handler(struct dsi_display *display)
 {
-	int i = 0;
-	struct dsi_display_ctrl *ctrl;
-	struct dsi_event_cb_info event_info;
-
-	if (!display)
-		return;
-
-	display->err_workq = create_singlethread_workqueue("dsi_err_workq");
-	if (!display->err_workq) {
-		DSI_ERR("failed to create dsi workq!\n");
-		return;
-	}
-
-	INIT_WORK(&display->fifo_underflow_work,
-				dsi_display_handle_fifo_underflow);
-	INIT_WORK(&display->fifo_overflow_work,
-				dsi_display_handle_fifo_overflow);
-	INIT_WORK(&display->lp_rx_timeout_work,
-				dsi_display_handle_lp_rx_timeout);
-
-	memset(&event_info, 0, sizeof(event_info));
-
-	event_info.event_cb = dsi_display_cb_error_handler;
-	event_info.event_usr_ptr = display;
-
-	display_for_each_ctrl(i, display) {
-		ctrl = &display->ctrl[i];
-		ctrl->ctrl->irq_info.irq_err_cb = event_info;
-	}
 }
 
 static void dsi_display_unregister_error_handler(struct dsi_display *display)
 {
-	int i = 0;
-	struct dsi_display_ctrl *ctrl;
-
-	if (!display)
-		return;
-
-	display_for_each_ctrl(i, display) {
-		ctrl = &display->ctrl[i];
-		memset(&ctrl->ctrl->irq_info.irq_err_cb,
-		       0, sizeof(struct dsi_event_cb_info));
-	}
-
-	if (display->err_workq) {
-		destroy_workqueue(display->err_workq);
-		display->err_workq = NULL;
-	}
 }
 
 int dsi_display_prepare(struct dsi_display *display)
