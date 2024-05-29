@@ -464,6 +464,7 @@ struct address_space {
 	unsigned long		flags;
 	errseq_t		wb_err;
 	spinlock_t		private_lock;
+	struct rw_semaphore invalidate_lock;
 	struct list_head	private_list;
 	void			*private_data;
 
