@@ -24,7 +24,9 @@ static DEFINE_SPINLOCK(alloc_lock);
 #define PRE_ALLOC_DEBUGFS_FILE_OBJ	"status"
 #endif
 
+#ifdef CONFIG_DEBUG_FS
 static struct dentry *debug_base;
+#endif
 
 struct wcnss_prealloc {
 	int occupied;
@@ -303,7 +305,9 @@ static int __init wcnss_pre_alloc_init(void)
 static void __exit wcnss_pre_alloc_exit(void)
 {
 	wcnss_prealloc_deinit();
+#ifdef CONFIG_DEBUG_FS
 	debugfs_remove_recursive(debug_base);
+#endif
 }
 
 module_init(wcnss_pre_alloc_init);
