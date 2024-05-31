@@ -3556,7 +3556,6 @@ static int gsi_set_inst_name(struct usb_function_instance *fi,
 		return PTR_ERR(gsi);
 
 	opts->gsi = gsi;
-
 #ifdef CONFIG_IPC_LOGGING
 	/*
 	 * create instance name with prefixing "gsi." to differentiate
