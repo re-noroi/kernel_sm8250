@@ -8926,7 +8926,6 @@ static int ufshcd_quirk_tune_host_pa_tactivate(struct ufs_hba *hba)
 		// Synclength G1 for SANDISK ufs
 		ret = ufshcd_dme_peer_set(hba, UIC_ARG_MIB(0x1552), 0x4F);
 	}
-
 out:
 	return ret;
 }
