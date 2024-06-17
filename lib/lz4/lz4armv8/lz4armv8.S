@@ -5,6 +5,7 @@
 
 #include <linux/linkage.h>
 #include <asm/assembler.h>
+#include <linux/version.h>
 
 /**
  * _lz4_decompress_asm: The fast LZ4 decompression, lz4 decompression algothrim asm
@@ -40,9 +41,13 @@
 #define save_dst		x15
 #define save_src		x16
 #define offset_src_ptr		x17
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0)
+#define w_tmp_match_length	w6
+#define tmp_match_length	x6
+#else
 #define w_tmp_match_length	w18
 #define tmp_match_length	x18
-
+#endif
 
 /* x3 >= x4 src overflow */
 .macro check_src_overflow
@@ -69,17 +74,19 @@
 .macro lz4_decompress_asm_generic	doprfm=1
 	stp     x29, x30, [sp, #-16]!
 	mov     x29, sp
-	stp	x3, x0, [sp, #-16]!		/* push src and dst in stack */
+	stp	x3, x0, [sp, #-16]!			/* push src and dst in stack */
 	ldr	x3, [x3]				/* x3 = *src_ptr */
 	ldr	x0, [x0]				/* x0 = *dst_ptr */
-	adr	permtable_addr, Permtable
-	adr	cplen_table_addr, Copylength_table
+	adr_l	permtable_addr, Permtable
+	adr_l	cplen_table_addr, Copylength_table
 
+1:
 	/*
+	 * Lz4_decompress_begin:
 	 * save current dst and src ,ensure when return from asm routine
 	 * current both of "dst" and "src" save good position.
 	 */
-1: 	 mov save_dst, x0
+	mov	save_dst, x0
 	mov	save_src, x3
 
 	check_dst_overflow
@@ -92,10 +99,11 @@
 	prfm pstl2strm,[x0,#512]
 .endif
 
-	/* Decode Token Byte: */
-2:	 ldrb w_tmp, [x3], #1		/* read Token Byte */
-	lsr	literal_length, tmp, #4	/* get literal_length */
-	and	tmp_match_length, tmp, #0xf	/* get match_length */
+2:
+	/* Decode_token: */
+	ldrb	w_tmp, [x3], #1				/* read Token Byte */
+	lsr	literal_length, tmp, #4			/* get literal_length */
+	and	tmp_match_length, tmp, #0xf		/* get match_length */
 	add	match_length, tmp_match_length, #4	/* match_length >=4 */
 
 	/*
@@ -103,43 +111,51 @@
 	 * or more bytes are liteal bytes.
 	 */
 	cmp	literal_length, #14
-	b.ls	5f
+	b.ls	6f
 
 	/*
 	 * literal_length == 15 : more literal length bytes after TokenByte.
 	 * continue decoding more literal length bytes.
 	 */
-
-3: 	 check_src_overflow
+3:
+	/* Get_literal_length: */
+	check_src_overflow
 	ldrb	w_tmp, [x3], #1
 	add	literal_length, literal_length, tmp
 	cmp	tmp, #255
 	b.eq	3b
 
-/* literal copy */
-
-4:	 mov copy_from_ptr, x3
+	/* literal copy */
+4:
+	/* Copy_long_literal_hs_15: */
+	mov	copy_from_ptr, x3
 	mov	copy_to_ptr, x0
 	add	x3, x3, literal_length
 	add	x0, x0, literal_length
 	check_dst_overflow
 	check_src_overflow
 
-4:	 ldr	q0, [copy_from_ptr], #16
+5:
+	/* Copy_long_literal_loop: */
+	ldr	q0, [copy_from_ptr], #16
 	str	q0, [copy_to_ptr], #16
 
 	cmp	x0, copy_to_ptr
-	b.ls	6f
-	b	4b
+	b.ls	7f
+	b	5b
 
-5:	 ldr q0, [x3]
+6:
+	/* Copy_literal_lt_15: */
+	ldr q0, [x3]
 	str q0, [x0]
 	add	x3, x3, literal_length
 	add	x0, x0, literal_length
 
 	/* Decode offset and match_length */
-6:	 mov	offset_src_ptr, x3
-	ldrh	w_offset, [x3], #2	/* 2Byte:offset bytes */
+7:
+	/* Decode_offset_matchlength: */
+	mov	offset_src_ptr, x3
+	ldrh	w_offset, [x3], #2		/* 2Byte: offset bytes */
 	cbz	offset, Failed			/* match_length == 0 is invalid */
 	sub	copy_from_ptr, x0, offset
 	cmp	copy_from_ptr, x1
@@ -150,76 +166,90 @@
 	 */
 	add	x0, x0, match_length
 	cmp	match_length, #19
-	b.lo	8f
+	b.lo	9f
+
 	/*
 	 * continue decoding more match length bytes.
 	 */
-
-7:	 check_src_overflow1
+8:
+	/* Get_long_matchlength: */
+	check_src_overflow1
 	ldrb	w_tmp, [x3], #1
 	add	x0, x0, tmp
 	add	match_length, match_length, tmp
 	cmp	tmp, #255
-	b.eq	7b
+	b.eq	8b
 
 	/*
 	 * here got the matchlength,start "match copy".
 	 */
-
-8:	 check_dst_overflow1
+9:
+	/* Copy_match_begin: */
+	check_dst_overflow1
 	cmp	offset , match_length
-	b.hs	13f
+	b.hs	14f
 
-9:	 cmp	offset , #32
-	b.hs	13f
+10:
+	/* Cond_offset_lt_matchlength: */
+	cmp	offset , #32
+	b.hs	14f
 
-10:  ldr	q1, [copy_from_ptr]
+11:
+	/* Copy_offset_lt_32: */
+	ldr	q1, [copy_from_ptr]
 	add	tmp, permtable_addr, offset, lsl #5
 	ldp	q2, q3, [tmp]
 	tbl	v0.16b, {v1.16b}, v2.16b
 	tbl	v1.16b, {v1.16b}, v3.16b
 	cmp     offset , #16
-	b.lo    11f
+	b.lo    12f
 	ldp     q0, q1, [copy_from_ptr]
 
-11:	 ldrb	w_tmp, [cplen_table_addr, offset]
+12:
+	/* Copy_match_perm: */
+	ldrb	w_tmp, [cplen_table_addr, offset]
 	stp	q0, q1, [copy_to_ptr]
 	add	copy_to_ptr, copy_to_ptr, tmp
 	cmp	x0, copy_to_ptr
 	b.ls	1b
 
-12:  stp	q0, q1, [copy_to_ptr]
+13:
+	/* Copy_offset_lt_32_loop: */
+	stp	q0, q1, [copy_to_ptr]
 	add	copy_to_ptr, copy_to_ptr, tmp
 	stp	q0, q1, [copy_to_ptr]
 	add	copy_to_ptr, copy_to_ptr, tmp
 	cmp	x0, copy_to_ptr
-	b.hi	12b
+	b.hi	13b
 	b	1b
 
-/* offset >= match */
-
-13:	 ldr	q0, [copy_from_ptr], #16
+	/* offset >= match */
+14:
+	/* Cond_offset_ge_matchlength: */
+	ldr	q0, [copy_from_ptr], #16
 	str	q0, [copy_to_ptr], #16
 
 	cmp	x0, copy_to_ptr
 	b.ls	1b
 
-14:  ldp	q0, q1, [copy_from_ptr], #32
+15:
+	/* Copy_offset_ge_match_loop: */
+	ldp	q0, q1, [copy_from_ptr], #32
 	stp	q0, q1, [copy_to_ptr], #32
 
 	cmp	x0, copy_to_ptr
-	b.hi	14b
+	b.hi	15b
 	b	1b
 .endm
 
 .text
 .p2align 4
 
-ENTRY(_lz4_decompress_asm)
+SYM_FUNC_START(_lz4_decompress_asm)
 	lz4_decompress_asm_generic
-ENDPROC(_lz4_decompress_asm)
+SYM_FUNC_END(_lz4_decompress_asm)
 
-Failed:
+SYM_INNER_LABEL(Failed, SYM_L_LOCAL)
 	mov	tmp, #-1
 	b	Exit_here
 
@@ -239,7 +269,6 @@ Exit_here:
 	ldp     x29, x30, [sp], #16
 	ret     x30
 
-
 /*
  * In case of offset <= 31 < matchlength ,expand the pattern and store in
  * repeating pattern size(RPS),store the RPS in Copylength_table.
@@ -250,7 +279,7 @@ Exit_here:
  * read the pattern and store in q0 q1.
  * RPS = offset.
  */
-.text
+.pushsection	".rodata", "a"
 .p2align 8
 Permtable:
 .byte 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0  //offset = 0
@@ -274,10 +303,10 @@ Permtable:
 Copylength_table:
 .byte 32,32,32,30,32,30,30,28,32,27,30,22,24,26,28,30  // 0  .. 15
 .byte 16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31  // 16 .. 31
-
+.popsection
 
 .text
 .p2align 4
-ENTRY(_lz4_decompress_asm_noprfm)
+SYM_FUNC_START(_lz4_decompress_asm_noprfm)
 	lz4_decompress_asm_generic	0
-ENDPROC(_lz4_decompress_asm_noprfm)
+SYM_FUNC_END(_lz4_decompress_asm_noprfm)
