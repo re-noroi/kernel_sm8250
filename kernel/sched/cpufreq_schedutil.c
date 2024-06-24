@@ -336,12 +336,34 @@ unsigned long schedutil_cpu_util(int cpu, unsigned long util_cfs,
 	return min(scale, util);
 }
 
+static inline unsigned long apply_dvfs_headroom(unsigned long util, int cpu)
+{
+        unsigned int sched_dvfs_headroom[8] = { [0 ... 7] = 1280 };
+        unsigned long capacity = capacity_orig_of(cpu);
+        unsigned long headroom;
+
+        if (util >= capacity)
+                return util;
+
+        /*
+         * Taper the boosting at e top end as these are expensive and
+         * we don't need that much of a big headroom as we approach max
+         * capacity
+         *
+         */
+        headroom = (capacity - util);
+        /* formula: headroom * (1.X - 1) == headroom * 0.X */
+        headroom = headroom *
+                (sched_dvfs_headroom[cpu] - SCHED_CAPACITY_SCALE) >> SCHED_CAPACITY_SHIFT;
+        return util + headroom;
+}
+
 unsigned long sugov_effective_cpu_perf(int cpu, unsigned long actual,
 				 unsigned long min,
 				 unsigned long max)
 {
 	/* Add dvfs headroom to actual utilization */
-	actual = map_util_perf(actual);
+	actual = apply_dvfs_headroom(actual, cpu);
 	/* Actually we don't need to target the max performance */
 	if (actual < max)
 		max = actual;
