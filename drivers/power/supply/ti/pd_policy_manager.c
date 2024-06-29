@@ -788,6 +788,7 @@ static void usbpd_update_pps_status(struct usbpd_pm *pdpm)
 	}
 }
 
+int pd_log_count = 0;
 #define TAPER_TIMEOUT	(10000 / PM_WORK_RUN_QUICK_INTERVAL)
 #define IBUS_CHANGE_TIMEOUT  (1000 / PM_WORK_RUN_QUICK_INTERVAL)
 static int usbpd_pm_fc2_charge_algo(struct usbpd_pm *pdpm)
