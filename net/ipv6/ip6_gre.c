@@ -59,8 +59,8 @@
 #include <net/dst_metadata.h>
 
 
-static bool log_ecn_error = true;
-module_param(log_ecn_error, bool, 0644);
+static bool log_ecn_error = false;
+module_param(log_ecn_error, bool, 0444);
 MODULE_PARM_DESC(log_ecn_error, "Log packets received with corrupted ECN");
 
 #define IP6_GRE_HASH_SIZE_SHIFT  5
