@@ -30,8 +30,8 @@
 #define VNI_HASH_BITS		10
 #define VNI_HASH_SIZE		(1<<VNI_HASH_BITS)
 
-static bool log_ecn_error = true;
-module_param(log_ecn_error, bool, 0644);
+static bool log_ecn_error = false;
+module_param(log_ecn_error, bool, 0444);
 MODULE_PARM_DESC(log_ecn_error, "Log packets received with corrupted ECN");
 
 #define GENEVE_VER 0

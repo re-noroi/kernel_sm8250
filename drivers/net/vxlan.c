@@ -49,8 +49,8 @@ static unsigned short vxlan_port __read_mostly = 8472;
 module_param_named(udp_port, vxlan_port, ushort, 0444);
 MODULE_PARM_DESC(udp_port, "Destination UDP port");
 
-static bool log_ecn_error = true;
-module_param(log_ecn_error, bool, 0644);
+static bool log_ecn_error = false;
+module_param(log_ecn_error, bool, 0444);
 MODULE_PARM_DESC(log_ecn_error, "Log packets received with corrupted ECN");
 
 static unsigned int vxlan_net_id;
