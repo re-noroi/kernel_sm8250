@@ -65,8 +65,8 @@
 #define IP6_SIT_HASH_SIZE  16
 #define HASH(addr) (((__force u32)addr^((__force u32)addr>>4))&0xF)
 
-static bool log_ecn_error = true;
-module_param(log_ecn_error, bool, 0644);
+static bool log_ecn_error = false;
+module_param(log_ecn_error, bool, 0444);
 MODULE_PARM_DESC(log_ecn_error, "Log packets received with corrupted ECN");
 
 static int ipip6_tunnel_init(struct net_device *dev);

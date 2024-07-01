@@ -68,8 +68,8 @@ MODULE_ALIAS_NETDEV("ip6tnl0");
 #define IP6_TUNNEL_HASH_SIZE_SHIFT  5
 #define IP6_TUNNEL_HASH_SIZE (1 << IP6_TUNNEL_HASH_SIZE_SHIFT)
 
-static bool log_ecn_error = true;
-module_param(log_ecn_error, bool, 0644);
+static bool log_ecn_error = false;
+module_param(log_ecn_error, bool, 0444);
 MODULE_PARM_DESC(log_ecn_error, "Log packets received with corrupted ECN");
 
 static u32 HASH(const struct in6_addr *addr1, const struct in6_addr *addr2)
