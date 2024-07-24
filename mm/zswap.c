@@ -258,7 +258,7 @@ static struct zswap_entry *zswap_entry_cache_alloc(gfp_t gfp)
 {
 	struct zswap_entry *entry;
 	entry = kmem_cache_alloc(zswap_entry_cache, gfp);
-	if (!entry)
+	if (unlikely(!entry))
 		return NULL;
 	entry->refcount = 1;
 	RB_CLEAR_NODE(&entry->rbnode);
@@ -872,7 +872,7 @@ static int zswap_writeback_entry(struct zpool *pool, unsigned long handle)
 	/* find and ref zswap entry */
 	spin_lock(&tree->lock);
 	entry = zswap_entry_find_get(&tree->rbroot, offset);
-	if (!entry) {
+	if (unlikely(!entry)) {
 		/* entry was invalidated */
 		spin_unlock(&tree->lock);
 		return 0;
