@@ -1566,6 +1566,7 @@ static void *new_vmap_block(unsigned int order, gfp_t gfp_mask)
 	vb->dirty_min = VMAP_BBMAP_BITS;
 	vb->dirty_max = 0;
 	INIT_LIST_HEAD(&vb->free_list);
+	vb->cpu = raw_smp_processor_id();
 
 	xa = addr_to_vb_xarray(va->va_start);
 	vb_idx = addr_to_vb_idx(va->va_start);
@@ -1582,7 +1583,6 @@ static void *new_vmap_block(unsigned int order, gfp_t gfp_mask)
 	 * integrity together with list_for_each_rcu from read
 	 * side.
 	 */
-	vb->cpu = raw_smp_processor_id();
 	vbq = per_cpu_ptr(&vmap_block_queue, vb->cpu);
 	spin_lock(&vbq->lock);
 	list_add_tail_rcu(&vb->free_list, &vbq->free);
