@@ -651,6 +651,11 @@ CONFIG_QCA_CLD_WLAN_PROFILE="qca6390"
 # CONFIG_OSSFOD is not set
 
 #
+# Camera
+#
+CONFIG_TECHPACK_CAMERA_XIAOMI=y
+
+#
 # General architecture-dependent options
 #
 CONFIG_JUMP_LABEL=y
