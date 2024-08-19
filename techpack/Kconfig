@@ -1,13 +1,28 @@
-menu "Xiaomi Camera Configuration"
+source "techpack/data/Kconfig"
+source "techpack/wlan/Kconfig"
 
-config CAMERA_NONEDXO
-	bool "Enable None-DXO Camera modifications"
+config OSSFOD
+	bool "OSS FOD support"
+	depends on BOARD_XIAOMI
 	help
-	  "Enable None-DXO Camera modifications"
+	  When this option is enabled, OSS FOD support will be added.
 
-config CAMERA_CAS
-	bool "Enable Xiaomi CAS Camera modifications"
-	help
-	  "Enable Xiaomi CAS Camera modifications"
+config TECHPACK_CAMERA_XIAOMI
+    bool "Xiaomi camera"
+    help
+      Xiaomi camera
 
-endmenu
+config TECHPACK_CAMERA_XIAOMI_CAS
+    bool "Xiaomi camera CAS"
+    help
+      Xiaomi camera CAS
+
+config TECHPACK_CAMERA_XIAOMI_LMI
+    bool "Xiaomi camera LMI"
+    help
+      Xiaomi camera LMI
+
+config TECHPACK_CAMERA_XIAOMI_TABLET
+    bool "Xiaomi camera tablet"
+    help
+      Xiaomi camera tablet
