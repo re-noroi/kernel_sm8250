@@ -1259,6 +1259,7 @@ void set_iounmap_nonlazy(void)
 static bool __purge_vmap_area_lazy(unsigned long start, unsigned long end)
 {
 	unsigned long resched_threshold;
+	unsigned long nr_purged_pages = 0;
 	struct llist_node *valist;
 	struct vmap_area *va;
 	struct vmap_area *n_va;
@@ -1301,12 +1302,15 @@ static bool __purge_vmap_area_lazy(unsigned long start, unsigned long end)
 		merge_or_add_vmap_area(va,
 			&free_vmap_area_root, &free_vmap_area_list);
 
-		atomic_long_sub(nr, &vmap_lazy_nr);
+		nr_purged_pages += nr;
 
 		if (atomic_long_read(&vmap_lazy_nr) < resched_threshold)
 			cond_resched_lock(&free_vmap_area_lock);
 	}
-	spin_unlock(&free_vmap_area_lock);
+
+	atomic_long_sub(nr_purged_pages, &vmap_lazy_nr);
+
+        spin_unlock(&free_vmap_area_lock);
 	return true;
 }
 
