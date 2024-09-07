@@ -5299,9 +5299,9 @@ static int binder_open(struct inode *nodp, struct file *filp)
 	binder_debug(BINDER_DEBUG_OPEN_CLOSE, "%s: %d:%d\n", __func__,
 		     current->group_leader->pid, current->pid);
 	eproc = kzalloc(sizeof(*eproc), GFP_KERNEL);
-	proc = &eproc->proc;
-	if (proc == NULL)
+	if (eproc == NULL)
 		return -ENOMEM;
+        proc = &eproc->proc;
 	dbitmap_init(&proc->dmap);
 	spin_lock_init(&proc->inner_lock);
 	spin_lock_init(&proc->outer_lock);
