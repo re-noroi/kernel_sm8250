@@ -11,7 +11,7 @@
 #include <linux/tick.h>
 
 #define MAX_LONG_SIZE 24
-#define DEFAULT_DEF_TIMER_JIFFIES 5
+#define DEFAULT_DEF_TIMER_JIFFIES 500
 
 static void def_work_fn(struct work_struct *work)
 {
