@@ -4261,7 +4261,7 @@ static void kvm_sched_out(struct preempt_notifier *pn,
 {
 	struct kvm_vcpu *vcpu = preempt_notifier_to_vcpu(pn);
 
-        if (current->on_rq)
+        if (task_is_runnable(current))
 		vcpu->preempted = true;
 	kvm_arch_vcpu_put(vcpu);
 }
