@@ -1542,7 +1542,7 @@ static inline void enqueue_task(struct rq *rq, struct task_struct *p, int flags)
 /*
  * Must only return false when DEQUEUE_SLEEP.
  */
-static inline bool dequeue_task(struct rq *rq, struct task_struct *p, int flags)
+inline bool dequeue_task(struct rq *rq, struct task_struct *p, int flags)
 {
 	if (!(flags & DEQUEUE_NOCLOCK))
 		update_rq_clock(rq);
