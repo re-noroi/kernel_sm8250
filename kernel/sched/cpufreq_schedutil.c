@@ -331,12 +331,9 @@ unsigned long schedutil_cpu_util(int cpu, unsigned long util_cfs,
 }
 
 static __always_inline
-unsigned long apply_dvfs_headroom(int cpu, unsigned long util, unsigned long max_cap)
+unsigned long apply_dvfs_headroom(int cpu, unsigned long util)
 {
 	unsigned long headroom;
-
-	if (!util || util >= max_cap)
-		return util;
 
 	if (cpumask_test_cpu(cpu, cpu_lp_mask))
 		headroom = util + (util >> 1);
@@ -351,7 +348,7 @@ unsigned long sugov_effective_cpu_perf(int cpu, unsigned long actual,
 				 unsigned long max)
 {
 	/* Add dvfs headroom to actual utilization */
-	actual = apply_dvfs_headroom(cpu, actual, max);
+	actual = apply_dvfs_headroom(cpu, actual);
 	/* Actually we don't need to target the max performance */
 	if (actual < max)
 		max = actual;
