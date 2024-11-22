@@ -143,7 +143,7 @@ static void devfreq_update_boosts(struct boost_dev *b, unsigned long state)
 	struct devfreq *df = b->df;
 
 	mutex_lock(&df->lock);
-	if (!(state & BIT(SCREEN_OFF))) {
+	if (state & BIT(SCREEN_OFF)) {
 		df->min_freq = df->profile->freq_table[0];
 		df->max_boost = false;
 	} else {
