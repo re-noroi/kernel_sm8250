@@ -563,7 +563,6 @@ out:
 	return dentry;
 }
 
-#ifdef CONFIG_ANDROID_BINDER_LOGS
 static struct dentry *binderfs_create_dir(struct dentry *parent,
 					  const char *name)
 {
@@ -632,6 +631,7 @@ static int init_binder_features(struct super_block *sb)
 	return 0;
 }
 
+#ifdef CONFIG_ANDROID_BINDER_LOGS
 static int init_binder_logs(struct super_block *sb)
 {
 	struct dentry *binder_logs_root_dir, *dentry, *proc_log_dir;
