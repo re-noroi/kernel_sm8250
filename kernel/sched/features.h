@@ -32,6 +32,15 @@
 #define SCHED_FEAT_NEXT_BUDDY 0
 
 /*
+ * Allow completely ignoring cfs_rq->next; which can be set from various
+ * places:
+ *   - NEXT_BUDDY (wakeup preemption)
+ *   - yield_to_task()
+ *   - cgroup dequeue / pick
+ */
+#define SCHED_FEAT_PICK_BUDDY 1
+
+/*
  * Consider buddies to be cache hot, decreases the likeliness of a
  * cache buddy being migrated away, increases cache locality.
  */
