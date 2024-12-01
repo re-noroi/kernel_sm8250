@@ -152,6 +152,12 @@ EXPORT_SYMBOL(strlcpy);
 #endif
 
 #ifndef __HAVE_ARCH_STRSCPY
+#ifdef __BIG_ENDIAN
+# define ALLBUTLAST_BYTE_MASK (~255ul)
+#else
+# define ALLBUTLAST_BYTE_MASK (~0ul >> 8)
+#endif
+
 /**
  * strscpy - Copy a C-string into a sized buffer
  * @dest: Where to copy the string to
@@ -210,13 +216,18 @@ ssize_t strscpy(char *dest, const char *src, size_t count)
 			*(unsigned long *)(dest+res) = c & zero_bytemask(data);
 			return res + find_zero(data);
 		}
+		count -= sizeof(unsigned long);
+		if (unlikely(!count)) {
+			c &= ALLBUTLAST_BYTE_MASK;
+			*(unsigned long *)(dest+res) = c;
+			return -E2BIG;
+		}
 		*(unsigned long *)(dest+res) = c;
 		res += sizeof(unsigned long);
-		count -= sizeof(unsigned long);
 		max -= sizeof(unsigned long);
 	}
 
-	while (count) {
+	while (count > 1) {
 		char c;
 
 		c = src[res];
@@ -227,11 +238,11 @@ ssize_t strscpy(char *dest, const char *src, size_t count)
 		count--;
 	}
 
-	/* Hit buffer length without finding a NUL; force NUL-termination. */
-	if (res)
-		dest[res-1] = '\0';
+	/* Force NUL-termination. */
+	dest[res] = '\0';
 
-	return -E2BIG;
+	/* Return E2BIG if the source didn't stop */
+	return src[res] ? -E2BIG : res;
 }
 EXPORT_SYMBOL(strscpy);
 #endif
