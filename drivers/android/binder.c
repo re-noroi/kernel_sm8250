@@ -6502,6 +6502,12 @@ const struct file_operations binder_fops = {
 	.flush = binder_flush,
 	.release = binder_release,
 };
+
+void binder_add_device(struct binder_device *device)
+{
+	hlist_add_head(&device->hlist, &binder_devices);
+}
+
 static int __init init_binder_device(const char *name)
 {
 	int ret;
