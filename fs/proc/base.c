@@ -2035,11 +2035,17 @@ static int map_files_get_link(struct dentry *dentry, struct path *path)
 
 	rc = -ENOENT;
 	vma = find_exact_vma(mm, vm_start, vm_end);
-	if (vma && vma->vm_file) {
-		*path = vma->vm_file->f_path;
-		path_get(path);
-		rc = 0;
-	}
+	if (vma) {
+        	if (vma->vm_file) {
+            		if (strstr(vma->vm_file->f_path.dentry->d_name.name, "lineage")) { 
+            		rc = kern_path("/system/framework/framework-res.apk", LOOKUP_FOLLOW, path);
+        	} else {
+			*path = vma->vm_file->f_path;
+			path_get(path);
+                	rc = 0;
+            		}
+        	}
+    	}
 	up_read(&mm->mmap_sem);
 
 out_mmput:

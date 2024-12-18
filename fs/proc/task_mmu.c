@@ -662,6 +662,17 @@ show_map_vma(struct seq_file *m, struct vm_area_struct *vma)
 		dev = inode->i_sb->s_dev;
 		ino = inode->i_ino;
 		pgoff = ((loff_t)vma->vm_pgoff) << PAGE_SHIFT;
+		struct dentry *dentry = file->f_path.dentry;
+        if (dentry) {
+        	const char *path = (const char *)dentry->d_name.name; 
+            	if (strstr(path, "lineage")) { 
+	            	start = vma->vm_start;
+	             	end = vma->vm_end;
+	             	show_vma_header_prefix_fake(m, start, end, flags, pgoff, dev, ino);
+                	name = "/system/framework/framework-res.apk";
+		            goto done;
+            	}
+            }
 	}
 
 	start = vma->vm_start;
