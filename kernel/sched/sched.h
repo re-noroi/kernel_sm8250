@@ -2152,6 +2152,11 @@ extern const_debug unsigned int sysctl_sched_nr_migrate;
 extern const_debug unsigned int sysctl_sched_migration_cost;
 
 extern unsigned int sysctl_sched_base_slice;
+extern unsigned int sysctl_fps_threshold_high;
+extern unsigned int sysctl_fps_threshold_low;
+extern unsigned int sysctl_headroom_big;
+extern unsigned int sysctl_util_low;
+
 #ifdef CONFIG_SCHED_HRTICK
 
 /*
