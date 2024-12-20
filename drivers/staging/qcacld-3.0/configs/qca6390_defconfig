@@ -756,3 +756,6 @@ CONFIG_WLAN_POWER_DEBUG := y
 
 #Flag to enable/disable TARGET 11d scan
 CONFIG_TARGET_11D_SCAN := y
+
+# Disable packet logging to stop wasting memory
+CONFIG_SLUB_MEM_OPTIMIZE := y
