@@ -10275,6 +10275,7 @@ static inline void update_sg_lb_stats(struct lb_env *env,
 				      int *sg_status)
 {
 	int i, nr_running, local_group;
+	bool balancing_at_rd = !env->sd->parent;
 
 	memset(sgs, 0, sizeof(*sgs));
 
@@ -10292,9 +10293,6 @@ static inline void update_sg_lb_stats(struct lb_env *env,
 		nr_running = rq->nr_running;
 		sgs->sum_nr_running += nr_running;
 
-		if (nr_running > 1)
-			*sg_status |= SG_OVERLOAD;
-
 		if (cpu_overutilized(i))
 			*sg_status |= SG_OVERUTILIZED;
 
@@ -10310,6 +10308,10 @@ static inline void update_sg_lb_stats(struct lb_env *env,
 			/* Idle cpu can't have misfit task */
 			continue;
 		}
+
+		/* Overload indicator is only updated at root domain */
+		if (balancing_at_rd && nr_running > 1)
+			*sg_status |= SG_OVERLOAD;
 
 		if (local_group)
 			continue;
