@@ -1246,6 +1246,9 @@ static int msm_routing_find_topology_on_index(int session_type, int app_type,
 	int topology = -EINVAL;
 	struct cal_block_data *cal_block = NULL;
 
+	if (cal_data[idx] == NULL)
+		return topology;
+
 	mutex_lock(&cal_data[idx]->lock);
 	cal_block = msm_routing_find_topology(session_type, app_type,
 					      acdb_dev_id, idx, exact);
