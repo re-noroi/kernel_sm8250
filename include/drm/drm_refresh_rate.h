@@ -4,3 +4,4 @@
  */
 
 unsigned int dsi_panel_get_refresh_rate(void);
+static unsigned char msm_panel_fps = 60;
