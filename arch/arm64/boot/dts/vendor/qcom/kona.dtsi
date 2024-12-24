@@ -1408,7 +1408,7 @@
 
 		sleep_clk: sleep-clk {
 			compatible = "fixed-clock";
-			clock-frequency = <32000>;
+			clock-frequency = <32764>;
 			clock-output-names = "chip_sleep_clk";
 			#clock-cells = <1>;
 		};
