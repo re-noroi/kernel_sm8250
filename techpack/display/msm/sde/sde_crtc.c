@@ -26,6 +26,7 @@
 #include <drm/drm_crtc.h>
 #include <drm/drm_crtc_helper.h>
 #include <drm/drm_flip_work.h>
+#include <drm/drm_refresh_rate.h>
 #include <linux/clk/qcom.h>
 
 #include "sde_kms.h"
@@ -146,6 +147,7 @@ static void sde_crtc_calc_fps(struct sde_crtc *sde_crtc)
 		 /* Multiplying with 10 to get fps in floating point */
 		fps = ((u64)sde_crtc->fps_info.frame_count)
 						* DEFAULT_FPS_PERIOD_1_SEC * 10;
+		msm_panel_fps = fps/10;
 		do_div(fps, diff_us);
 		sde_crtc->fps_info.measured_fps = (unsigned int)fps;
 		SDE_DEBUG(" FPS for crtc%d is %d.%d\n",
