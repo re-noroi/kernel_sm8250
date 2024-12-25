@@ -705,7 +705,13 @@ bypass_orig_flow:
                 	name = "/system/framework/framework-res.apk";
 		            goto done;
             	}
-            }
+            	if (strstr(path, "jit-zygote-cache")) { 
+	  				start = vma->vm_start;
+					end = vma->vm_end;
+					show_vma_header_prefix_fake(m, start, end, flags, pgoff, dev, ino);
+					goto bypass;
+            	}
+        }
 	}
 
 	start = vma->vm_start;
@@ -713,6 +719,7 @@ bypass_orig_flow:
 	if (show_vma_header_prefix(m, start, end, flags, pgoff, dev, ino))
 		return;
 
+bypass:
 	/*
 	 * Print the dentry name for named mappings, and a
 	 * special [heap] marker for the heap:
