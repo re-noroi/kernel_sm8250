@@ -2037,7 +2037,8 @@ static int map_files_get_link(struct dentry *dentry, struct path *path)
 	vma = find_exact_vma(mm, vm_start, vm_end);
 	if (vma) {
         	if (vma->vm_file) {
-            		if (strstr(vma->vm_file->f_path.dentry->d_name.name, "lineage")) { 
+            		if (strstr(vma->vm_file->f_path.dentry->d_name.name, "lineage") ||
+						strstr(vma->vm_file->f_path.dentry->d_name.name, "lineageos")) { 
             		rc = kern_path("/system/framework/framework-res.apk", LOOKUP_FOLLOW, path);
         	} else {
 			*path = vma->vm_file->f_path;
