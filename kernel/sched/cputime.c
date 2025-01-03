@@ -6,6 +6,8 @@
 #include "walt.h"
 
 #ifdef CONFIG_IRQ_TIME_ACCOUNTING
+DEFINE_STATIC_KEY_FALSE(sched_clock_irqtime);
+
 
 /*
  * There are no locks covering percpu hardirq/softirq time.
@@ -20,16 +22,14 @@
  */
 DEFINE_PER_CPU(struct irqtime, cpu_irqtime);
 
-static int sched_clock_irqtime;
-
 void enable_sched_clock_irqtime(void)
 {
-	sched_clock_irqtime = 1;
+	static_branch_enable(&sched_clock_irqtime);
 }
 
 void disable_sched_clock_irqtime(void)
 {
-	sched_clock_irqtime = 0;
+	static_branch_disable(&sched_clock_irqtime);
 }
 
 static void irqtime_account_delta(struct irqtime *irqtime, u64 delta,
@@ -58,7 +58,7 @@ void irqtime_account_irq(struct task_struct *curr)
 	bool account = true;
 #endif
 
-	if (!sched_clock_irqtime)
+	if (!irqtime_enabled())
 		return;
 
 	cpu = smp_processor_id();
@@ -102,8 +102,6 @@ static u64 irqtime_tick_accounted(u64 maxtime)
 }
 
 #else /* CONFIG_IRQ_TIME_ACCOUNTING */
-
-#define sched_clock_irqtime	(0)
 
 static u64 irqtime_tick_accounted(u64 dummy)
 {
@@ -504,7 +502,7 @@ void account_process_tick(struct task_struct *p, int user_tick)
 	if (vtime_accounting_cpu_enabled())
 		return;
 
-	if (sched_clock_irqtime) {
+	if (irqtime_enabled()) {
 		irqtime_account_process_tick(p, user_tick, rq, 1);
 		return;
 	}
@@ -533,7 +531,7 @@ void account_idle_ticks(unsigned long ticks)
 {
 	u64 cputime, steal;
 
-	if (sched_clock_irqtime) {
+	if (irqtime_enabled()) {
 		irqtime_account_idle_ticks(ticks);
 		return;
 	}
