@@ -1,0 +1,17 @@
+version: 1
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: daily
+    target-branch: next-susfs
+  - package-ecosystem: gitsubmodule
+    directory: /
+    schedule:
+      interval: daily
+    target-branch: next-susfs
+  - package-ecosystem: gitsubmodule
+    directory: /
+    schedule:
+      interval: daily
+    target-branch: ksu-next
