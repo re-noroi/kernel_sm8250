@@ -109,7 +109,7 @@ jobs:
         if [ -e "Image.gz" ]; then
           cp -f Image.gz AnyKernel3
         fi
-        name=N0kernel-AOSP-KSUNEXT-SUSFS-${{ github.event.inputs.CODENAME }}.zip
+        name=N0kernel-AOSP-SUSFS-${{ github.event.inputs.CODENAME }}-${{ github.run_id }}.zip
         cd AnyKernel3
         zip -q -r $name *
         mv $name ../
@@ -129,7 +129,7 @@ jobs:
         if [ -e "Image.gz" ]; then
           cp -f Image.gz SecondAnyKernel
         fi
-        second_name=N0kernel-HYPEROS-KSUNEXT-SUSFS-${{ github.event.inputs.CODENAME }}.zip
+        second_name=N0kernel-MIUI-SUSFS-${{ github.event.inputs.CODENAME }}-${{ github.run_id }}.zip
         cd SecondAnyKernel
         zip -q -r $second_name *
         mv $second_name ../
