@@ -1042,30 +1042,16 @@ static int bq2597x_get_adc_data(struct bq2597x *bq, int channel,  int *result)
 	if (channel < 0 || channel >= ADC_MAX_NUM)
 		return -EINVAL;
 
-	if (bq->chip_vendor == NU2105) {
-		ret = bq2597x_read_byte(bq, ADC_REG_BASE + (channel << 1), &val_h);
-		ret |= bq2597x_read_byte(bq, ADC_REG_BASE + (channel << 1) + 1, &val_l);
-		if (ret < 0)
-			return ret;
-		t = val_l + (val_h << 8);
-		*result = t;
-		/* vbat need calibration read by NU2105 */
-		if (channel == ADC_VBAT) {
-			t = t * (1 + 1803 / 1000000);
-			*result = t;
-		}
-	} else {
-		ret = bq2597x_read_word(bq, ADC_REG_BASE + (channel << 1), &val);
-		if (ret < 0)
-			return ret;
-		t = val & 0xFF;
-		t <<= 8;
-		t |= (val >> 8) & 0xFF;
-		*result = t;
+	ret = bq2597x_read_word(bq, ADC_REG_BASE + (channel << 1), &val);
+	if (ret < 0)
+		return ret;
+	t = val & 0xFF;
+	t <<= 8;
+	t |= (val >> 8) & 0xFF;
+	*result = t;
 
-		if (bq->chip_vendor == SC8551) {
-			*result = (u64)t * (u64)sc8551_adc_lsb[channel] / 10000000;
-		}
+	if (bq->chip_vendor == SC8551) {
+		*result = (int)(t * sc8551_adc_lsb[channel]);
 	}
 
 	return 0;
