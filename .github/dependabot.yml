@@ -4,12 +4,12 @@ updates:
     directory: /
     schedule:
       interval: daily
-    target-branch: next-susfs
+    target-branch: staging
   - package-ecosystem: gitsubmodule
     directory: /
     schedule:
       interval: daily
-    target-branch: next-susfs
+    target-branch: staging
   - package-ecosystem: gitsubmodule
     directory: /
     schedule:
