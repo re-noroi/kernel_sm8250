@@ -1,4 +1,4 @@
-name: Kernel Build (alioth) - clang-r547379 SUSFS + KSU NEXT
+name: Kernel Build (alioth) - ZyC clang version 20.0.0git SUSFS + KSU NEXT
 
 on:
   pull_request:
@@ -70,7 +70,7 @@ jobs:
     - name: Prepare the build environment
       run: |
         sudo apt install flex && sudo apt install libncurses6
-        wget https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r547379.tar.gz -O clang.tar.gz
+        wget https://github.com/ZyCromerZ/Clang/releases/download/20.0.0git-20250102-release/Clang-20.0.0git-20250102.tar.gz
         mkdir clang
         tar -xf clang.tar.gz -C clang
         echo "tools-folder=$(pwd)" >> $GITHUB_OUTPUT
