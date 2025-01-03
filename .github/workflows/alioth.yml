@@ -70,7 +70,7 @@ jobs:
     - name: Prepare the build environment
       run: |
         sudo apt install flex && sudo apt install libncurses6
-        wget https://github.com/ZyCromerZ/Clang/releases/download/20.0.0git-20250102-release/Clang-20.0.0git-20250102.tar.gz
+        wget https://github.com/ZyCromerZ/Clang/releases/download/20.0.0git-20250103-release/Clang-20.0.0git-20250103.tar.gz -O clang.tar.gz
         mkdir clang
         tar -xf clang.tar.gz -C clang
         echo "tools-folder=$(pwd)" >> $GITHUB_OUTPUT
