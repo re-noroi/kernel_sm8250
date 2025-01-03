@@ -3,7 +3,7 @@ qcom,04916363_xiaomi_k11_4520mah_averaged_masterslave_nov9th2020 {
 	qcom,profile-revision = <24>;
 	/* #04916363_Xiaomi_K11_4520mah_averaged_MasterSlave_Nov9th2020*/
 	qcom,max-voltage-uv = <4460000>;
-	qcom,fastchg-current-ma = <5400>;
+	qcom,fastchg-current-ma = <6000>;
 	qcom,jeita-fcc-ranges = <(-100)  0   442000
 				1  50  884000
 				51  100  2210000
