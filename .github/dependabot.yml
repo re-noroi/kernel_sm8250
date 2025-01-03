@@ -10,8 +10,3 @@ updates:
     schedule:
       interval: daily
     target-branch: staging
-  - package-ecosystem: gitsubmodule
-    directory: /
-    schedule:
-      interval: daily
-    target-branch: ksu-next
