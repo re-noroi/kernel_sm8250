@@ -35,7 +35,7 @@ on:
         description: 'Second AnyKernel Branch (defaults to codename)'
         default: 'main'
         required: false
-      UPLOAD_TO_RELEASE:
+      UPLOAD_TO_:
         description: 'Upload to release'
         type: boolean
         default: false
@@ -148,7 +148,7 @@ jobs:
         files: |
           ${{ steps.kernel.outputs.kernel-folder }}/out/arch/arm64/boot/${{ steps.anykernel.outputs.zipname }}
           ${{ steps.kernel.outputs.kernel-folder }}/out/arch/arm64/boot/${{ steps.second_anykernel.outputs.second_zipname }}
-        name: ${{ github.event.inputs.CODENAME }}-${{ github.run_id }}
+        name: ${{ github.event.inputs.CODENAME }}-${{ github.run_id }}-NOKSU
         tag_name: ${{ github.run_id }}
         body: |
           <b>${{ steps.workspace.outputs.build_title }}</b>
