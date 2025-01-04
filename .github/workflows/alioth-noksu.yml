@@ -35,7 +35,7 @@ on:
         description: 'Second AnyKernel Branch (defaults to codename)'
         default: 'main'
         required: false
-      UPLOAD_TO_:
+      UPLOAD_TO_RELEASE:
         description: 'Upload to release'
         type: boolean
         default: false
