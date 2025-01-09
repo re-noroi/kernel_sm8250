@@ -21,18 +21,10 @@ on:
         required: true
       ANYKERNEL_URL:
         description: 'AnyKernel Url (leave blank if you dont want AnyKernel)'
-        default: 'https://github.com/AlirezaParsi/F3aosp'
+        default: 'https://github.com/re-noroi/n0kfork-zip-alioth'
         required: false
       ANYKERNEL_BRANCH:
         description: 'AnyKernel Branch (defaults to codename)'
-        default: 'main'
-        required: false
-      SECOND_ANYKERNEL_URL:
-        description: 'Secound AnyKernel Url (leave blank if you dont want AnyKernel)'
-        default: 'https://github.com/AlirezaParsi/hyperf3'
-        required: false
-      SECOND_ANYKERNEL_BRANCH:
-        description: 'Second AnyKernel Branch (defaults to codename)'
         default: 'main'
         required: false
       UPLOAD_TO_RELEASE:
@@ -109,33 +101,13 @@ jobs:
         if [ -e "Image.gz" ]; then
           cp -f Image.gz AnyKernel3
         fi
-        name=N0kernel-AOSP-SUSFS-${{ github.event.inputs.CODENAME }}-${{ github.run_id }}.zip
+        name=N0Fork-SUSFS-${{ github.event.inputs.CODENAME }}-${{ github.run_id }}.zip
         cd AnyKernel3
         zip -q -r $name *
         mv $name ../
         echo "zipname=$name" >> $GITHUB_OUTPUT
       working-directory: ${{ steps.kernel.outputs.kernel-folder }}/out/arch/arm64/boot/
       id: anykernel
-
-    - name: Second AnyKernel3
-      if: ${{ success() && github.event.inputs.SECOND_ANYKERNEL_URL != '' }}
-      run: |
-        if [[ -z "${{ github.event.inputs.SECOND_ANYKERNEL_BRANCH }}" ]]; then
-          second_anykernel_branch=${{ github.event.inputs.CODENAME }}
-        else
-          second_anykernel_branch=${{ github.event.inputs.SECOND_ANYKERNEL_BRANCH }}
-        fi
-        git clone --recursive --depth=1 ${{ github.event.inputs.SECOND_ANYKERNEL_URL }} -b $second_anykernel_branch SecondAnyKernel
-        if [ -e "Image.gz" ]; then
-          cp -f Image.gz SecondAnyKernel
-        fi
-        second_name=N0kernel-MIUI-SUSFS-${{ github.event.inputs.CODENAME }}-${{ github.run_id }}.zip
-        cd SecondAnyKernel
-        zip -q -r $second_name *
-        mv $second_name ../
-        echo "second_zipname=$second_name" >> $GITHUB_OUTPUT
-      working-directory: ${{ steps.kernel.outputs.kernel-folder }}/out/arch/arm64/boot/
-      id: second_anykernel
 
     - name: Check the output directory before uploading
       run: |
@@ -147,7 +119,6 @@ jobs:
       with:
         files: |
           ${{ steps.kernel.outputs.kernel-folder }}/out/arch/arm64/boot/${{ steps.anykernel.outputs.zipname }}
-          ${{ steps.kernel.outputs.kernel-folder }}/out/arch/arm64/boot/${{ steps.second_anykernel.outputs.second_zipname }}
         name: ${{ github.event.inputs.CODENAME }}-${{ github.run_id }}-KSUNEXT-SUSFS
         tag_name: ${{ github.run_id }}
         body: |
@@ -173,12 +144,3 @@ jobs:
           ${{ steps.kernel.outputs.kernel-folder }}/out/arch/arm64/boot/AnyKernel3/
           !${{ steps.kernel.outputs.kernel-folder }}/out/arch/arm64/boot/AnyKernel3/.git
           !${{ steps.kernel.outputs.kernel-folder }}/out/arch/arm64/boot/AnyKernel3/.github
-
-    - uses: actions/upload-artifact@v4
-      if: ${{ success() && github.event.inputs.SECOND_ANYKERNEL_URL != '' && github.event.inputs.UPLOAD_TO_RELEASE != 'true' }}
-      with:
-        name: ${{ steps.second_anykernel.outputs.second_zipname }}
-        path: |
-          ${{ steps.kernel.outputs.kernel-folder }}/out/arch/arm64/boot/SecondAnyKernel/
-          !${{ steps.kernel.outputs.kernel-folder }}/out/arch/arm64/boot/SecondAnyKernel/.git
-          !${{ steps.kernel.outputs.kernel-folder }}/out/arch/arm64/boot/SecondAnyKernel/.github
