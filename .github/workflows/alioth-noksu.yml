@@ -101,7 +101,7 @@ jobs:
         if [ -e "Image.gz" ]; then
           cp -f Image.gz AnyKernel3
         fi
-        name=N0ForkP-noksu-${{ github.event.inputs.CODENAME }}-${{ github.run_id }}.zip
+        name=N0Fork-noksu-${{ github.event.inputs.CODENAME }}-${{ github.run_id }}.zip
         cd AnyKernel3
         zip -q -r $name *
         mv $name ../
