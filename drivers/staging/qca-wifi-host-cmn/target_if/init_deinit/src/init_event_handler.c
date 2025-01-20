@@ -271,6 +271,7 @@ static int init_deinit_service_ext_ready_event_handler(ol_scn_t scn_handle,
 	struct wmi_unified *wmi_handle;
 	struct tgt_info *info;
 	wmi_legacy_service_ready_callback legacy_callback;
+	QDF_STATUS status;
 
 	if (!scn_handle) {
 		target_if_err("scn handle NULL in service ready handler");
@@ -325,14 +326,16 @@ static int init_deinit_service_ext_ready_event_handler(ol_scn_t scn_handle,
 
 	target_if_add_11ax_modes(psoc, tgt_hdl);
 
-	if (init_deinit_chainmask_table_alloc(
-				&(info->service_ext_param)) ==
-							QDF_STATUS_SUCCESS) {
+	status = init_deinit_chainmask_table_alloc(&info->service_ext_param);
+	if (QDF_IS_STATUS_SUCCESS(status)) {
 		err_code = init_deinit_populate_chainmask_tables(wmi_handle,
 				event,
 				&(info->service_ext_param.chainmask_table[0]));
 		if (err_code)
 			goto exit;
+	} else if (status != QDF_STATUS_E_NOSUPPORT) {
+		target_if_err("Failed to init chainmask table");
+		goto exit;
 	}
 
 	/* dbr_ring_caps can be absent if enough space is not available */
