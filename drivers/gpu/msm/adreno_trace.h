@@ -3,6 +3,35 @@
  * Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
  */
 
+#include "adreno.h"
+
+static inline void trace_kgsl_a5xx_irq_status(struct adreno_device *adreno_dev,
+				unsigned int status) {}
+
+#define trace_adreno_cmdbatch_fault(...) ((void)0)
+#define trace_adreno_cmdbatch_queued(...) ((void)0)
+#define trace_adreno_cmdbatch_recovery(...) ((void)0)
+#define trace_adreno_cmdbatch_retired(...) ((void)0)
+#define trace_adreno_cmdbatch_submitted(...) ((void)0)
+#define trace_adreno_cmdbatch_sync(...) ((void)0)
+#define trace_adreno_drawctxt_invalidate(...) ((void)0)
+#define trace_adreno_drawctxt_sleep(...) ((void)0)
+#define trace_adreno_drawctxt_switch(...) ((void)0)
+#define trace_adreno_drawctxt_wait_done(...) ((void)0)
+#define trace_adreno_drawctxt_wait_start(...) ((void)0)
+#define trace_adreno_drawctxt_wake(...) ((void)0)
+#define trace_adreno_gpu_fault(...) ((void)0)
+#define trace_adreno_hw_preempt_comp_to_clear(...) ((void)0)
+#define trace_adreno_hw_preempt_token_submit(...) ((void)0)
+#define trace_adreno_ifpc_count(...) ((void)0)
+#define trace_adreno_preempt_done(...) ((void)0)
+#define trace_adreno_preempt_trigger(...) ((void)0)
+#define trace_adreno_sp_tp(...) ((void)0)
+#define trace_dispatch_queue_context(...) ((void)0)
+#define trace_gmu_ao_sync(...) ((void)0)
+#define trace_gmu_event(...) ((void)0)
+
+#if 0
 #if !defined(_ADRENO_TRACE_H) || defined(TRACE_HEADER_MULTI_READ)
 #define _ADRENO_TRACE_H
 
@@ -540,8 +569,8 @@ TRACE_EVENT(adreno_ifpc_count,
 	),
 	TP_printk("total times GMU entered IFPC = %d", __entry->ifpc_count)
 );
-
 #endif /* _ADRENO_TRACE_H */
 
 /* This part must be outside protection */
 #include <trace/define_trace.h>
+#endif

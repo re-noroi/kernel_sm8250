@@ -6,6 +6,7 @@
 #define __ADRENO_SNAPSHOT_H
 
 #include "kgsl_snapshot.h"
+#if 0
 
 #define CP_CRASH_DUMPER_TIMEOUT 1000
 
@@ -46,5 +47,5 @@ void adreno_snapshot_vbif_registers(struct kgsl_device *device,
 		struct kgsl_snapshot *snapshot,
 		const struct adreno_vbif_snapshot_registers *list,
 		unsigned int count);
-
+#endif
 #endif /*__ADRENO_SNAPSHOT_H */
