@@ -759,3 +759,6 @@ CONFIG_TARGET_11D_SCAN := y
 
 # Disable packet logging to stop wasting memory
 CONFIG_SLUB_MEM_OPTIMIZE := y
+
+# Disable DFS channels on AP mode to avoid DFS CAC
+CONFIG_FEATURE_WLAN_STA_AP_MODE_DFS_DISABLE := y
