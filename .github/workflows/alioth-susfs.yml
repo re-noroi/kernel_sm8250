@@ -14,7 +14,7 @@ on:
       KERNEL_TREE_BRANCH:
         description: 'Kernel Tree Branch'
         required: true
-        default: 'next-main'
+        default: 'next-susfs'
       CODENAME:
         description: 'Phone Codename'
         default: 'alioth'
