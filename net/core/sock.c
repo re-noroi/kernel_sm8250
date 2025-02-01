@@ -2805,7 +2805,6 @@ void sk_stop_timer(struct sock *sk, struct timer_list* timer)
 }
 EXPORT_SYMBOL(sk_stop_timer);
 
-void sock_init_data(struct socket *sock, struct sock *sk)
 void sk_stop_timer_sync(struct sock *sk, struct timer_list *timer)
 {
 	if (del_timer_sync(timer))
@@ -2893,6 +2892,16 @@ void sock_init_data_uid(struct socket *sock, struct sock *sk, kuid_t uid)
 	smp_wmb();
 	refcount_set(&sk->sk_refcnt, 1);
 	atomic_set(&sk->sk_drops, 0);
+}
+EXPORT_SYMBOL(sock_init_data);
+
+void sock_init_data(struct socket *sock, struct sock *sk)
+{
+	kuid_t uid = sock ?
+		SOCK_INODE(sock)->i_uid :
+		make_kuid(sock_net(sk)->user_ns, 0);
+
+	sock_init_data_uid(sock, sk, uid);
 }
 EXPORT_SYMBOL(sock_init_data);
 
