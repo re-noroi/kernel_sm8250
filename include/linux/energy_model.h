@@ -37,7 +37,7 @@ struct em_cap_state {
 struct em_perf_domain {
 	struct em_cap_state *table;
 	int nr_cap_states;
-	unsigned long cpus[0];
+	unsigned long cpus[];
 };
 
 #define EM_CPU_MAX_POWER 0xFFFF
