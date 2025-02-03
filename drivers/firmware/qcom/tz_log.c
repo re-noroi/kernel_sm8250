@@ -1273,13 +1273,13 @@ static ssize_t tzdbgfs_read_encrypted(struct file *file, char __user *buf,
 static ssize_t tzdbgfs_read(struct file *file, char __user *buf,
 			    size_t count, loff_t *offp)
 {
-	struct seq_file *seq = file->private_data;
 	int tz_id = TZDBG_STATS_MAX;
 
-	if (seq)
-		tz_id = *(int *)(seq->private);
+	if (file->private_data)
+		tz_id = *(int *)(file->private_data);
 	else {
-		pr_err("%s: Seq data null unable to proceed\n", __func__);
+		pr_err("%s: file data private null unable to proceed\n",
+			__func__);
 		return 0;
 	}
 

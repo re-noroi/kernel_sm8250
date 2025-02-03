@@ -216,6 +216,7 @@ wda_qmi_client_init(void *port, struct svc_info *psvc, struct qmi_info *qmi);
 void wda_qmi_client_exit(void *wda_data);
 int wda_set_powersave_mode(void *wda_data, u8 enable);
 void qmi_rmnet_flush_ps_wq(void);
+int dfc_qmap_set_powersave(u8 enable, u8 num_bearers, u8 *bearer_id);
 #else
 static inline int
 wda_qmi_client_init(void *port, struct svc_info *psvc, struct qmi_info *qmi)
@@ -233,6 +234,11 @@ static inline int wda_set_powersave_mode(void *wda_data, u8 enable)
 }
 static inline void qmi_rmnet_flush_ps_wq(void)
 {
+}
+static inline int dfc_qmap_set_powersave(u8 enable, u8 num_bearers,
+		u8 *bearer_id)
+{
+	return -EINVAL;
 }
 #endif
 #endif /*_RMNET_QMI_I_H*/
