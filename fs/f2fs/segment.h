@@ -12,8 +12,8 @@
 #define NULL_SEGNO			((unsigned int)(~0))
 #define NULL_SECNO			((unsigned int)(~0))
 
-#define DEF_RECLAIM_PREFREE_SEGMENTS	5	/* 5% over total segments */
-#define DEF_MAX_RECLAIM_PREFREE_SEGMENTS	4096	/* 8GB in maximum */
+#define DEF_RECLAIM_PREFREE_SEGMENTS	3	/* 3% over total segments */
+#define DEF_MAX_RECLAIM_PREFREE_SEGMENTS	1024	/* 8GB in maximum */
 
 #define F2FS_MIN_SEGMENTS	9 /* SB + 2 (CP + SIT + NAT) + SSA + MAIN */
 #define F2FS_MIN_META_SEGMENTS	8 /* SB + 2 (CP + SIT + NAT) + SSA */
