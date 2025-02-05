@@ -90,7 +90,7 @@ static int net_assign_generic(struct net *net, unsigned int id, void *data)
 	}
 
 	ng = net_alloc_generic();
-	if (!ng)
+	if (ng == NULL)
 		return -ENOMEM;
 
 	/*
@@ -147,6 +147,13 @@ out:
 	return err;
 }
 
+static void ops_free(const struct pernet_operations *ops, struct net *net)
+{
+	if (ops->id && ops->size) {
+		kfree(net_generic(net, *ops->id));
+	}
+}
+
 static void ops_pre_exit_list(const struct pernet_operations *ops,
 			      struct list_head *net_exit_list)
 {
@@ -178,7 +185,7 @@ static void ops_free_list(const struct pernet_operations *ops,
 	struct net *net;
 	if (ops->size && ops->id) {
 		list_for_each_entry(net, net_exit_list, exit_list)
-			kfree(net_generic(net, *ops->id));
+			ops_free(ops, net);
 	}
 }
 
@@ -420,18 +427,15 @@ out_free:
 
 static void net_free(struct net *net)
 {
-	if (refcount_dec_and_test(&net->passive)) {
-		kfree(rcu_access_pointer(net->gen));
-		kmem_cache_free(net_cachep, net);
-	}
+	kfree(rcu_access_pointer(net->gen));
+	kmem_cache_free(net_cachep, net);
 }
 
 void net_drop_ns(void *p)
 {
-	struct net *net = (struct net *)p;
-
-	if (net)
-		net_free(net);
+	struct net *ns = p;
+	if (ns && refcount_dec_and_test(&ns->passive))
+		net_free(ns);
 }
 
 struct net *copy_net_ns(unsigned long flags,
@@ -468,7 +472,7 @@ struct net *copy_net_ns(unsigned long flags,
 	if (rv < 0) {
 put_userns:
 		put_user_ns(user_ns);
-		net_free(net);
+		net_drop_ns(net);
 dec_ucounts:
 		dec_net_namespaces(ucounts);
 		return ERR_PTR(rv);
@@ -599,7 +603,7 @@ static void cleanup_net(struct work_struct *work)
 		list_del_init(&net->exit_list);
 		dec_net_namespaces(net->ucounts);
 		put_user_ns(net->user_ns);
-		net_free(net);
+		net_drop_ns(net);
 	}
 }
 
@@ -970,14 +974,6 @@ static int __init net_ns_init(void)
 
 pure_initcall(net_ns_init);
 
-static void free_exit_list(struct pernet_operations *ops, struct list_head *net_exit_list)
-{
-	ops_pre_exit_list(ops, net_exit_list);
-	synchronize_rcu();
-	ops_exit_list(ops, net_exit_list);
-	ops_free_list(ops, net_exit_list);
-}
-
 #ifdef CONFIG_NET_NS
 static int __register_pernet_operations(struct list_head *list,
 					struct pernet_operations *ops)
@@ -1003,7 +999,10 @@ static int __register_pernet_operations(struct list_head *list,
 out_undo:
 	/* If I have an error cleanup all namespaces I initialized */
 	list_del(&ops->list);
-	free_exit_list(ops, &net_exit_list);
+	ops_pre_exit_list(ops, &net_exit_list);
+	synchronize_rcu();
+	ops_exit_list(ops, &net_exit_list);
+	ops_free_list(ops, &net_exit_list);
 	return error;
 }
 
@@ -1016,8 +1015,10 @@ static void __unregister_pernet_operations(struct pernet_operations *ops)
 	/* See comment in __register_pernet_operations() */
 	for_each_net(net)
 		list_add_tail(&net->exit_list, &net_exit_list);
-
-	free_exit_list(ops, &net_exit_list);
+	ops_pre_exit_list(ops, &net_exit_list);
+	synchronize_rcu();
+	ops_exit_list(ops, &net_exit_list);
+	ops_free_list(ops, &net_exit_list);
 }
 
 #else
@@ -1040,7 +1041,10 @@ static void __unregister_pernet_operations(struct pernet_operations *ops)
 	} else {
 		LIST_HEAD(net_exit_list);
 		list_add(&init_net.exit_list, &net_exit_list);
-		free_exit_list(ops, &net_exit_list);
+		ops_pre_exit_list(ops, &net_exit_list);
+		synchronize_rcu();
+		ops_exit_list(ops, &net_exit_list);
+		ops_free_list(ops, &net_exit_list);
 	}
 }
 
