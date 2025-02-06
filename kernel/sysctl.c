@@ -233,13 +233,6 @@ enum sysctl_writes_mode {
 
 static enum sysctl_writes_mode sysctl_writes_strict = SYSCTL_WRITES_STRICT;
 
-static int sysctl_sched_lib_name_handler(struct ctl_table *table, int write,
-                                         void __user *buffer, size_t *lenp,
-                                         loff_t *ppos)
-{
-    return 0;
-}
-
 static int proc_do_cad_pid(struct ctl_table *table, int write,
 		  void __user *buffer, size_t *lenp, loff_t *ppos);
 static int proc_taint(struct ctl_table *table, int write,
