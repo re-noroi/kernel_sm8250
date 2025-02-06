@@ -20,7 +20,7 @@ static spinlock_t susfs_spin_lock;
 
 extern bool susfs_is_current_ksu_domain(void);
 #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
-extern void ksu_try_umount(const char *mnt, bool check_mnt, int flags);
+extern void ksu_try_umount(const char *mnt, bool check_mnt, int flags, uid_t uid);
 #endif
 
 #ifdef CONFIG_KSU_SUSFS_ENABLE_LOG
@@ -561,11 +561,10 @@ void susfs_try_umount(uid_t target_uid) {
 
 	// We should umount in reversed order
 	list_for_each_entry_reverse(cursor, &LH_TRY_UMOUNT_PATH, list) {
-		SUSFS_LOGI("umounting '%s' for uid: %d\n", cursor->info.target_pathname, target_uid);
 		if (cursor->info.mnt_mode == TRY_UMOUNT_DEFAULT) {
-			ksu_try_umount(cursor->info.target_pathname, false, 0);
+			ksu_try_umount(cursor->info.target_pathname, false, 0, target_uid);
 		} else if (cursor->info.mnt_mode == TRY_UMOUNT_DETACH) {
-			ksu_try_umount(cursor->info.target_pathname, false, MNT_DETACH);
+			ksu_try_umount(cursor->info.target_pathname, false, MNT_DETACH, target_uid);
 		} else {
 			SUSFS_LOGE("failed umounting '%s' for uid: %d, mnt_mode '%d' not supported\n",
 							cursor->info.target_pathname, target_uid, cursor->info.mnt_mode);
