@@ -164,7 +164,7 @@ static int compat_get_fastrpc_ioctl_invoke(
 	struct fastrpc_ioctl_invoke_crc *inv;
 	union compat_remote_arg *pra32;
 	union remote_arg *pra;
-	int err, len, j;
+	int err = 0, len, j;
 
 	len = REMOTE_SCALARS_LENGTH(sc);
 	VERIFY(err, NULL != (inv = compat_alloc_user_space(
