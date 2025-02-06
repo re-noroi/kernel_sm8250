@@ -6,7 +6,6 @@
 #include <asm/dma-iommu.h>
 #include <asm/memory.h>
 #include <linux/clk/qcom.h>
-#include <linux/coresight-stm.h>
 #include <linux/delay.h>
 #include <linux/devfreq.h>
 #include <linux/hash.h>
@@ -5032,4 +5031,3 @@ int cvp_iris_hfi_initialize(struct cvp_hfi_device *hdev, u32 device_id,
 err_iris_hfi_init:
 	return rc;
 }
-
