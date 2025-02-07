@@ -859,6 +859,16 @@ void __f_unlock_pos(struct file *f)
 	mutex_unlock(&f->f_pos_lock);
 }
 
+bool file_seek_cur_needs_f_lock(struct file *file)
+{
+	if (!(file->f_mode & FMODE_ATOMIC_POS) && !file->f_op->iterate_shared)
+		return false;
+
+	VFS_WARN_ON_ONCE((file_count(file) > 1) &&
+			 !mutex_is_locked(&file->f_pos_lock));
+	return true;
+}
+
 /*
  * We only lock f_pos if we have threads or if the file might be
  * shared with another process. In both cases we'll have an elevated
