@@ -189,3 +189,4 @@ loff_t iomap_apply(struct inode *inode, loff_t pos, loff_t length,
 
 /* direct-io.c: */
 int sb_init_dio_done_wq(struct super_block *sb);
+bool file_seek_cur_needs_f_lock(struct file *file);
