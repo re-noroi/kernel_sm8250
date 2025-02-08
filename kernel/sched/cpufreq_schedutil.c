@@ -368,7 +368,7 @@ unsigned long sugov_effective_cpu_perf(int cpu, unsigned long actual,
 				 unsigned long max)
 {
 	/* Add dvfs headroom to actual utilization */
-	actual = apply_dvfs_headroom(cpu, actual);
+	actual = apply_dvfs_headroom(cpu, actual,max);
 	/* Actually we don't need to target the max performance */
 	if (actual < max)
 		max = actual;
