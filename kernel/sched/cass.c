@@ -106,9 +106,6 @@ bool cass_cpu_better(const struct cass_cpu_cand *a,
 #define cass_cmp(a, b) ({ res = (a) - (b); })
 #define cass_eq(a, b) ({ res = (a) == (b); })
 	long res;
-	bool low_util = (a->util <= sched_util_threshold[a->cpu] &&
-            		 b->util <= sched_util_threshold[b->cpu]);
-	bool boosted = uclamp_boosted(p) && (p->prio <= DEFAULT_PRIO - 10);
 
 	/* Prefer the CPU that's not overloaded */
 	if (cass_cmp(b->eff_util / b->cap_max, a->eff_util / a->cap_max))
@@ -119,11 +116,12 @@ bool cass_cpu_better(const struct cass_cpu_cand *a,
 	    cass_cmp(b->eff_util * SCHED_CAPACITY_SCALE / b->cap_max,
 		     a->eff_util * SCHED_CAPACITY_SCALE / a->cap_max))
 		goto done;
-
+	
 	/* Prefer the CPU with lower orig capacity when util is low */
-	if(low_util && !boosted && cass_cmp(capacity_orig_of(b->cpu),
-					    capacity_orig_of(a->cpu)))
-        goto done;
+	if((a->util <= sched_util_threshold[a->cpu] &&
+	    b->util <= sched_util_threshold[b->cpu]) &&
+	    cass_cmp(capacity_orig_of(b->cpu), capacity_orig_of(a->cpu)))
+                goto done;
 
 	/* Prefer the CPU that fits the task */
 	if (cass_cmp(fits_capacity(p_util, a->cap_max),
