@@ -9046,12 +9046,11 @@ int can_migrate_task(struct task_struct *p, struct lb_env *env)
 			return 0;
 
 		/* Prevent to re-select dst_cpu via env's CPUs: */
-		for_each_cpu_and(cpu, env->dst_grpmask, env->cpus) {
-			if (cpumask_test_cpu(cpu, &p->cpus_allowed)) {
-				env->flags |= LBF_DST_PINNED;
-				env->new_dst_cpu = cpu;
-				break;
-			}
+		cpu = cpumask_first_and_and(env->dst_grpmask, env->cpus, &p->cpus_allowed);
+
+		if (cpu < nr_cpu_ids) {
+			env->flags |= LBF_DST_PINNED;
+			env->new_dst_cpu = cpu;
 		}
 
 		return 0;
