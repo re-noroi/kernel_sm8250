@@ -110,6 +110,7 @@ jobs:
         # Check if dtbo.img exists, then copy it to AnyKernel3 folder
         if [ -e "dtbo.img" ]; then
           cp -f dtbo.img AnyKernel3/alioth-miui-dtbo.img
+        fi
         name=FakeDreamer-test-${{ github.event.inputs.CODENAME }}-${{ github.run_id }}.zip
         cd AnyKernel3
         zip -q -r $name *
