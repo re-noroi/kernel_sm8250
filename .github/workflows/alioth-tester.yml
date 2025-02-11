@@ -77,8 +77,10 @@ jobs:
       
     - name: Building kernel
       run: |
-        sed -i 's/qcom,mdss-pan-physical-width-dimension = <70>;$/qcom,mdss-pan-physical-width-dimension = <700>;/' arch/arm64/boot/dts/vendor/qcom/dsi-panel-k11a-38-08-0a-dsc-cmd.dtsi
-        sed -i 's/qcom,mdss-pan-physical-height-dimension = <155>;$/qcom,mdss-pan-physical-height-dimension = <1540>;/' arch/arm64/boot/dts/vendor/qcom/dsi-panel-k11a-38-08-0a-dsc-cmd.dtsi
+        sed -i '/<2553600>,/c\<2553600>;' arch/arm64/boot/dts/vendor/qcom/kona.dtsi
+        sed -i '/<2649600>,/c\//<2649600>,' arch/arm64/boot/dts/vendor/qcom/kona.dtsi
+        sed -i '/<2745600>,/c\//<2745600>,' arch/arm64/boot/dts/vendor/qcom/kona.dtsi
+        sed -i '/<2841600>;/c\//<2841600>;' arch/arm64/boot/dts/vendor/qcom/kona.dtsi
         git submodule init && git submodule update
         bash nextpatch.sh
         export ARCH=arm64
