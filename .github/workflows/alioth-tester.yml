@@ -77,6 +77,8 @@ jobs:
       
     - name: Building kernel
       run: |
+        sed -i 's/qcom,mdss-pan-physical-width-dimension = <70>;$/qcom,mdss-pan-physical-width-dimension = <700>;/' arch/arm64/boot/dts/vendor/qcom/dsi-panel-k11a-38-08-0a-dsc-cmd.dtsi
+        sed -i 's/qcom,mdss-pan-physical-height-dimension = <155>;$/qcom,mdss-pan-physical-height-dimension = <1540>;/' arch/arm64/boot/dts/vendor/qcom/dsi-panel-k11a-38-08-0a-dsc-cmd.dtsi
         git submodule init && git submodule update
         bash nextpatch.sh
         export ARCH=arm64
@@ -101,6 +103,13 @@ jobs:
         if [ -e "Image.gz" ]; then
           cp -f Image.gz AnyKernel3
         fi
+        if [ -e "dtb.img" ]; then
+          mv -f dtb.img dtb
+          cp -f dtb AnyKernel3/dtb
+        fi
+        # Check if dtbo.img exists, then copy it to AnyKernel3 folder
+        if [ -e "dtbo.img" ]; then
+          cp -f dtbo.img AnyKernel3/alioth-miui-dtbo.img
         name=FakeDreamer-test-${{ github.event.inputs.CODENAME }}-${{ github.run_id }}.zip
         cd AnyKernel3
         zip -q -r $name *
