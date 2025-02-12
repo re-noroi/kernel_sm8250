@@ -87,12 +87,16 @@ v3d_irq(int irq, void *arg)
 	}
 
 	if (intsts & V3D_INT_FLDONE) {
+		v3d->bin_job = NULL;
 		dma_fence_signal(v3d->bin_job->bin.done_fence);
+
 		status = IRQ_HANDLED;
 	}
 
 	if (intsts & V3D_INT_FRDONE) {
+		v3d->render_job = NULL;
 		dma_fence_signal(v3d->render_job->render.done_fence);
+
 		status = IRQ_HANDLED;
 	}
 
@@ -117,6 +121,21 @@ v3d_hub_irq(int irq, void *arg)
 	/* Acknowledge the interrupts we're handling here. */
 	V3D_WRITE(V3D_HUB_INT_CLR, intsts);
 
+<<<<<<< HEAD
+=======
+	if (intsts & V3D_HUB_INT_TFUC) {
+		struct v3d_fence *fence =
+			to_v3d_fence(v3d->tfu_job->base.irq_fence);
+
+		trace_v3d_tfu_irq(&v3d->drm, fence->seqno);
+
+		v3d->tfu_job = NULL;
+		dma_fence_signal(&fence->base);
+
+		status = IRQ_HANDLED;
+	}
+
+>>>>>>> 9793206fbf52 (drm/v3d: Assign job pointer to NULL before signaling the fence)
 	if (intsts & (V3D_HUB_INT_MMU_WRV |
 		      V3D_HUB_INT_MMU_PTI |
 		      V3D_HUB_INT_MMU_CAP)) {
