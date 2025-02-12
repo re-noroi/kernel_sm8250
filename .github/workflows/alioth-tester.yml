@@ -81,6 +81,7 @@ jobs:
         sed -i '/<2649600>,/c\//<2649600>,' arch/arm64/boot/dts/vendor/qcom/kona.dtsi
         sed -i '/<2745600>,/c\//<2745600>,' arch/arm64/boot/dts/vendor/qcom/kona.dtsi
         sed -i '/<2841600>;/c\//<2841600>;' arch/arm64/boot/dts/vendor/qcom/kona.dtsi
+        sed -i '/<3187200>,/c\//<3187200>;' arch/arm64/boot/dts/vendor/qcom/kona.dtsi
         git submodule init && git submodule update
         bash nextpatch.sh
         export ARCH=arm64
