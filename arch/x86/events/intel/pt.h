@@ -110,6 +110,7 @@ struct pt_pmu {
  * @lost:	if data was lost/truncated
  * @head:	logical write offset inside the buffer
  * @snapshot:	if this is for a snapshot/overwrite counter
+ * @wrapped:	buffer advance wrapped back to the first topa table
  * @stop_pos:	STOP topa entry in the buffer
  * @intr_pos:	INT topa entry in the buffer
  * @data_pages:	array of pages from perf
@@ -125,6 +126,7 @@ struct pt_buffer {
 	local_t			data_size;
 	local64_t		head;
 	bool			snapshot;
+	bool			wrapped;
 	unsigned long		stop_pos, intr_pos;
 	void			**data_pages;
 	struct topa_entry	*topa_index[0];
