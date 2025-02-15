@@ -21,7 +21,7 @@ on:
         required: true
       ANYKERNEL_URL:
         description: 'AnyKernel Url (leave blank if you dont want AnyKernel)'
-        default: 'https://github.com/re-noroi/n0kfork-zip-alioth'
+        default: 'https://github.com/re-noroi/anykernel3-test'
         required: false
       ANYKERNEL_BRANCH:
         description: 'AnyKernel Branch (defaults to codename)'
@@ -103,11 +103,11 @@ jobs:
         fi
         if [ -e "dtb.img" ]; then
           mv -f dtb.img dtb
-          cp -f dtb AnyKernel3/dtb
+          cp -f dtb AnyKernel3/alioth-normal-dtb
         fi
         # Check if dtbo.img exists, then copy it to AnyKernel3 folder
         if [ -e "dtbo.img" ]; then
-          cp -f dtbo.img AnyKernel3/alioth-miui-dtbo.img
+          cp -f dtbo.img AnyKernel3/alioth-aosp-dtbo.img
         fi
         name=FakeDreamer-test-${{ github.event.inputs.CODENAME }}-${{ github.run_id }}.zip
         cd AnyKernel3
