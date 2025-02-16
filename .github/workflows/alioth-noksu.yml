@@ -21,7 +21,7 @@ on:
         required: true
       ANYKERNEL_URL:
         description: 'AnyKernel Url (leave blank if you dont want AnyKernel)'
-        default: 'https://github.com/re-noroi/n0kfork-zip-alioth'
+        default: 'https://github.com/re-noroi/anykernel3-test'
         required: false
       ANYKERNEL_BRANCH:
         description: 'AnyKernel Branch (defaults to codename)'
@@ -81,7 +81,7 @@ jobs:
         export ARCH=arm64
         export SUBARCH=ARM64
         export KBUILD_BUILD_USER="renoroi"
-        export KBUILD_BUILD_HOST="github"
+        export KBUILD_BUILD_HOST="dreamstate"
         make O=out vendor/alioth_defconfig PATH="${{ steps.tools.outputs.tools-folder }}/clang/bin:$PATH"
         make O=out CC=clang -j$(nproc --all) PATH="${{ steps.tools.outputs.tools-folder }}/clang/bin:$PATH" CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 LLVM_IAS=1
         echo "elapsed_time=$(echo "$(date +%s)"-"${{ steps.workspace.outputs.start_time }}" | bc)" >> $GITHUB_OUTPUT
@@ -99,6 +99,14 @@ jobs:
         git clone --recursive --depth=1 ${{ github.event.inputs.ANYKERNEL_URL }} -b $anykernel_branch AnyKernel3
         if [ -e "Image.gz" ]; then
           cp -f Image.gz AnyKernel3
+        fi
+        if [ -e "dtb.img" ]; then
+          mv -f dtb.img dtb
+          cp -f dtb AnyKernel3/alioth-normal-dtb
+        fi
+        # Check if dtbo.img exists, then copy it to AnyKernel3 folder
+        if [ -e "dtbo.img" ]; then
+          cp -f dtbo.img AnyKernel3/alioth-aosp-dtbo.img
         fi
         name=FakeDreamer-noksu-${{ github.event.inputs.CODENAME }}-${{ github.run_id }}.zip
         cd AnyKernel3
