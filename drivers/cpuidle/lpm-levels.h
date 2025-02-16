@@ -13,7 +13,6 @@ struct power_params {
 	uint32_t exit_latency;		/* Exit latency */
 	uint32_t min_residency;
 	uint32_t max_residency;
-	bool local_timer_stop;
 };
 
 struct lpm_cpu_level {
