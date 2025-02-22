@@ -9,7 +9,6 @@
  */
 
 #include <linux/anon_inodes.h>
-#include <linux/debugfs.h>
 #include <linux/device.h>
 #include <linux/dma-buf.h>
 #include <linux/err.h>
@@ -136,13 +135,6 @@ static struct ion_buffer *ion_buffer_create(struct ion_heap *heap,
 		goto err1;
 	}
 
-	spin_lock(&heap->stat_lock);
-	heap->num_of_buffers++;
-	heap->num_of_alloc_bytes += len;
-	if (heap->num_of_alloc_bytes > heap->alloc_bytes_wm)
-		heap->alloc_bytes_wm = heap->num_of_alloc_bytes;
-	spin_unlock(&heap->stat_lock);
-
 	table = buffer->sg_table;
 	INIT_LIST_HEAD(&buffer->attachments);
 	INIT_LIST_HEAD(&buffer->vmas);
@@ -186,10 +178,6 @@ void ion_buffer_destroy(struct ion_buffer *buffer)
 		buffer->heap->ops->unmap_kernel(buffer->heap, buffer);
 	}
 	buffer->heap->ops->free(buffer);
-	spin_lock(&buffer->heap->stat_lock);
-	buffer->heap->num_of_buffers--;
-	buffer->heap->num_of_alloc_bytes -= buffer->size;
-	spin_unlock(&buffer->heap->stat_lock);
 
 	kfree(buffer);
 }
@@ -1269,105 +1257,15 @@ static const struct file_operations ion_fops = {
 #endif
 };
 
-static int ion_debug_heap_show(struct seq_file *s, void *unused)
-{
-	struct ion_heap *heap = s->private;
-
-	if (heap->debug_show)
-		heap->debug_show(heap, s, unused);
-
-	return 0;
-}
-
-static int ion_debug_heap_open(struct inode *inode, struct file *file)
-{
-	return single_open(file, ion_debug_heap_show, inode->i_private);
-}
-
-static const struct file_operations debug_heap_fops = {
-	.open = ion_debug_heap_open,
-	.read = seq_read,
-	.llseek = seq_lseek,
-	.release = single_release,
-};
-
-static int debug_shrink_set(void *data, u64 val)
-{
-	struct ion_heap *heap = data;
-	struct shrink_control sc;
-	int objs;
-
-	sc.gfp_mask = GFP_HIGHUSER;
-	sc.nr_to_scan = val;
-
-	if (!val) {
-		objs = heap->shrinker.count_objects(&heap->shrinker, &sc);
-		sc.nr_to_scan = objs;
-	}
-
-	heap->shrinker.scan_objects(&heap->shrinker, &sc);
-	return 0;
-}
-
-static int debug_shrink_get(void *data, u64 *val)
-{
-	struct ion_heap *heap = data;
-	struct shrink_control sc;
-	int objs;
-
-	sc.gfp_mask = GFP_HIGHUSER;
-	sc.nr_to_scan = 0;
-
-	objs = heap->shrinker.count_objects(&heap->shrinker, &sc);
-	*val = objs;
-	return 0;
-}
-
-DEFINE_SIMPLE_ATTRIBUTE(debug_shrink_fops, debug_shrink_get,
-			debug_shrink_set, "%llu\n");
-
-static int ion_debug_heap_show2(struct seq_file *s, void *unused)
-{
-	struct ion_heap *heap = s->private;
-
-	seq_puts(s, "----------------------------------------------------\n");
-	seq_printf(s, "%25s %16zu\n", "num_of_alloc_bytes ", heap->num_of_alloc_bytes);
-	seq_printf(s, "%25s %16zu\n", "num_of_buffers ", heap->num_of_buffers);
-	seq_printf(s, "%25s %16zu\n", "alloc_bytes_wm ", heap->alloc_bytes_wm);
-	if (heap->flags & ION_HEAP_FLAG_DEFER_FREE)
-		seq_printf(s, "%25s %16zu\n", "deferred free ", heap->free_list_size);
-	seq_puts(s, "----------------------------------------------------\n");
-
-	if (heap->debug_show)
-		heap->debug_show(heap, s, unused);
-
-	return 0;
-}
-
-static int ion_debug_heap_open2(struct inode *inode, struct file *file)
-{
-	return single_open(file, ion_debug_heap_show2, inode->i_private);
-}
-
-static const struct file_operations debug_heap_fops2 = {
-	.open = ion_debug_heap_open2,
-	.read = seq_read,
-	.llseek = seq_lseek,
-	.release = single_release,
-};
-
 void ion_device_add_heap(struct ion_device *dev, struct ion_heap *heap)
 {
-	char debug_name[64], buf[256];
 	int ret;
-	struct dentry *heap_root;
 
 	if (!heap->ops->allocate || !heap->ops->free)
 		pr_err("%s: can not add heap with invalid ops struct.\n",
 		       __func__);
 
 	spin_lock_init(&heap->free_lock);
-	spin_lock_init(&heap->stat_lock);
 	heap->free_list_size = 0;
 
 	if (heap->flags & ION_HEAP_FLAG_DEFER_FREE)
@@ -1377,49 +1275,6 @@ void ion_device_add_heap(struct ion_device *dev, struct ion_heap *heap)
 		ret = ion_heap_init_shrinker(heap);
 		if (ret)
 			pr_err("%s: Failed to register shrinker\n", __func__);
-	}
-
-	heap->dev = dev;
-	heap->num_of_buffers = 0;
-	heap->num_of_alloc_bytes = 0;
-	heap->alloc_bytes_wm = 0;
-
-	heap_root = debugfs_create_dir(heap->name, dev->debug_root);
-	debugfs_create_u64("num_of_buffers",
-			   0444, heap_root,
-			   &heap->num_of_buffers);
-	debugfs_create_u64("num_of_alloc_bytes",
-			   0444,
-			   heap_root,
-			   &heap->num_of_alloc_bytes);
-	debugfs_create_u64("alloc_bytes_wm",
-			   0444,
-			   heap_root,
-			   &heap->alloc_bytes_wm);
-
-	if (heap->debug_show) {
-		snprintf(debug_name, 64, "%s_stats", heap->name);
-		if (!debugfs_create_file(debug_name, 0664, heap_root,
-					 heap, &debug_heap_fops))
-			pr_err("Failed to create heap debugfs at %s/%s\n",
-			       dentry_path(heap_root, buf, 256),
-			       debug_name);
-	}
-
-	if (heap->shrinker.count_objects && heap->shrinker.scan_objects) {
-		snprintf(debug_name, 64, "%s_shrink", heap->name);
-		if (!debugfs_create_file(debug_name, 0644, heap_root,
-					 heap, &debug_shrink_fops))
-			pr_err("Failed to create heap debugfs at %s/%s\n",
-			       dentry_path(heap_root, buf, 256),
-			       debug_name);
-	}
-
-	if (!debugfs_create_file(heap->name, 0664,
-			dev->heaps_debug_root, heap,
-			&debug_heap_fops2)) {
-		pr_err("Failed to create heap debugfs at %s/%s\n",
-				dentry_path(dev->heaps_debug_root, buf, 256), heap->name);
 	}
 
 	down_write(&dev->lock);
@@ -1434,56 +1289,6 @@ void ion_device_add_heap(struct ion_device *dev, struct ion_heap *heap)
 	up_write(&dev->lock);
 }
 EXPORT_SYMBOL(ion_device_add_heap);
-
-static ssize_t
-total_heaps_kb_show(struct kobject *kobj, struct kobj_attribute *attr,
-		    char *buf)
-{
-	u64 size_in_bytes = atomic_long_read(&total_heap_bytes);
-
-	return sprintf(buf, "%llu\n", div_u64(size_in_bytes, 1024));
-}
-
-static ssize_t
-total_pools_kb_show(struct kobject *kobj, struct kobj_attribute *attr,
-		    char *buf)
-{
-	u64 size_in_bytes = ion_page_pool_nr_pages() * PAGE_SIZE;
-
-	return sprintf(buf, "%llu\n", div_u64(size_in_bytes, 1024));
-}
-
-static struct kobj_attribute total_heaps_kb_attr =
-	__ATTR_RO(total_heaps_kb);
-
-static struct kobj_attribute total_pools_kb_attr =
-	__ATTR_RO(total_pools_kb);
-
-static struct attribute *ion_device_attrs[] = {
-	&total_heaps_kb_attr.attr,
-	&total_pools_kb_attr.attr,
-	NULL,
-};
-
-ATTRIBUTE_GROUPS(ion_device);
-
-static int ion_init_sysfs(void)
-{
-	struct kobject *ion_kobj;
-	int ret;
-
-	ion_kobj = kobject_create_and_add("ion", kernel_kobj);
-	if (!ion_kobj)
-		return -ENOMEM;
-
-	ret = sysfs_create_groups(ion_kobj, ion_device_groups);
-	if (ret) {
-		kobject_put(ion_kobj);
-		return ret;
-	}
-
-	return 0;
-}
 
 struct ion_device *ion_device_create(void)
 {
@@ -1504,24 +1309,6 @@ struct ion_device *ion_device_create(void)
 		goto err_reg;
 	}
 
-	ret = ion_init_sysfs();
-	if (ret) {
-		pr_err("ion: failed to add sysfs attributes.\n");
-		goto err_sysfs;
-	}
-
-	idev->debug_root = debugfs_create_dir("ion", NULL);
-	if (!idev->debug_root) {
-		pr_err("ion: failed to create debugfs root directory.\n");
-		goto debugfs_done;
-	}
-	idev->heaps_debug_root = debugfs_create_dir("heaps", idev->debug_root);
-	if (!idev->heaps_debug_root) {
-		pr_err("ion: failed to create debugfs heaps directory.\n");
-		goto debugfs_done;
-	}
-
-debugfs_done:
 	idev->buffers = RB_ROOT;
 	mutex_init(&idev->buffer_lock);
 	init_rwsem(&idev->lock);
@@ -1529,8 +1316,6 @@ debugfs_done:
 	internal_dev = idev;
 	return idev;
 
-err_sysfs:
-	misc_deregister(&idev->dev);
 err_reg:
 	kfree(idev);
 	return ERR_PTR(ret);
