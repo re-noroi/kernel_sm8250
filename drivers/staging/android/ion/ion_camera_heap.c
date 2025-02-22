@@ -478,128 +478,6 @@ static struct ion_heap_ops camera_heap_ops = {
 	.shrink = ion_camera_heap_shrink,
 };
 
-static int ion_camera_heap_debug_show(struct ion_heap *heap, struct seq_file *s,
-				      void *unused)
-{
-
-	struct ion_camera_heap *sys_heap = container_of(
-					heap, struct ion_camera_heap, heap);
-	bool use_seq = s;
-	unsigned long reserved_total = 0;
-	unsigned long uncached_total = 0;
-	unsigned long cached_total = 0;
-	unsigned long secure_total = 0;
-	struct ion_page_pool *pool;
-	int i, j;
-
-	for (i = 0; i < NUM_ORDERS; i++) {
-		pool = sys_heap->reserved_pools[i];
-		if (use_seq) {
-			seq_printf(s,
-				   "%d order %u highmem pages in reserved pool = %lu total\n",
-				   pool->high_count, pool->order,
-				   (1 << pool->order) * PAGE_SIZE *
-					pool->high_count);
-			seq_printf(s,
-				   "%d order %u lowmem pages in reserved pool = %lu total\n",
-				   pool->low_count, pool->order,
-				   (1 << pool->order) * PAGE_SIZE *
-					pool->low_count);
-		}
-
-		reserved_total += (1 << pool->order) * PAGE_SIZE *
-			pool->high_count;
-		reserved_total += (1 << pool->order) * PAGE_SIZE *
-			pool->low_count;
-	}
-
-	for (i = 0; i < NUM_ORDERS; i++) {
-		pool = sys_heap->uncached_pools[i];
-		if (use_seq) {
-			seq_printf(s,
-				   "%d order %u highmem pages in uncached pool = %lu total\n",
-				   pool->high_count, pool->order,
-				   (1 << pool->order) * PAGE_SIZE *
-					pool->high_count);
-			seq_printf(s,
-				   "%d order %u lowmem pages in uncached pool = %lu total\n",
-				   pool->low_count, pool->order,
-				   (1 << pool->order) * PAGE_SIZE *
-					pool->low_count);
-		}
-
-		uncached_total += (1 << pool->order) * PAGE_SIZE *
-			pool->high_count;
-		uncached_total += (1 << pool->order) * PAGE_SIZE *
-			pool->low_count;
-	}
-
-	for (i = 0; i < NUM_ORDERS; i++) {
-		pool = sys_heap->cached_pools[i];
-		if (use_seq) {
-			seq_printf(s,
-				   "%d order %u highmem pages in cached pool = %lu total\n",
-				   pool->high_count, pool->order,
-				   (1 << pool->order) * PAGE_SIZE *
-					pool->high_count);
-			seq_printf(s,
-				   "%d order %u lowmem pages in cached pool = %lu total\n",
-				   pool->low_count, pool->order,
-				   (1 << pool->order) * PAGE_SIZE *
-					pool->low_count);
-		}
-
-		cached_total += (1 << pool->order) * PAGE_SIZE *
-			pool->high_count;
-		cached_total += (1 << pool->order) * PAGE_SIZE *
-			pool->low_count;
-	}
-
-	for (i = 0; i < NUM_ORDERS; i++) {
-		for (j = 0; j < VMID_LAST; j++) {
-			if (!is_secure_vmid_valid(j))
-				continue;
-			pool = sys_heap->secure_pools[j][i];
-
-			if (use_seq) {
-				seq_printf(s,
-					   "VMID %d: %d order %u highmem pages in secure pool = %lu total\n",
-					   j, pool->high_count, pool->order,
-					   (1 << pool->order) * PAGE_SIZE *
-						pool->high_count);
-				seq_printf(s,
-					   "VMID  %d: %d order %u lowmem pages in secure pool = %lu total\n",
-					   j, pool->low_count, pool->order,
-					   (1 << pool->order) * PAGE_SIZE *
-						pool->low_count);
-			}
-
-			secure_total += (1 << pool->order) * PAGE_SIZE *
-					 pool->high_count;
-			secure_total += (1 << pool->order) * PAGE_SIZE *
-					 pool->low_count;
-		}
-	}
-
-	if (use_seq) {
-		seq_puts(s, "--------------------------------------------\n");
-		seq_printf(s, "reserved pool = %lu\n uncached pool = %lu cached pool = %lu secure pool = %lu\n",
-			   reserved_total, uncached_total, cached_total, secure_total);
-		seq_printf(s, "pool total (reserved + uncached + cached + secure) = %lu\n",
-			   reserved_total + uncached_total + cached_total + secure_total);
-		seq_puts(s, "--------------------------------------------\n");
-	} else {
-		pr_info("-------------------------------------------------\n");
-		pr_info("reserved pool = %lu\n uncached pool = %lu cached pool = %lu secure pool = %lu\n",
-			   reserved_total, uncached_total, cached_total, secure_total);
-		pr_info("pool total (reserved + uncached + cached + secure) = %lu\n",
-			   reserved_total + uncached_total + cached_total + secure_total);
-		pr_info("-------------------------------------------------\n");
-	}
-
-	return 0;
-}
-
 static void ion_camera_heap_destroy_pools(struct ion_page_pool **pools)
 {
 	int i;
@@ -743,7 +621,6 @@ struct ion_heap *ion_camera_heap_create(struct ion_platform_heap *data)
 
 	mutex_init(&heap->split_page_mutex);
 
-	heap->heap.debug_show = ion_camera_heap_debug_show;
 	return &heap->heap;
 destroy_pools:
 	ion_camera_heap_destroy_pools(heap->reserved_pools);
