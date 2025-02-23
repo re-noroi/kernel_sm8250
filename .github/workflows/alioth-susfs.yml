@@ -21,7 +21,7 @@ on:
         required: true
       ANYKERNEL_URL:
         description: 'AnyKernel Url (leave blank if you dont want AnyKernel)'
-        default: 'https://github.com/re-noroi/anykernel3-test'
+        default: 'https://github.com/re-noroi/anykernel3-stock'
         required: false
       ANYKERNEL_BRANCH:
         description: 'AnyKernel Branch (defaults to codename)'
@@ -109,7 +109,7 @@ jobs:
         if [ -e "dtbo.img" ]; then
           cp -f dtbo.img AnyKernel3/alioth-aosp-dtbo.img
         fi
-        name=FakeDreamer-susfs-${{ github.event.inputs.CODENAME }}-${{ github.run_id }}.zip
+        name=FakeDreamer-stk-susfs-${{ github.event.inputs.CODENAME }}-${{ github.run_id }}.zip
         cd AnyKernel3
         zip -q -r $name *
         mv $name ../
