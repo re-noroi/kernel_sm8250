@@ -61,7 +61,7 @@ jobs:
     - name: Prepare the build environment
       run: |
         sudo apt-get update
-        sudo apt install -y gcc clang bc bison flex libssl-dev ccache
+        sudo apt install -y bison ncurses-dev texinfo gcc gperf patch libtool automake g++ libncurses5-dev gawk subversion expat libexpat1-dev python-all-dev binutils-dev bc libcap-dev autoconf libgmp-dev build-essential pkg-config libmpc-dev libmpfr-dev autopoint gettext txt2man liblzma-dev libssl-dev libz-dev mercurial wget tar gcc-10 g++-10 zstd --fix-broken --fix-missing
         sudo apt install flex && sudo apt install libncurses6
         wget -O eva-gcc-arm64-23022025.xz https://github.com/mvaisakh/gcc-build/releases/download/23022025/eva-gcc-arm64-23022025.xz
         mkdir -p toolchain
