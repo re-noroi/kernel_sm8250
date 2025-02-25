@@ -61,9 +61,11 @@ jobs:
     - name: Prepare the build environment
       run: |
         sudo apt-get update
-        sudo apt-get install -y bc bison flex libssl-dev make wget
+        sudo apt install -y gcc clang bc bison flex libssl-dev ccache
         sudo apt install flex && sudo apt install libncurses6
-        git clone --depth=1 https://github.com/mvaisakh/gcc-build.git gcc-aarch64
+        wget -O eva-gcc-arm64-23022025.xz https://github.com/mvaisakh/gcc-build/releases/download/23022025/eva-gcc-arm64-23022025.xz
+        mkdir -p toolchain
+        tar -xf eva-gcc-arm64-23022025.xz -C toolchain
       working-directory: ${{ steps.workspace.outputs.workspace-folder }}
       id: tools
 
@@ -82,10 +84,8 @@ jobs:
         export SUBARCH=ARM64
         export KBUILD_BUILD_USER="renoroi"
         export KBUILD_BUILD_HOST="dreamstate"
-        echo "CROSS_COMPILE=$(pwd)/gcc-aarch64/bin/aarch64-linux-gnu-" >> $GITHUB_ENV
-        echo "PATH=$(pwd)/gcc-aarch64/bin:$(pwd)/gcc-arm/bin:$PATH" >> $GITHUB_ENV
-        make O=out vendor/alioth_defconfig
-        make -j$(nproc) O=out
+        make O=out vendor/alioth_defconfig PATH="${{ steps.tools.outputs.tools-folder }}/toolchain/bin:$PATH"
+        make O=out CC=clang -j$(nproc --all) PATH="${{ steps.tools.outputs.tools-folder }}/toolchain/bin:$PATH" CROSS_COMPILE=aarch64-linux-gnu-
         echo "elapsed_time=$(echo "$(date +%s)"-"${{ steps.workspace.outputs.start_time }}" | bc)" >> $GITHUB_OUTPUT
       working-directory: ${{ steps.kernel.outputs.kernel-folder }}
       id: build
