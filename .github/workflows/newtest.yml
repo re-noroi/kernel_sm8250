@@ -1,4 +1,4 @@
-name: FD-j3s - clang-r547379 tester
+name: FD-j3s - neutron-clang-10032024 tester
 
 on:
   pull_request:
@@ -60,12 +60,12 @@ jobs:
 
     - name: Prepare the build environment
       run: |
-        sudo apt-get update
-        sudo apt install -y gcc clang bc bison flex libssl-dev ccache
-        sudo apt install -y binutils-aarch64-linux-gnu g++ 
-        wget -O eva-gcc-arm64-23022025.xz https://github.com/mvaisakh/gcc-build/releases/download/23022025/eva-gcc-arm64-23022025.xz
-        mkdir -p toolchain
-        tar -xf eva-gcc-arm64-23022025.xz -C toolchain
+        sudo apt install flex && sudo apt install libncurses6
+        wget https://github.com/Neutron-Toolchains/clang-build-catalogue/releases/download/10032024/neutron-clang-10032024.tar.zst -O clang.tar.zst
+        mkdir clang
+        unzstd -d clang.tar.zst
+        tar -xf clang.tar -C clang
+        echo "tools-folder=$(pwd)" >> $GITHUB_OUTPUT
       working-directory: ${{ steps.workspace.outputs.workspace-folder }}
       id: tools
 
@@ -84,8 +84,8 @@ jobs:
         export SUBARCH=ARM64
         export KBUILD_BUILD_USER="renoroi"
         export KBUILD_BUILD_HOST="dreamstate"
-        make O=out vendor/alioth_defconfig PATH="${{ steps.tools.outputs.tools-folder }}/toolchain/bin:$PATH"
-        make O=out CC=gcc -j$(nproc --all) PATH="${{ steps.tools.outputs.tools-folder }}/toolchain/bin:$PATH" CROSS_COMPILE=aarch64-linux-gnu-
+        make O=out vendor/alioth_defconfig PATH="${{ steps.tools.outputs.tools-folder }}/clang/bin:$PATH"
+        make O=out CC=clang -j$(nproc --all) PATH="${{ steps.tools.outputs.tools-folder }}/clang/bin:$PATH" CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 LLVM_IAS=1
         echo "elapsed_time=$(echo "$(date +%s)"-"${{ steps.workspace.outputs.start_time }}" | bc)" >> $GITHUB_OUTPUT
       working-directory: ${{ steps.kernel.outputs.kernel-folder }}
       id: build
