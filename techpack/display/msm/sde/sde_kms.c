@@ -37,8 +37,6 @@
 #include "dsi_display.h"
 #include "dsi_drm.h"
 #include "sde_wb.h"
-#include "dp_display.h"
-#include "dp_drm.h"
 
 #include "sde_kms.h"
 #include "sde_core_irq.h"
@@ -1347,29 +1345,7 @@ static int _sde_kms_get_displays(struct sde_kms *sde_kms)
 					sde_kms->wb_display_count);
 	}
 
-	/* dp */
-	sde_kms->dp_displays = NULL;
-	sde_kms->dp_display_count = dp_display_get_num_of_displays();
-	if (sde_kms->dp_display_count) {
-		sde_kms->dp_displays = kcalloc(sde_kms->dp_display_count,
-				sizeof(void *), GFP_KERNEL);
-		if (!sde_kms->dp_displays) {
-			SDE_ERROR("failed to allocate dp displays\n");
-			goto exit_deinit_dp;
-		}
-		sde_kms->dp_display_count =
-			dp_display_get_displays(sde_kms->dp_displays,
-					sde_kms->dp_display_count);
-
-		sde_kms->dp_stream_count = dp_display_get_num_of_streams();
-	}
 	return 0;
-
-exit_deinit_dp:
-	kfree(sde_kms->dp_displays);
-	sde_kms->dp_stream_count = 0;
-	sde_kms->dp_display_count = 0;
-	sde_kms->dp_displays = NULL;
 
 exit_deinit_wb:
 	kfree(sde_kms->wb_displays);
@@ -1455,25 +1431,7 @@ static int _sde_kms_setup_displays(struct drm_device *dev,
 		.get_panel_vfp = NULL,
 		.cmd_receive = NULL,
 	};
-	static const struct sde_connector_ops dp_ops = {
-		.set_info_blob = dp_connnector_set_info_blob,
-		.post_init  = dp_connector_post_init,
-		.detect     = dp_connector_detect,
-		.get_modes  = dp_connector_get_modes,
-		.atomic_check = dp_connector_atomic_check,
-		.mode_valid = dp_connector_mode_valid,
-		.get_info   = dp_connector_get_info,
-		.get_mode_info  = dp_connector_get_mode_info,
-		.post_open  = dp_connector_post_open,
-		.check_status = NULL,
-		.set_colorspace = dp_connector_set_colorspace,
-		.config_hdr = dp_connector_config_hdr,
-		.cmd_transfer = NULL,
-		.cont_splash_config = NULL,
-		.get_panel_vfp = NULL,
-		.update_pps = dp_connector_update_pps,
-		.cmd_receive = NULL,
-	};
+
 	struct msm_display_info info;
 	struct drm_encoder *encoder;
 	void *display, *connector;
@@ -1484,10 +1442,9 @@ static int _sde_kms_setup_displays(struct drm_device *dev,
 		SDE_ERROR("invalid argument(s)\n");
 		return -EINVAL;
 	}
+	
+	max_encoders = sde_kms->dsi_display_count + sde_kms->wb_display_count;
 
-	max_encoders = sde_kms->dsi_display_count + sde_kms->wb_display_count +
-				sde_kms->dp_display_count +
-				sde_kms->dp_stream_count;
 	if (max_encoders > ARRAY_SIZE(priv->encoders)) {
 		max_encoders = ARRAY_SIZE(priv->encoders);
 		SDE_ERROR("capping number of displays to %d", max_encoders);
@@ -1587,72 +1544,6 @@ static int _sde_kms_setup_displays(struct drm_device *dev,
 			SDE_ERROR("wb %d connector init failed\n", i);
 			sde_wb_drm_deinit(display);
 			sde_encoder_destroy(encoder);
-		}
-	}
-	/* dp */
-	for (i = 0; i < sde_kms->dp_display_count &&
-			priv->num_encoders < max_encoders; ++i) {
-		int idx;
-
-		display = sde_kms->dp_displays[i];
-		encoder = NULL;
-
-		memset(&info, 0x0, sizeof(info));
-		rc = dp_connector_get_info(NULL, &info, display);
-		if (rc) {
-			SDE_ERROR("dp get_info %d failed\n", i);
-			continue;
-		}
-
-		encoder = sde_encoder_init(dev, &info);
-		if (IS_ERR_OR_NULL(encoder)) {
-			SDE_ERROR("dp encoder init failed %d\n", i);
-			continue;
-		}
-
-		rc = dp_drm_bridge_init(display, encoder);
-		if (rc) {
-			SDE_ERROR("dp bridge %d init failed, %d\n", i, rc);
-			sde_encoder_destroy(encoder);
-			continue;
-		}
-
-		connector = sde_connector_init(dev,
-					encoder,
-					NULL,
-					display,
-					&dp_ops,
-					DRM_CONNECTOR_POLL_HPD,
-					DRM_MODE_CONNECTOR_DisplayPort);
-		if (connector) {
-			priv->encoders[priv->num_encoders++] = encoder;
-			priv->connectors[priv->num_connectors++] = connector;
-		} else {
-			SDE_ERROR("dp %d connector init failed\n", i);
-			dp_drm_bridge_deinit(display);
-			sde_encoder_destroy(encoder);
-		}
-
-		/* update display cap to MST_MODE for DP MST encoders */
-		info.capabilities |= MSM_DISPLAY_CAP_MST_MODE;
-		sde_kms->dp_stream_count = dp_display_get_num_of_streams();
-		for (idx = 0; idx < sde_kms->dp_stream_count &&
-				priv->num_encoders < max_encoders; idx++) {
-			info.h_tile_instance[0] = idx;
-			encoder = sde_encoder_init(dev, &info);
-			if (IS_ERR_OR_NULL(encoder)) {
-				SDE_ERROR("dp mst encoder init failed %d\n", i);
-				continue;
-			}
-
-			rc = dp_mst_drm_bridge_init(display, encoder);
-			if (rc) {
-				SDE_ERROR("dp mst bridge %d init failed, %d\n",
-						i, rc);
-				sde_encoder_destroy(encoder);
-				continue;
-			}
-			priv->encoders[priv->num_encoders++] = encoder;
 		}
 	}
 
