@@ -85,7 +85,7 @@ jobs:
         export KBUILD_BUILD_USER="renoroi"
         export KBUILD_BUILD_HOST="dreamstate"
         make O=out vendor/alioth_defconfig PATH="${{ steps.tools.outputs.tools-folder }}/toolchain/bin:$PATH"
-        make O=out CC=clang -j$(nproc --all) PATH="${{ steps.tools.outputs.tools-folder }}/toolchain/bin:$PATH" CROSS_COMPILE=aarch64-linux-gnu-
+        make O=out CC=gcc -j$(nproc --all) PATH="${{ steps.tools.outputs.tools-folder }}/toolchain/bin:$PATH" CROSS_COMPILE=aarch64-linux-gnu-
         echo "elapsed_time=$(echo "$(date +%s)"-"${{ steps.workspace.outputs.start_time }}" | bc)" >> $GITHUB_OUTPUT
       working-directory: ${{ steps.kernel.outputs.kernel-folder }}
       id: build
