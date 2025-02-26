@@ -14,7 +14,7 @@
 
 #include <linux/notifier.h>
 
-static BLOCKING_NOTIFIER_HEAD(mi_drm_notifier_list);
+SRCU_NOTIFIER_HEAD_STATIC(mi_drm_notifier_list);
 
 /**
  * mi_drm_register_client - register a client notifier
@@ -26,7 +26,7 @@ static BLOCKING_NOTIFIER_HEAD(mi_drm_notifier_list);
  */
 int mi_drm_register_client(struct notifier_block *nb)
 {
-	return blocking_notifier_chain_register(&mi_drm_notifier_list, nb);
+	return srcu_notifier_chain_register(&mi_drm_notifier_list, nb);
 }
 EXPORT_SYMBOL(mi_drm_register_client);
 
@@ -39,7 +39,7 @@ EXPORT_SYMBOL(mi_drm_register_client);
  */
 int mi_drm_unregister_client(struct notifier_block *nb)
 {
-	return blocking_notifier_chain_unregister(&mi_drm_notifier_list, nb);
+	return srcu_notifier_chain_unregister(&mi_drm_notifier_list, nb);
 }
 EXPORT_SYMBOL(mi_drm_unregister_client);
 
@@ -51,7 +51,7 @@ EXPORT_SYMBOL(mi_drm_unregister_client);
  */
 int mi_drm_notifier_call_chain(unsigned long val, void *v)
 {
-	return blocking_notifier_call_chain(&mi_drm_notifier_list, val, v);
+	return srcu_notifier_call_chain(&mi_drm_notifier_list, val, v);
 }
 EXPORT_SYMBOL(mi_drm_notifier_call_chain);
 
