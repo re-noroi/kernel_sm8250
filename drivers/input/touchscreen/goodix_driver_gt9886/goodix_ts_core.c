@@ -1024,7 +1024,7 @@ static void goodix_ts_sysfs_exit(struct goodix_ts_core *core_data)
 }
 
 /* event notifier */
-static BLOCKING_NOTIFIER_HEAD(ts_notifier_list);
+SRCU_NOTIFIER_HEAD_STATIC(ts_notifier_list);
 /**
  * goodix_ts_register_client - register a client notifier
  * @nb: notifier block to callback on events
@@ -1032,7 +1032,7 @@ static BLOCKING_NOTIFIER_HEAD(ts_notifier_list);
  */
 int goodix_ts_register_notifier(struct notifier_block *nb)
 {
-	return blocking_notifier_chain_register(&ts_notifier_list, nb);
+	return srcu_notifier_chain_register(&ts_notifier_list, nb);
 }
 EXPORT_SYMBOL(goodix_ts_register_notifier);
 
@@ -1043,7 +1043,7 @@ EXPORT_SYMBOL(goodix_ts_register_notifier);
  */
 int goodix_ts_unregister_notifier(struct notifier_block *nb)
 {
-	return blocking_notifier_chain_unregister(&ts_notifier_list, nb);
+	return srcu_notifier_chain_unregister(&ts_notifier_list, nb);
 }
 EXPORT_SYMBOL(goodix_ts_unregister_notifier);
 
@@ -1055,7 +1055,7 @@ int goodix_ts_blocking_notify(enum ts_notify_event evt, void *v)
 {
 	int ret;
 
-	ret = blocking_notifier_call_chain(&ts_notifier_list,
+	ret = srcu_notifier_call_chain(&ts_notifier_list,
 			(unsigned long)evt, v);
 	return ret;
 }
