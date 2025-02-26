@@ -240,7 +240,7 @@ struct IpaUpdateFlowCtlMonitorData_t {
 };
 
 static DEFINE_MUTEX(uc_loaded_nb_lock);
-static BLOCKING_NOTIFIER_HEAD(uc_loaded_notifier);
+SRCU_NOTIFIER_HEAD_STATIC(uc_loaded_notifier);
 
 struct ipa3_uc_hdlrs ipa3_uc_hdlrs[IPA_HW_NUM_FEATURES] = { { 0 } };
 
@@ -522,7 +522,7 @@ EXPORT_SYMBOL(ipa3_uc_loaded_check);
  *
  * Return: 0 on successful registration, negative errno otherwise
  *
- * See blocking_notifier_chain_register() for possible errno values
+ * See srcu_notifier_chain_register() for possible errno values
  */
 int ipa3_uc_register_ready_cb(struct notifier_block *nb)
 {
@@ -530,7 +530,7 @@ int ipa3_uc_register_ready_cb(struct notifier_block *nb)
 
 	mutex_lock(&uc_loaded_nb_lock);
 
-	rc = blocking_notifier_chain_register(&uc_loaded_notifier, nb);
+	rc = srcu_notifier_chain_register(&uc_loaded_notifier, nb);
 	if (!rc && ipa3_ctx->uc_ctx.uc_loaded)
 		(void) nb->notifier_call(nb, false, ipa3_ctx);
 
@@ -549,11 +549,11 @@ EXPORT_SYMBOL(ipa3_uc_register_ready_cb);
  *
  * Return: 0 on successful unregistration, negative errno otherwise
  *
- * See blocking_notifier_chain_unregister() for possible errno values
+ * See srcu_notifier_chain_unregister() for possible errno values
  */
 int ipa3_uc_unregister_ready_cb(struct notifier_block *nb)
 {
-	return blocking_notifier_chain_unregister(&uc_loaded_notifier, nb);
+	return srcu_notifier_chain_unregister(&uc_loaded_notifier, nb);
 }
 EXPORT_SYMBOL(ipa3_uc_unregister_ready_cb);
 
@@ -699,7 +699,7 @@ static void ipa3_uc_response_hdlr(enum ipa_irq_type interrupt,
 
 		ipa3_ctx->uc_ctx.uc_loaded = true;
 
-		(void) blocking_notifier_call_chain(&uc_loaded_notifier, true,
+		(void) srcu_notifier_call_chain(&uc_loaded_notifier, true,
 			ipa3_ctx);
 
 		mutex_unlock(&uc_loaded_nb_lock);
