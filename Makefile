@@ -698,9 +698,6 @@ KBUILD_CFLAGS   += -mllvm -regalloc-enable-advisor=release
 KBUILD_LDFLAGS  += -mllvm -regalloc-enable-advisor=release
 KBUILD_LDFLAGS  += -mllvm -enable-ml-inliner=release
 
-ifeq ($(CONFIG_LD_IS_LLD), y)
-KBUILD_LDFLAGS  += -Wl,--icf=all  # Keep valid LLD optimizations
-endif
 else
 KBUILD_CFLAGS   += -O2
 KBUILD_AFLAGS   += -O2
