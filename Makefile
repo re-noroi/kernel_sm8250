@@ -692,7 +692,6 @@ KBUILD_LDFLAGS  += -Os
 else ifeq ($(cc-name),clang)
 KBUILD_CFLAGS   += -mllvm -hot-cold-split=true
 KBUILD_CFLAGS   += -O2 -march=armv8.2-a+lse+crypto+dotprod -mtune=cortex-a55
-KBUILD_CFLAGS   += -falign-functions=64 -falign-jumps=16
 KBUILD_AFLAGS   += -O2 -march=armv8.2-a+lse+crypto+dotprod -mtune=cortex-a55
 # Machine Learning Optimization
 KBUILD_CFLAGS   += -mllvm -regalloc-enable-advisor=release
