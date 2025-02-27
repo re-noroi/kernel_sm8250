@@ -1,6 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 
-#define SCHED_FEAT_ENFORCE_ELIGIBILITY 0
 /*
  * Using the avg_vruntime, do the right thing and preserve lag across
  * sleep+wake cycles. EEVDF placement strategy #1, #2 if disabled.
@@ -9,12 +8,21 @@
 /*
  * Give new tasks half a slice to ease into the competition.
  */
-#define SCHED_FEAT_PLACE_DEADLINE_INITIAL 0
+#define SCHED_FEAT_PLACE_DEADLINE_INITIAL 1
+/*
+ * Preserve relative virtual deadline on 'migration'.
+ */
+#define SCHED_FEAT_PLACE_REL_DEADLINE 1
 /*
  * Inhibit (wakeup) preemption until the current task has either matched the
  * 0-lag point or until is has exhausted it's slice.
  */
-#define SCHED_FEAT_RUN_TO_PARITY 0
+#define SCHED_FEAT_RUN_TO_PARITY 1
+/*
+ * Allow wakeup of tasks with a shorter slice to cancel RESPECT_SLICE for
+ * current.
+ */
+#define SCHED_FEAT_PREEMPT_SHORT 1
 
 /*
  * Prefer to schedule the task we woke last (assuming it failed
@@ -24,10 +32,31 @@
 #define SCHED_FEAT_NEXT_BUDDY 0
 
 /*
+ * Allow completely ignoring cfs_rq->next; which can be set from various
+ * places:
+ *   - NEXT_BUDDY (wakeup preemption)
+ *   - yield_to_task()
+ *   - cgroup dequeue / pick
+ */
+#define SCHED_FEAT_PICK_BUDDY 1
+
+/*
  * Consider buddies to be cache hot, decreases the likeliness of a
  * cache buddy being migrated away, increases cache locality.
  */
 #define SCHED_FEAT_CACHE_HOT_BUDDY 1
+
+/*
+ * Delay dequeueing tasks until they get selected or woken.
+ *
+ * By delaying the dequeue for non-eligible tasks, they remain in the
+ * competition and can burn off their negative lag. When they get selected
+ * they'll have positive lag by definition.
+ *
+ * DELAY_ZERO clips the lag on dequeue (or wakeup) to 0.
+ */
+#define SCHED_FEAT_DELAY_DEQUEUE 1
+#define SCHED_FEAT_DELAY_ZERO 1
 
 /*
  * Allow wakeup-time preemption of the current task:

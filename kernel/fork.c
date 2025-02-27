@@ -186,6 +186,23 @@ static inline void free_task_struct(struct task_struct *tsk)
 #define NR_CACHED_STACKS 2
 static DEFINE_PER_CPU(struct vm_struct *, cached_stacks[NR_CACHED_STACKS]);
 
+struct vm_stack {
+	struct rcu_head rcu;
+	struct vm_struct *stack_vm_area;
+};
+
+static bool try_release_thread_stack_to_cache(struct vm_struct *vm)
+{
+	unsigned int i;
+
+	for (i = 0; i < NR_CACHED_STACKS; i++) {
+		if (this_cpu_cmpxchg(cached_stacks[i], NULL, vm) != NULL)
+			continue;
+		return true;
+	}
+	return false;
+}
+
 static int free_vm_stack_cache(unsigned int cpu)
 {
 	struct vm_struct **cached_vm_stacks = per_cpu_ptr(cached_stacks, cpu);
@@ -255,29 +272,55 @@ static unsigned long *alloc_thread_stack_node(struct task_struct *tsk, int node)
 #endif
 }
 
+static void thread_stack_free_rcu(struct rcu_head *rh)
+{
+#ifdef CONFIG_VMAP_STACK
+	struct vm_stack *vm_stack = container_of(rh, struct vm_stack, rcu);
+
+	if (try_release_thread_stack_to_cache(vm_stack->stack_vm_area))
+		return;
+
+	vfree(vm_stack);
+#else
+	__free_pages(virt_to_page(rh), THREAD_SIZE_ORDER);
+#endif
+}
+
+static void thread_stack_delayed_free(struct task_struct *tsk)
+{
+#ifdef CONFIG_VMAP_STACK
+	struct vm_stack *vm_stack = tsk->stack;
+
+	vm_stack->stack_vm_area = tsk->stack_vm_area;
+	call_rcu(&vm_stack->rcu, thread_stack_free_rcu);
+#else
+	struct rcu_head *rh = tsk->stack;
+
+	call_rcu(rh, thread_stack_free_rcu);
+#endif
+}
+
 static inline void free_thread_stack(struct task_struct *tsk)
 {
 #ifdef CONFIG_VMAP_STACK
-	if (task_stack_vm_area(tsk)) {
-		int i;
-
-		for (i = 0; i < NR_CACHED_STACKS; i++) {
-			if (this_cpu_cmpxchg(cached_stacks[i],
-					NULL, tsk->stack_vm_area) != NULL)
-				continue;
-
-			return;
-		}
-
-		vfree_atomic(tsk->stack);
-		return;
-	}
+	if (!try_release_thread_stack_to_cache(tsk->stack_vm_area))
 #endif
-
-	__free_pages(virt_to_page(tsk->stack), THREAD_SIZE_ORDER);
+		thread_stack_delayed_free(tsk);
 }
 # else
 static struct kmem_cache *thread_stack_cache;
+
+static void thread_stack_free_rcu(struct rcu_head *rh)
+{
+	kmem_cache_free(thread_stack_cache, rh);
+}
+
+static void thread_stack_delayed_free(struct task_struct *tsk)
+{
+	struct rcu_head *rh = tsk->stack;
+
+	call_rcu(rh, thread_stack_free_rcu);
+}
 
 static unsigned long *alloc_thread_stack_node(struct task_struct *tsk,
 						  int node)
@@ -290,7 +333,7 @@ static unsigned long *alloc_thread_stack_node(struct task_struct *tsk,
 
 static void free_thread_stack(struct task_struct *tsk)
 {
-	kmem_cache_free(thread_stack_cache, tsk->stack);
+	thread_stack_delayed_free(tsk);
 }
 
 void thread_stack_cache_init(void)
@@ -349,12 +392,10 @@ void vm_area_free(struct vm_area_struct *vma)
 
 static void account_kernel_stack(struct task_struct *tsk, int account)
 {
-	void *stack = task_stack_page(tsk);
-	struct vm_struct *vm = task_stack_vm_area(tsk);
-
 	BUILD_BUG_ON(IS_ENABLED(CONFIG_VMAP_STACK) && PAGE_SIZE % 1024 != 0);
 
-	if (vm) {
+	if (IS_ENABLED(CONFIG_VMAP_STACK)) {
+		struct vm_struct *vm = task_stack_vm_area(tsk);
 		int i;
 
 		BUG_ON(vm->nr_pages != THREAD_SIZE / PAGE_SIZE);
@@ -369,6 +410,8 @@ static void account_kernel_stack(struct task_struct *tsk, int account)
 		mod_memcg_page_state(vm->pages[0], MEMCG_KERNEL_STACK_KB,
 				     account * (THREAD_SIZE / 1024));
 	} else {
+		void *stack = task_stack_page(tsk);
+
 		/*
 		 * All stack pages are in the same zone and belong to the
 		 * same memcg.
@@ -383,12 +426,16 @@ static void account_kernel_stack(struct task_struct *tsk, int account)
 	}
 }
 
+void exit_task_stack_account(struct task_struct *tsk)
+{
+	account_kernel_stack(tsk, -1);
+}
+
 static void release_task_stack(struct task_struct *tsk)
 {
 	if (WARN_ON(tsk->state != TASK_DEAD))
 		return;  /* Better to leak the stack than to free prematurely */
 
-	account_kernel_stack(tsk, -1);
 	free_thread_stack(tsk);
 	tsk->stack = NULL;
 #ifdef CONFIG_VMAP_STACK
@@ -864,13 +911,15 @@ static struct task_struct *dup_task_struct(struct task_struct *orig, int node)
 	if (!tsk)
 		return NULL;
 
+	err = arch_dup_task_struct(tsk, orig);
+	if (err)
+		goto free_tsk;
+
 	stack = alloc_thread_stack_node(tsk, node);
 	if (!stack)
 		goto free_tsk;
 
 	stack_vm_area = task_stack_vm_area(tsk);
-
-	err = arch_dup_task_struct(tsk, orig);
 
 	/*
 	 * arch_dup_task_struct() clobbers the stack-related fields.  Make
@@ -884,9 +933,7 @@ static struct task_struct *dup_task_struct(struct task_struct *orig, int node)
 #ifdef CONFIG_THREAD_INFO_IN_TASK
 	atomic_set(&tsk->stack_refcount, 1);
 #endif
-
-	if (err)
-		goto free_stack;
+	account_kernel_stack(tsk, 1);
 
 	err = scs_prepare(tsk, node);
 	if (err)
@@ -925,8 +972,6 @@ static struct task_struct *dup_task_struct(struct task_struct *orig, int node)
 	tsk->task_frag.page = NULL;
 	tsk->wake_q.next = NULL;
 
-	account_kernel_stack(tsk, 1);
-
 	kcov_task_init(tsk);
 
 #ifdef CONFIG_FAULT_INJECTION
@@ -944,6 +989,7 @@ static struct task_struct *dup_task_struct(struct task_struct *orig, int node)
 	return tsk;
 
 free_stack:
+	exit_task_stack_account(tsk);
 	free_thread_stack(tsk);
 free_tsk:
 	free_task_struct(tsk);
@@ -2337,6 +2383,7 @@ bad_fork_cleanup_count:
 	exit_creds(p);
 bad_fork_free:
 	p->state = TASK_DEAD;
+	exit_task_stack_account(p);
 	put_task_stack(p);
 	delayed_free_task(p);
 fork_out:
@@ -2417,8 +2464,6 @@ long _do_fork(unsigned long clone_flags,
 
 	if (IS_ERR(p))
 		return PTR_ERR(p);
-
-	cpufreq_task_times_alloc(p);
 
 	/*
 	 * Do this prior waking up the new thread - the thread pointer
