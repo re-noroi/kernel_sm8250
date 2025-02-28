@@ -9,7 +9,7 @@
  *  Simplified starting of init:  Michael A. Griffith <grif@acm.org>
  */
 
-#define DEBUG		/* Enable initcall_debug */
+//#define DEBUG		/* Enable initcall_debug */
 
 #include <linux/types.h>
 #include <linux/extable.h>

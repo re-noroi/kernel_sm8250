@@ -1550,6 +1550,7 @@ EXPORT_SYMBOL(geni_se_iommu_free_buf);
 void geni_se_dump_dbg_regs(struct se_geni_rsc *rsc, void __iomem *base,
 				void *ipc)
 {
+#if 0
 	u32 m_cmd0 = 0;
 	u32 m_irq_status = 0;
 	u32 s_cmd0 = 0;
@@ -1619,6 +1620,7 @@ void geni_se_dump_dbg_regs(struct se_geni_rsc *rsc, void __iomem *base,
 	GENI_SE_DBG(ipc, false, NULL,
 	"dma_txirq_en:0x%x, dma_rxirq_en:0x%x geni_m_irq_en:0x%x geni_s_irq_en:0x%x\n",
 	geni_dma_tx_irq_en, geni_dma_rx_irq_en, geni_m_irq_en, geni_s_irq_en);
+#endif
 }
 EXPORT_SYMBOL(geni_se_dump_dbg_regs);
 

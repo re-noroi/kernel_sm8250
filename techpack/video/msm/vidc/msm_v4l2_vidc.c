@@ -47,7 +47,6 @@ static int msm_v4l2_open(struct file *filp)
 	struct msm_vidc_core *core = video_drvdata(filp);
 	struct msm_vidc_inst *vidc_inst;
 
-	trace_msm_v4l2_vidc_open_start("msm v4l2_open start");
 	vidc_inst = msm_vidc_open(core->id, vid_dev->type);
 	if (!vidc_inst) {
 		d_vpr_e("Failed to create instance, core: %d, type = %d\n",
@@ -56,7 +55,6 @@ static int msm_v4l2_open(struct file *filp)
 	}
 	clear_bit(V4L2_FL_USES_V4L2_FH, &vdev->flags);
 	filp->private_data = &(vidc_inst->event_handler);
-	trace_msm_v4l2_vidc_open_end("msm v4l2_open end");
 	return 0;
 }
 
@@ -65,12 +63,10 @@ static int msm_v4l2_close(struct file *filp)
 	int rc = 0;
 	struct msm_vidc_inst *vidc_inst;
 
-	trace_msm_v4l2_vidc_close_start("msm v4l2_close start");
 	vidc_inst = get_vidc_inst(filp, NULL);
 
 	rc = msm_vidc_close(vidc_inst);
 	filp->private_data = NULL;
-	trace_msm_v4l2_vidc_close_end("msm v4l2_close end");
 	return rc;
 }
 

@@ -1631,8 +1631,6 @@ static int update_request_adhoc(uint32_t cl, unsigned int index)
 	if (pdata->alc)
 		ret = update_client_alc(client, index);
 	else {
-		if (!oops_in_progress)
-			msm_bus_dbg_client_data(client->pdata, index, cl);
 		ret = update_client_paths(client, index);
 	}
 	if (ret) {
