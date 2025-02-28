@@ -28,11 +28,6 @@ enum {
 	MSM_SPM_DEBUG_VCTL = 1U << 1,
 };
 
-static int msm_spm_debug_mask;
-module_param_named(
-	debug_mask, msm_spm_debug_mask, int, 0664
-);
-
 struct saw2_data {
 	const char *ver_name;
 	uint32_t major;
@@ -368,7 +363,9 @@ void msm_spm_drv_flush_seq_entry(struct msm_spm_driver_data *dev)
 	int num_spm_entry = msm_spm_drv_get_num_spm_entry(dev);
 
 	if (!dev) {
+#ifdef CONFIG_BUG
 		__WARN();
+#endif
 		return;
 	}
 
@@ -440,13 +437,6 @@ int msm_spm_drv_set_low_power_mode(struct msm_spm_driver_data *dev,
 	msm_spm_drv_flush_shadow(dev, MSM_SPM_REG_SAW_SPM_CTL);
 	wmb(); /* Ensure we flush */
 
-	if (msm_spm_debug_mask & MSM_SPM_DEBUG_SHADOW) {
-		int i;
-
-		for (i = 0; i < MSM_SPM_REG_NR; i++)
-			pr_info("%s: reg %02x = 0x%08x\n", __func__,
-				dev->reg_offsets[i], dev->reg_shadow[i]);
-	}
 	msm_spm_drv_load_shadow(dev, MSM_SPM_REG_SAW_SPM_STS);
 
 	return 0;
@@ -532,10 +522,6 @@ static inline int msm_spm_drv_validate_data(struct msm_spm_driver_data *dev,
 		return -EIO;
 	}
 
-	if (msm_spm_debug_mask & MSM_SPM_DEBUG_VCTL)
-		pr_info("%s: done, remaining timeout %u us\n",
-			__func__, timeout_us);
-
 	return 0;
 }
 
@@ -552,9 +538,6 @@ int msm_spm_drv_set_vdd(struct msm_spm_driver_data *dev, unsigned int vlevel)
 
 	if (!msm_spm_pmic_arb_present(dev))
 		return -ENODEV;
-
-	if (msm_spm_debug_mask & MSM_SPM_DEBUG_VCTL)
-		pr_info("%s: requesting vlevel %#x\n", __func__, vlevel);
 
 	if (avs_enabled)
 		msm_spm_drv_disable_avs(dev);
