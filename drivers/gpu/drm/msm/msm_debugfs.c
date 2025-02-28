@@ -213,12 +213,7 @@ static int late_init_minor(struct drm_minor *minor)
 
 int msm_debugfs_late_init(struct drm_device *dev)
 {
-	int ret;
-	ret = late_init_minor(dev->primary);
-	if (ret)
-		return ret;
-	ret = late_init_minor(dev->render);
-	return ret;
+	return 0;
 }
 
 int msm_debugfs_init(struct drm_minor *minor)

@@ -279,35 +279,7 @@ fail:
 
 int msm_rd_debugfs_init(struct drm_minor *minor)
 {
-	struct msm_drm_private *priv = minor->dev->dev_private;
-	struct msm_rd_state *rd;
-	int ret;
-
-	/* only create on first minor: */
-	if (priv->rd)
-		return 0;
-
-	rd = rd_init(minor, "rd");
-	if (IS_ERR(rd)) {
-		ret = PTR_ERR(rd);
-		goto fail;
-	}
-
-	priv->rd = rd;
-
-	rd = rd_init(minor, "hangrd");
-	if (IS_ERR(rd)) {
-		ret = PTR_ERR(rd);
-		goto fail;
-	}
-
-	priv->hangrd = rd;
-
 	return 0;
-
-fail:
-	msm_rd_debugfs_cleanup(priv);
-	return ret;
 }
 
 void msm_rd_debugfs_cleanup(struct msm_drm_private *priv)

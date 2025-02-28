@@ -770,10 +770,6 @@ static int hfi_process_session_etb_done(u32 device_id,
 	data_done.input_done.status =
 		hfi_map_err_status(pkt->error_type);
 
-	trace_msm_v4l2_vidc_buffer_event_end("ETB",
-		(u32)pkt->packet_buffer, -1, -1,
-		pkt->filled_len, pkt->offset);
-
 	info->response_type = HAL_SESSION_ETB_DONE;
 	info->response.data = data_done;
 
@@ -884,14 +880,6 @@ static int hfi_process_session_ftb_done(
 		else if (pkt->stream_id == 1)
 			data_done.output_done.buffer_type = HAL_BUFFER_OUTPUT2;
 	}
-
-	trace_msm_v4l2_vidc_buffer_event_end("FTB",
-		(u32)data_done.output_done.packet_buffer1,
-		(((u64)data_done.output_done.timestamp_hi) << 32)
-		+ ((u64)data_done.output_done.timestamp_lo),
-		data_done.output_done.alloc_len1,
-		data_done.output_done.filled_len1,
-		data_done.output_done.offset1);
 
 	info->response_type = HAL_SESSION_FTB_DONE;
 	info->response.data = data_done;

@@ -4484,6 +4484,7 @@ EXPORT_SYMBOL(gsi_wdi3_write_evt_ring_db);
 
 void gsi_wdi3_dump_register(unsigned long chan_hdl)
 {
+#if 0
 	uint32_t val;
 
 	if (!gsi_ctx) {
@@ -4551,6 +4552,7 @@ void gsi_wdi3_dump_register(unsigned long chan_hdl)
 		GSI_EE_n_GSI_CH_k_SCRATCH_3_OFFS(chan_hdl,
 			gsi_ctx->per.ee));
 	GSIDBG("GSI_EE_n_GSI_CH_k_SCRATCH_3_OFFS 0x%x\n", val);
+#endif
 }
 EXPORT_SYMBOL(gsi_wdi3_dump_register);
 

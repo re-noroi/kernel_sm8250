@@ -111,46 +111,23 @@ static atomic_t bam_dmux_ack_out_cnt = ATOMIC_INIT(0);
 static atomic_t bam_dmux_ack_in_cnt = ATOMIC_INIT(0);
 static atomic_t bam_dmux_a2_pwr_cntl_in_cnt = ATOMIC_INIT(0);
 
-#define DBG(x...) do {		                 \
-		if (msm_bam_dmux_debug_enable)  \
-			pr_debug(x);	         \
-	} while (0)
+#define DBG(x...) do {} while (0)
 
-#define DBG_INC_READ_CNT(x) do {	                               \
-		bam_dmux_read_cnt += (x);                             \
-		if (msm_bam_dmux_debug_enable)                        \
-			pr_debug("%s: total read bytes %u\n",          \
-				 __func__, bam_dmux_read_cnt);        \
-	} while (0)
+#define DBG_INC_READ_CNT(x) do {} while (0)
 
-#define DBG_INC_WRITE_CNT(x)  do {	                               \
-		bam_dmux_write_cnt += (x);                            \
-		if (msm_bam_dmux_debug_enable)                        \
-			pr_debug("%s: total written bytes %u\n",       \
-				 __func__, bam_dmux_write_cnt);       \
-	} while (0)
+#define DBG_INC_WRITE_CNT(x)  do {} while (0)
 
-#define DBG_INC_WRITE_CPY(x)  do {	                                     \
-		bam_dmux_write_cpy_bytes += (x);                            \
-		bam_dmux_write_cpy_cnt++;                                   \
-		if (msm_bam_dmux_debug_enable)                              \
-			pr_debug("%s: total write copy cnt %u, bytes %u\n",  \
-				 __func__, bam_dmux_write_cpy_cnt,          \
-				 bam_dmux_write_cpy_bytes);                 \
-	} while (0)
+#define DBG_INC_WRITE_CPY(x)  do {} while (0)
 
 #define DBG_INC_TX_SPS_FAILURE_CNT() (bam_dmux_tx_sps_failure_cnt++)
 
 #define DBG_INC_TX_STALL_CNT() (bam_dmux_tx_stall_cnt++)
 
-#define DBG_INC_ACK_OUT_CNT() \
-	atomic_inc(&bam_dmux_ack_out_cnt)
+#define DBG_INC_ACK_OUT_CNT() do {} while (0)
 
-#define DBG_INC_A2_POWER_CONTROL_IN_CNT() \
-	atomic_inc(&bam_dmux_a2_pwr_cntl_in_cnt)
+#define DBG_INC_A2_POWER_CONTROL_IN_CNT() do {} while (0)
 
-#define DBG_INC_ACK_IN_CNT() \
-	atomic_inc(&bam_dmux_ack_in_cnt)
+#define DBG_INC_ACK_IN_CNT() do {} while (0)
 #else
 #define DBG(x...) do { } while (0)
 #define DBG_INC_READ_CNT(x...) do { } while (0)
