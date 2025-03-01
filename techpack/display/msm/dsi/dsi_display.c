@@ -4107,7 +4107,9 @@ static int dsi_display_res_init(struct dsi_display *display)
 		ctrl->ctrl = dsi_ctrl_get(ctrl->ctrl_of_node);
 		if (IS_ERR_OR_NULL(ctrl->ctrl)) {
 			rc = PTR_ERR(ctrl->ctrl);
-			DSI_ERR("failed to get dsi controller, rc=%d\n", rc);
+			if (rc != -EPROBE_DEFER)
+				DSI_ERR("failed to get dsi controller, rc=%d\n", rc);
+
 			ctrl->ctrl = NULL;
 			goto error_ctrl_put;
 		}
@@ -5163,8 +5165,10 @@ static int _dsi_display_dev_init(struct dsi_display *display)
 
 	rc = dsi_display_res_init(display);
 	if (rc) {
-		DSI_ERR("[%s] failed to initialize resources, rc=%d\n",
-		       display->name, rc);
+		if (rc != -EPROBE_DEFER)
+			DSI_ERR("[%s] failed to initialize resources, rc=%d\n",
+			       display->name, rc);
+
 		goto error;
 	}
 error:
@@ -5984,7 +5988,9 @@ static int dsi_display_init(struct dsi_display *display)
 
 	rc = _dsi_display_dev_init(display);
 	if (rc) {
-		DSI_ERR("device init failed, rc=%d\n", rc);
+		if (rc != -EPROBE_DEFER)
+			DSI_ERR("device init failed, rc=%d\n", rc);
+
 		goto end;
 	}
 
