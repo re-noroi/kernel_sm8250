@@ -100,6 +100,13 @@ config IPA
           Kernel and user-space processes can call the IPA driver
           to configure IPA core.
 
+config DISABLE_IPA_WAKELOCKS
+	tristate "Disable IPA Wakelocks"
+	depends on IPA || IPA3
+	default y
+	help
+	  Disables the wakelocks created by ipa driver in order to save power
+
 config RMNET_IPA
 	tristate "IPA RMNET WWAN Network Device"
 	depends on IPA && QCOM_QMI_HELPERS
