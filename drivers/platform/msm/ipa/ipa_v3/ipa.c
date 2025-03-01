@@ -5334,6 +5334,7 @@ void ipa3_dec_client_disable_clks_no_block(
 		&ipa_dec_clients_disable_clks_on_wq_work, 0);
 }
 
+#ifndef CONFIG_DISABLE_IPA_WAKELOCKS
 /**
  * ipa3_inc_acquire_wakelock() - Increase active clients counter, and
  * acquire wakelock if necessary
@@ -5347,8 +5348,6 @@ void ipa3_inc_acquire_wakelock(void)
 
 	spin_lock_irqsave(&ipa3_ctx->wakelock_ref_cnt.spinlock, flags);
 	ipa3_ctx->wakelock_ref_cnt.cnt++;
-	if (ipa3_ctx->wakelock_ref_cnt.cnt == 1)
-		__pm_stay_awake(ipa3_ctx->w_lock);
 	IPADBG_LOW("active wakelock ref cnt = %d\n",
 		ipa3_ctx->wakelock_ref_cnt.cnt);
 	spin_unlock_irqrestore(&ipa3_ctx->wakelock_ref_cnt.spinlock, flags);
@@ -5370,10 +5369,9 @@ void ipa3_dec_release_wakelock(void)
 	ipa3_ctx->wakelock_ref_cnt.cnt--;
 	IPADBG_LOW("active wakelock ref cnt = %d\n",
 		ipa3_ctx->wakelock_ref_cnt.cnt);
-	if (ipa3_ctx->wakelock_ref_cnt.cnt == 0)
-		__pm_relax(ipa3_ctx->w_lock);
 	spin_unlock_irqrestore(&ipa3_ctx->wakelock_ref_cnt.spinlock, flags);
 }
+#endif
 
 int ipa3_set_clock_plan_from_pm(int idx)
 {
@@ -5607,7 +5605,9 @@ static void ipa3_transport_release_resource(struct work_struct *work)
 			ipa3_process_irq_schedule_rel();
 		} else {
 			atomic_set(&ipa3_ctx->transport_pm.dec_clients, 0);
+#ifndef CONFIG_DISABLE_IPA_WAKELOCKS
 			ipa3_dec_release_wakelock();
+#endif
 			IPA_ACTIVE_CLIENTS_DEC_SPECIAL("TRANSPORT_RESOURCE");
 		}
 	}
@@ -7092,6 +7092,7 @@ static int ipa3_pre_init(const struct ipa3_plat_drv_res *resource_p,
 		goto fail_device_create;
 	}
 
+#ifndef CONFIG_DISABLE_IPA_WAKELOCKS
 	/* Register a wakeup source. */
 	ipa3_ctx->w_lock =
 		wakeup_source_register(&ipa_pdev->dev, "IPA_WS");
@@ -7101,6 +7102,7 @@ static int ipa3_pre_init(const struct ipa3_plat_drv_res *resource_p,
 		goto fail_w_source_register;
 	}
 	spin_lock_init(&ipa3_ctx->wakelock_ref_cnt.spinlock);
+#endif
 
 	/* Initialize Power Management framework */
 	result = ipa_pm_init(&ipa3_res.pm_init);
@@ -7192,9 +7194,11 @@ fail_gsi_pre_fw_load_init:
 fail_ipa_dma_setup:
 	ipa_pm_destroy();
 fail_ipa_pm_init:
+#ifndef CONFIG_DISABLE_IPA_WAKELOCKS
 	wakeup_source_unregister(ipa3_ctx->w_lock);
 	ipa3_ctx->w_lock = NULL;
 fail_w_source_register:
+#endif
 	device_destroy(ipa3_ctx->cdev.class, ipa3_ctx->cdev.dev_num);
 fail_device_create:
 	unregister_chrdev_region(ipa3_ctx->cdev.dev_num, 1);
