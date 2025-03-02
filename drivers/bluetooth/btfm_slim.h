@@ -16,7 +16,6 @@
 #define BTFMSLIM_DBG(fmt, arg...)  do {} while (0)
 #define BTFMSLIM_ERR(fmt, arg...)  do {} while (0)
 #endif
-#define BTFMSLIM_ERR(fmt, arg...)  pr_err("%s: " fmt "\n", __func__, ## arg)
 
 /* Vendor specific defines
  * This should redefines in slimbus slave specific header
