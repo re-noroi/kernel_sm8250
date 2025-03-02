@@ -422,7 +422,7 @@ AFLAGS_MODULE   =
 LDFLAGS_MODULE  = --strip-debug
 CFLAGS_KERNEL	=
 AFLAGS_KERNEL	=
-LDFLAGS_vmlinux =
+LDFLAGS_vmlinux = --strip-debug
 
 # Use USERINCLUDE when you must reference the UAPI directories only.
 USERINCLUDE    := \
