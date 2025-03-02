@@ -30,10 +30,7 @@ msm_adreno-y += \
 	adreno_ringbuffer.o \
 	adreno_drawctxt.o \
 	adreno_dispatch.o \
-	adreno_snapshot.o \
-	adreno_trace.o \
 	adreno_a6xx.o \
-	adreno_a6xx_snapshot.o \
 	adreno_a6xx_preempt.o \
 	adreno_a6xx_gmu.o \
 	adreno_a6xx_rgmu.o \
