@@ -4532,7 +4532,7 @@ CONFIG_ION_POOL_FILL_MARK=48
 #
 # Qualcomm technologies inc. MSM specific device drivers
 #
-CONFIG_MSM_EXT_DISPLAY=y
+# CONFIG_MSM_EXT_DISPLAY is not set
 CONFIG_QPNP_REVID=y
 CONFIG_SPS=y
 # CONFIG_SPS_SUPPORT_BAMDMA is not set
