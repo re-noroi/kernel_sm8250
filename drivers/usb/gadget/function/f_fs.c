@@ -1229,7 +1229,6 @@ static int ffs_aio_cancel(struct kiocb *kiocb)
 
 static ssize_t ffs_epfile_write_iter(struct kiocb *kiocb, struct iov_iter *from)
 {
-	struct ffs_epfile *epfile = kiocb->ki_filp->private_data;
 	struct ffs_io_data io_data, *p = &io_data;
 	ssize_t res;
 
@@ -1272,7 +1271,6 @@ static ssize_t ffs_epfile_write_iter(struct kiocb *kiocb, struct iov_iter *from)
 
 static ssize_t ffs_epfile_read_iter(struct kiocb *kiocb, struct iov_iter *to)
 {
-	struct ffs_epfile *epfile = kiocb->ki_filp->private_data;
 	struct ffs_io_data io_data, *p = &io_data;
 	ssize_t res;
 
@@ -1473,7 +1471,6 @@ ffs_sb_make_inode(struct super_block *sb, void *data,
 		  const struct inode_operations *iops,
 		  struct ffs_file_perms *perms)
 {
-	struct ffs_data	*ffs = sb->s_fs_info;
 	struct inode *inode;
 
 	ENTER();
@@ -3538,8 +3535,6 @@ static int ffs_func_set_alt(struct usb_function *f,
 
 static void ffs_func_disable(struct usb_function *f)
 {
-	struct ffs_function *func = ffs_func_from_usb(f);
-
 	ffs_log("enter");
 	ffs_func_set_alt(f, 0, (unsigned)-1);
 }
