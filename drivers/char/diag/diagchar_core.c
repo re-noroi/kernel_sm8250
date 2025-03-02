@@ -3604,7 +3604,6 @@ static int diag_user_process_apps_data(const char __user *buf, int len,
 				       int pkt_type)
 {
 	int ret = 0;
-	int stm_size = 0;
 	const int mempool = POOL_TYPE_COPY;
 	unsigned char *user_space_data = NULL;
 	uint8_t hdlc_disabled;
