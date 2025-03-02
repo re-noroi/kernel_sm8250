@@ -3135,7 +3135,6 @@ static void __flush_debug_queue(struct venus_hfi_device *device, u8 *packet)
 		if (pkt->packet_type == HFI_MSG_SYS_COV) {
 			struct hfi_msg_sys_coverage_packet *pkt =
 				(struct hfi_msg_sys_coverage_packet *) packet;
-			int stm_size = 0;
 
 			SKIP_INVALID_PKT(pkt->size,
 				pkt->msg_size, sizeof(*pkt));

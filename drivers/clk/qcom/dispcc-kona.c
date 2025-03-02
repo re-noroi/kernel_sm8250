@@ -1523,7 +1523,7 @@ MODULE_DEVICE_TABLE(of, disp_cc_kona_match_table);
 
 static int disp_cc_kona_probe(struct platform_device *pdev)
 {
-	unsigned int dispcc_bus_id;
+	unsigned int dispcc_bus_id = 0;
 	struct regmap *regmap;
 	struct clk *clk;
 	int ret, i;
