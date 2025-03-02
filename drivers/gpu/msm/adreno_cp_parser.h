@@ -124,9 +124,7 @@ static inline void adreno_ib_init_ib_obj(uint64_t gpuaddr,
 static inline int adreno_cp_parser_getreg(struct adreno_device *adreno_dev,
 					enum adreno_cp_addr_regs reg_enum)
 {
-	if (reg_enum == ADRENO_CP_ADDR_MAX)
-		return -EEXIST;
-	return 0;
+	return -EEXIST;
 }
 
 /*
@@ -144,8 +142,6 @@ static inline int adreno_cp_parser_regindex(struct adreno_device *adreno_dev,
 				enum adreno_cp_addr_regs start,
 				enum adreno_cp_addr_regs end)
 {
-	int i;
-	const unsigned int *regs;
 	return -EEXIST;
 }
 
