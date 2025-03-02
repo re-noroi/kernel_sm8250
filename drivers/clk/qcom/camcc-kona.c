@@ -2742,7 +2742,7 @@ static int cam_cc_kona_probe(struct platform_device *pdev)
 	struct regmap *regmap;
 	struct clk *clk;
 	int ret, i;
-	unsigned int camcc_bus_id;
+	unsigned int camcc_bus_id = 0;
 
 	regmap = qcom_cc_map(pdev, &cam_cc_kona_desc);
 	if (IS_ERR(regmap)) {
