@@ -598,7 +598,7 @@ static void video_cc_kona_fixup_konav2(struct regmap *regmap)
 
 static int video_cc_kona_probe(struct platform_device *pdev)
 {
-	unsigned int videocc_bus_id;
+	unsigned int videocc_bus_id = 0;
 	struct regmap *regmap;
 	struct clk *clk;
 	int ret, i;
