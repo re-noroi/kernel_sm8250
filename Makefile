@@ -691,17 +691,17 @@ KBUILD_AFLAGS   += -Os
 KBUILD_LDFLAGS  += -Os
 else ifeq ($(cc-name),clang)
 KBUILD_CFLAGS   += -mllvm -hot-cold-split=true
-KBUILD_CFLAGS   += -O2 -march=armv8.2-a+lse+crypto+dotprod -mtune=cortex-a55
-KBUILD_AFLAGS   += -O2 -march=armv8.2-a+lse+crypto+dotprod -mtune=cortex-a55
+KBUILD_CFLAGS   += -O3 -march=armv8.2-a+lse+crypto+dotprod -mtune=cortex-a55
+KBUILD_AFLAGS   += -O3 -march=armv8.2-a+lse+crypto+dotprod -mtune=cortex-a55
 # Machine Learning Optimization
 KBUILD_CFLAGS   += -mllvm -regalloc-enable-advisor=release
 KBUILD_LDFLAGS  += -mllvm -regalloc-enable-advisor=release
 KBUILD_LDFLAGS  += -mllvm -enable-ml-inliner=release
 
 else
-KBUILD_CFLAGS   += -O2
-KBUILD_AFLAGS   += -O2
-KBUILD_LDFLAGS  += -O2
+KBUILD_CFLAGS   += -O3
+KBUILD_AFLAGS   += -O3
+KBUILD_LDFLAGS  += -O3
 
 ifdef CONFIG_INLINE_OPTIMIZATION
 ifdef CONFIG_CC_IS_CLANG
