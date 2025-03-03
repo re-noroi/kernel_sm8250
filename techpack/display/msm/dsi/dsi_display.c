@@ -7538,22 +7538,6 @@ error:
 	return rc;
 }
 
-static bool _dsi_display_validate_host_state(struct dsi_display *display)
-{
-	int i;
-	struct dsi_display_ctrl *ctrl;
-
-	display_for_each_ctrl(i, display) {
-		ctrl = &display->ctrl[i];
-		if (!ctrl->ctrl)
-			continue;
-		if (!dsi_ctrl_validate_host_state(ctrl->ctrl))
-			return false;
-	}
-
-	return true;
-}
-
 static void dsi_display_register_error_handler(struct dsi_display *display)
 {
 }
