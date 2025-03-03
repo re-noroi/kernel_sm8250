@@ -26,21 +26,6 @@ struct ib_parser_variables {
 };
 
 /*
- * Used for locating shader objects. This array holds the unit size of shader
- * objects based on type and block of shader. The type can be 0 or 1 hence there
- * are 2 columns and block can be 0-7 hence 7 rows.
- */
-static int load_state_unit_sizes[7][2] = {
-	{ 2, 4 },
-	{ 0, 1 },
-	{ 2, 4 },
-	{ 0, 1 },
-	{ 8, 2 },
-	{ 8, 2 },
-	{ 8, 2 },
-};
-
-/*
  * adreno_ib_create_object_list() - Find all the memory objects in IB
  * @device: The device pointer on which the IB executes
  * @process: The process in which the IB and all contained objects are mapped
