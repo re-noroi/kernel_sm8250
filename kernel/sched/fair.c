@@ -8488,7 +8488,7 @@ static void yield_task_fair(struct rq *rq)
 	/*
 	 * Are we the only task in the tree?
 	 */
-	if (unlikely(rq->nr_running == 1))
+	if (unlikely((rq->nr_running - cfs_h_nr_delayed(rq)) == 1))
 		return;
 
 	clear_buddies(cfs_rq, se);
