@@ -3012,6 +3012,12 @@ struct sched_avg_stats {
 	int nr_max;
 	int nr_scaled;
 };
+
+static inline unsigned int cfs_h_nr_delayed(struct rq *rq)
+{
+	return (rq->cfs.h_nr_running - rq->cfs.h_nr_runnable);
+}
+
 extern void sched_get_nr_running_avg(struct sched_avg_stats *stats);
 
 extern u64 avg_vruntime(struct cfs_rq *cfs_rq);
