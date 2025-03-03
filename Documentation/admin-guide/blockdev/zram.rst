@@ -54,7 +54,7 @@ The list of possible return codes:
 If you use 'echo', the returned value is set by the 'echo' utility,
 and, in general case, something like::
 
-	echo 3 > /sys/block/zram0/max_comp_streams
+	echo foo > /sys/block/zram0/comp_algorithm
 	if [ $? -ne 0 ]; then
 		handle_error
 	fi
@@ -73,21 +73,7 @@ This creates 4 devices: /dev/zram{0,1,2,3}
 num_devices parameter is optional and tells zram how many devices should be
 pre-created. Default: 1.
 
-2) Set max number of compression streams
-========================================
-
-Regardless of the value passed to this attribute, ZRAM will always
-allocate multiple compression streams - one per online CPU - thus
-allowing several concurrent compression operations. The number of
-allocated compression streams goes down when some of the CPUs
-become offline. There is no single-compression-stream mode anymore,
-unless you are running a UP system or have only 1 CPU online.
-
-To find out how many streams are currently available::
-
-	cat /sys/block/zram0/max_comp_streams
-
-3) Select compression algorithm
+2) Select compression algorithm
 ===============================
 
 Using comp_algorithm device attribute one can see available and
@@ -106,6 +92,37 @@ Examples::
 
 For the time being, the `comp_algorithm` content shows only compression
 algorithms that are supported by zram.
+
+3) Set compression algorithm parameters: Optional
+=================================================
+
+Compression algorithms may support specific parameters which can be
+tweaked for particular dataset. ZRAM has an `algorithm_params` device
+attribute which provides a per-algorithm params configuration.
+
+For example, several compression algorithms support `level` parameter.
+In addition, certain compression algorithms support pre-trained dictionaries,
+which significantly change algorithms' characteristics. In order to configure
+compression algorithm to use external pre-trained dictionary, pass full
+path to the `dict` along with other parameters::
+
+	#pass path to pre-trained zstd dictionary
+	echo "algo=zstd dict=/etc/dictionary" > /sys/block/zram0/algorithm_params
+
+	#same, but using algorithm priority
+	echo "priority=1 dict=/etc/dictionary" > \
+		/sys/block/zram0/algorithm_params
+
+	#pass path to pre-trained zstd dictionary and compression level
+	echo "algo=zstd level=8 dict=/etc/dictionary" > \
+		/sys/block/zram0/algorithm_params
+
+Parameters are algorithm specific: not all algorithms support pre-trained
+dictionaries, not all algorithms support `level`. Furthermore, for certain
+algorithms `level` controls the compression level (the higher the value the
+better the compression ratio, it even can take negatives values for some
+algorithms), for other algorithms `level` is acceleration level (the higher
+the value the lower the compression ratio).
 
 4) Set Disksize
 ===============
@@ -197,8 +214,6 @@ mem_limit         	WO	specifies the maximum amount of memory ZRAM can
 writeback_limit   	WO	specifies the maximum amount of write IO zram
 				can write out to backing device as 4KB unit
 writeback_limit_enable  RW	show and set writeback_limit feature
-max_comp_streams  	RW	the number of possible concurrent compress
-				operations
 comp_algorithm    	RW	show and change the compression algorithm
 algorithm_params	WO	setup compression algorithm parameters
 compact           	WO	trigger memory compaction
