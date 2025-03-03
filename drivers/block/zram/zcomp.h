@@ -3,6 +3,8 @@
 #ifndef _ZCOMP_H_
 #define _ZCOMP_H_
 
+#include <linux/mutex.h>
+
 #define ZCOMP_PARAM_NO_LEVEL	INT_MIN
 
 /*
@@ -29,6 +31,7 @@ struct zcomp_ctx {
 };
 
 struct zcomp_strm {
+	struct mutex lock;
 	/* compression buffer */
 	void *buffer;
 	struct zcomp_ctx ctx;
@@ -74,7 +77,7 @@ struct zcomp *zcomp_create(const char *alg, struct zcomp_params *params);
 void zcomp_destroy(struct zcomp *comp);
 
 struct zcomp_strm *zcomp_stream_get(struct zcomp *comp);
-void zcomp_stream_put(struct zcomp *comp);
+void zcomp_stream_put(struct zcomp_strm *zstrm);
 
 int zcomp_compress(struct zcomp *comp, struct zcomp_strm *zstrm,
 		   const void *src, unsigned int *dst_len);
