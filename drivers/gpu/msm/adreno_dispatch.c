@@ -1649,77 +1649,6 @@ static inline const char *_kgsl_context_comm(struct kgsl_context *context)
 		_kgsl_context_comm((_c)->context), \
 		pid_nr((_c)->context->proc_priv->pid), ##args)
 
-
-static void adreno_fault_header(struct kgsl_device *device,
-		struct adreno_ringbuffer *rb, struct kgsl_drawobj_cmd *cmdobj,
-		int fault)
-{
-	struct adreno_device *adreno_dev = ADRENO_DEVICE(device);
-	struct kgsl_drawobj *drawobj = DRAWOBJ(cmdobj);
-	struct adreno_context *drawctxt =
-			drawobj ? ADRENO_CONTEXT(drawobj->context) : NULL;
-	unsigned int status, rptr, wptr, ib1sz, ib2sz;
-	uint64_t ib1base, ib2base;
-	bool gx_on = gmu_core_dev_gx_is_on(device);
-	int id = (rb != NULL) ? rb->id : -1;
-	const char *type = fault & ADRENO_GMU_FAULT ? "gmu" : "gpu";
-
-	if (!gx_on) {
-		if (drawobj != NULL)
-			pr_fault(device, drawobj,
-				"%s fault ctx %d ctx_type %s ts %d and GX is OFF\n",
-				type, drawobj->context->id,
-				get_api_type_str(drawctxt->type),
-				drawobj->timestamp);
-		else
-			dev_err(device->dev, "RB[%d] : %s fault and GX is OFF\n",
-				id, type);
-
-		return;
-	}
-
-	adreno_readreg(adreno_dev, ADRENO_REG_RBBM_STATUS, &status);
-	adreno_readreg(adreno_dev, ADRENO_REG_CP_RB_RPTR, &rptr);
-	adreno_readreg(adreno_dev, ADRENO_REG_CP_RB_WPTR, &wptr);
-	adreno_readreg64(adreno_dev, ADRENO_REG_CP_IB1_BASE,
-					  ADRENO_REG_CP_IB1_BASE_HI, &ib1base);
-	adreno_readreg(adreno_dev, ADRENO_REG_CP_IB1_BUFSZ, &ib1sz);
-	adreno_readreg64(adreno_dev, ADRENO_REG_CP_IB2_BASE,
-					   ADRENO_REG_CP_IB2_BASE_HI, &ib2base);
-	adreno_readreg(adreno_dev, ADRENO_REG_CP_IB2_BUFSZ, &ib2sz);
-
-	if (drawobj != NULL) {
-		drawctxt->base.total_fault_count++;
-		drawctxt->base.last_faulted_cmd_ts = drawobj->timestamp;
-
-		trace_adreno_gpu_fault(drawobj->context->id,
-			drawobj->timestamp,
-			status, rptr, wptr, ib1base, ib1sz,
-			ib2base, ib2sz, drawctxt->rb->id);
-
-		pr_fault(device, drawobj,
-			"%s fault ctx %d ctx_type %s ts %d status %8.8X rb %4.4x/%4.4x ib1 %16.16llX/%4.4x ib2 %16.16llX/%4.4x\n",
-			type, drawobj->context->id,
-			get_api_type_str(drawctxt->type),
-			drawobj->timestamp, status,
-			rptr, wptr, ib1base, ib1sz, ib2base, ib2sz);
-
-		if (rb != NULL)
-			pr_fault(device, drawobj,
-				"%s fault rb %d rb sw r/w %4.4x/%4.4x\n",
-				type, rb->id, rptr, rb->wptr);
-	} else {
-		dev_err(device->dev,
-			"RB[%d] : %s fault status %8.8X rb %4.4x/%4.4x ib1 %16.16llX/%4.4x ib2 %16.16llX/%4.4x\n",
-			id, type, status, rptr, wptr, ib1base, ib1sz, ib2base,
-			ib2sz);
-		if (rb != NULL)
-			dev_err(device->dev,
-				"RB[%d] : %s fault rb sw r/w %4.4x/%4.4x\n",
-				rb->id, type, rptr, rb->wptr);
-	}
-}
-
 void adreno_fault_skipcmd_detached(struct adreno_device *adreno_dev,
 				 struct adreno_context *drawctxt,
 				 struct kgsl_drawobj *drawobj)
@@ -2029,11 +1958,6 @@ replay:
 	clear_bit(ADRENO_DEVICE_FAULT, &adreno_dev->priv);
 
 	kfree(replay);
-}
-
-static void do_header_and_snapshot(struct kgsl_device *device, int fault,
-		struct adreno_ringbuffer *rb, struct kgsl_drawobj_cmd *cmdobj)
-{
 }
 
 static int dispatcher_do_fault(struct adreno_device *adreno_dev)
