@@ -391,12 +391,11 @@ static int tz_get_target_freq(struct devfreq *devfreq, unsigned long *freq)
 	 * Do not waste CPU cycles running this algorithm if
 	 * the GPU just started, or if less than FLOOR time
 	 * has passed since the last run or the gpu hasn't been
-	 * busier than MIN_BUSY or there is only 1 power level
+	 * busier than MIN_BUSY.
 	 */
 	if ((stats->total_time == 0) ||
 		(priv->bin.total_time < FLOOR) ||
-		(unsigned int) priv->bin.busy_time < MIN_BUSY ||
-		devfreq->profile->max_state == 1) {
+		(unsigned int) priv->bin.busy_time < MIN_BUSY) {
 		return 0;
 	}
 
