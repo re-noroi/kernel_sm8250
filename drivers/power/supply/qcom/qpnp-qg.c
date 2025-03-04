@@ -1253,9 +1253,7 @@ static void process_udata_work(struct work_struct *work)
 		} else if (input_present && cc_soc_delta > MAX_CC_SOC_DELTA) {
 			pr_info("cc_soc %d exceeds FULL, calibrate qg_soc\n",
 				chip->udata.param[QG_CC_SOC].data);
-			rc = qg_trigger_good_ocv(chip);
-			if (rc == 0)
-				chip->cl->cl_skip = true;
+			qg_trigger_good_ocv(chip);
 		} else {
 			chip->cc_soc = chip->udata.param[QG_CC_SOC].data;
 		}
