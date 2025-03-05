@@ -303,49 +303,6 @@ int zpool_shrink(struct zpool *zpool, unsigned int pages,
 }
 
 /**
- * zpool_map_handle() - Map a previously allocated handle into memory
- * @zpool:	The zpool that the handle was allocated from
- * @handle:	The handle to map
- * @mapmode:	How the memory should be mapped
- *
- * This maps a previously allocated handle into memory.  The @mapmode
- * param indicates to the implementation how the memory will be
- * used, i.e. read-only, write-only, read-write.  If the
- * implementation does not support it, the memory will be treated
- * as read-write.
- *
- * This may hold locks, disable interrupts, and/or preemption,
- * and the zpool_unmap_handle() must be called to undo those
- * actions.  The code that uses the mapped handle should complete
- * its operatons on the mapped handle memory quickly and unmap
- * as soon as possible.  As the implementation may use per-cpu
- * data, multiple handles should not be mapped concurrently on
- * any cpu.
- *
- * Returns: A pointer to the handle's mapped memory area.
- */
-void *zpool_map_handle(struct zpool *zpool, unsigned long handle,
-			enum zpool_mapmode mapmode)
-{
-	return zpool->driver->map(zpool->pool, handle, mapmode);
-}
-
-/**
- * zpool_unmap_handle() - Unmap a previously mapped handle
- * @zpool:	The zpool that the handle was allocated from
- * @handle:	The handle to unmap
- *
- * This unmaps a previously mapped handle.  Any locks or other
- * actions that the implementation took in zpool_map_handle()
- * will be undone here.  The memory area returned from
- * zpool_map_handle() should no longer be used after this.
- */
-void zpool_unmap_handle(struct zpool *zpool, unsigned long handle)
-{
-	zpool->driver->unmap(zpool->pool, handle);
-}
-
-/**
  * zpool_obj_read_begin() - Start reading from a previously allocated handle.
  * @zpool:	The zpool that the handle was allocated from
  * @handle:	The handle to read from
