@@ -165,35 +165,16 @@ static void __cpuidle_driver_init(struct cpuidle_driver *drv)
 	if (!drv->cpumask)
 		drv->cpumask = (struct cpumask *)cpu_possible_mask;
 
-	for (i = 0; i < drv->state_count; i++) {
-		struct cpuidle_state *s = &drv->states[i];
-
-		/*
-		 * Look for the timer stop flag in the different states and if
-		 * it is found, indicate that the broadcast timer has to be set
-		 * up.
-		 */
-		if (s->flags & CPUIDLE_FLAG_TIMER_STOP)
+	/*
+	 * Look for the timer stop flag in the different states, so that we know
+	 * if the broadcast timer has to be set up.  The loop is in the reverse
+	 * order, because usually one of the deeper states have this flag set.
+	 */
+	for (i = drv->state_count - 1; i >= 0 ; i--) {
+		if (drv->states[i].flags & CPUIDLE_FLAG_TIMER_STOP) {
 			drv->bctimer = 1;
-
-		/*
-		 * The core will use the target residency and exit latency
-		 * values in nanoseconds, but allow drivers to provide them in
-		 * microseconds too.
-		 */
-		if (s->target_residency > 0)
-			s->target_residency_ns = s->target_residency * NSEC_PER_USEC;
-		else if (s->target_residency_ns < 0)
-			s->target_residency_ns = 0;
-		else
-			s->target_residency = div_u64(s->target_residency_ns, NSEC_PER_USEC);
-
-		if (s->exit_latency > 0)
-			s->exit_latency_ns = s->exit_latency * NSEC_PER_USEC;
-		else if (s->exit_latency_ns < 0)
-			s->exit_latency_ns =  0;
-		else
-			s->exit_latency = div_u64(s->exit_latency_ns, NSEC_PER_USEC);
+			break;
+		}
 	}
 }
 
