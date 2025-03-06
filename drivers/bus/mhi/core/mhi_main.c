@@ -1656,8 +1656,19 @@ irqreturn_t mhi_intvec_threaded_handlr(int irq_number, void *dev)
 	enum mhi_dev_state state = MHI_STATE_MAX;
 	enum MHI_PM_STATE pm_state = 0;
 	enum mhi_ee ee = 0;
+	u32 in_reset = -1;
 
 	MHI_VERB("Enter\n");
+
+	if (unlikely(mhi_cntrl->initiate_mhi_reset)) {
+		mhi_read_reg_field(mhi_cntrl, mhi_cntrl->regs, MHICTRL,
+			MHICTRL_RESET_MASK, MHICTRL_RESET_SHIFT, &in_reset);
+		mhi_cntrl->initiate_mhi_reset = !!in_reset;
+	}
+	wake_up_all(&mhi_cntrl->state_event);
+
+	if (MHI_IN_MISSION_MODE(mhi_cntrl->ee))
+		queue_work(mhi_cntrl->wq, &mhi_cntrl->special_work);
 
 	write_lock_irq(&mhi_cntrl->pm_lock);
 	if (!MHI_REG_ACCESS_VALID(mhi_cntrl->pm_state)) {
@@ -1723,28 +1734,6 @@ exit_intvec:
 	MHI_VERB("Exit\n");
 
 	return IRQ_HANDLED;
-}
-
-irqreturn_t mhi_intvec_handlr(int irq_number, void *dev)
-{
-
-	struct mhi_controller *mhi_cntrl = dev;
-	u32 in_reset = -1;
-
-	/* wake up any events waiting for state change */
-	MHI_VERB("Enter\n");
-	if (unlikely(mhi_cntrl->initiate_mhi_reset)) {
-		mhi_read_reg_field(mhi_cntrl, mhi_cntrl->regs, MHICTRL,
-			MHICTRL_RESET_MASK, MHICTRL_RESET_SHIFT, &in_reset);
-		mhi_cntrl->initiate_mhi_reset = !!in_reset;
-	}
-	wake_up_all(&mhi_cntrl->state_event);
-	MHI_VERB("Exit\n");
-
-	if (MHI_IN_MISSION_MODE(mhi_cntrl->ee))
-		queue_work(mhi_cntrl->wq, &mhi_cntrl->special_work);
-
-	return IRQ_WAKE_THREAD;
 }
 
 int mhi_send_cmd(struct mhi_controller *mhi_cntrl,
