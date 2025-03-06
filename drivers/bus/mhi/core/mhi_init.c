@@ -421,7 +421,7 @@ int mhi_init_irq_setup(struct mhi_controller *mhi_cntrl)
 	struct mhi_event *mhi_event = mhi_cntrl->mhi_event;
 
 	/* for BHI INTVEC msi */
-	ret = request_threaded_irq(mhi_cntrl->irq[0], mhi_intvec_handlr,
+	ret = request_threaded_irq(mhi_cntrl->irq[0], NULL,
 				   mhi_intvec_threaded_handlr,
 				   IRQF_ONESHOT | IRQF_NO_SUSPEND,
 				   "mhi", mhi_cntrl);
