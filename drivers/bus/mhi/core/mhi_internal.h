@@ -982,7 +982,6 @@ void mhi_perform_soc_reset(struct mhi_controller *mhi_cntrl);
 /* isr handlers */
 irqreturn_t mhi_msi_handlr(int irq_number, void *dev);
 irqreturn_t mhi_intvec_threaded_handlr(int irq_number, void *dev);
-irqreturn_t mhi_intvec_handlr(int irq_number, void *dev);
 void mhi_ev_task(unsigned long data);
 
 #define MHI_ASSERT(cond, fmt, ...) do { \
