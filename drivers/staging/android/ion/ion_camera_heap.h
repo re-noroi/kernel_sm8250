@@ -57,12 +57,12 @@ struct page_info {
 
 int camera_camera_order_to_index(unsigned int order);
 
-bool reserved_pools_full(struct ion_camera_heap *heap,unsigned int order);
+bool reserved_pools_full(struct ion_camera_heap *heap, unsigned int order);
 
 int reserved_pool_page_count(struct ion_camera_heap *heap, unsigned int order);
 
 void free_camera_buffer_page(struct ion_camera_heap *heap,
-		      struct ion_buffer *buffer, struct page *page,
+			     struct ion_buffer *buffer, struct page *page,
 		      unsigned int order);
 
 #endif /* _ION_CAMERA_HEAP_H */

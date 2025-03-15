@@ -722,7 +722,6 @@ static int __ion_dma_buf_begin_cpu_access(struct dma_buf *dmabuf,
 							    sync_only_mapped);
 			ret = tmp;
 		}
-
 	}
 	mutex_unlock(&buffer->lock);
 out:
@@ -1067,18 +1066,20 @@ struct dma_buf *ion_alloc_dmabuf(size_t len, unsigned int heap_id_mask,
 
 	down_read(&dev->lock);
 	plist_for_each_entry(heap, &dev->heaps, node) {
-                if ((1 << heap->id) & (1 << ION_CAMERA_HEAP_ID))
+		if ((1 << heap->id) & (1 << ION_CAMERA_HEAP_ID))
 			camera_heap_found = true;
-        }
+	}
 	up_read(&dev->lock);
 
 	if (pid_info <= 0) {
 		get_task_comm(task_comm, p);
-		if (strstr(task_comm, "provider@") || strstr(task_comm, ".android.camera")) {
-			if ((heap_id_mask == system_heap_id || heap_id_mask == system_heap_id1) && camera_heap_found == true)
+		if (strnstr(task_comm, "provider@", sizeof(task_comm)) ||
+		    strnstr(task_comm, ".android.camera", sizeof(task_comm))) {
+			if ((heap_id_mask == system_heap_id ||
+			     heap_id_mask == system_heap_id1) && camera_heap_found)
 				heap_id_mask = 1 << ION_CAMERA_HEAP_ID;
 		}
-        } else {
+	} else {
 		get_task_comm(task_comm, p);
 		p = find_get_task_by_vpid(pid_info);
 		if (p) {
@@ -1088,9 +1089,11 @@ struct dma_buf *ion_alloc_dmabuf(size_t len, unsigned int heap_id_mask,
 			p = current->group_leader;
 			get_task_comm(caller_task_comm, p);
 		}
-		if (strstr(caller_task_comm, "provider@") || strstr(caller_task_comm, ".android.camera")) {
-			if ((heap_id_mask == system_heap_id || heap_id_mask == system_heap_id1) && camera_heap_found == true)
-                                heap_id_mask = 1 << ION_CAMERA_HEAP_ID;
+		if (strnstr(caller_task_comm, "provider@", sizeof(caller_task_comm)) ||
+		    strnstr(caller_task_comm, ".android.camera", sizeof(caller_task_comm))) {
+			if ((heap_id_mask == system_heap_id ||
+			     heap_id_mask == system_heap_id1) && camera_heap_found)
+				heap_id_mask = 1 << ION_CAMERA_HEAP_ID;
 		}
 	}
 
@@ -1115,13 +1118,13 @@ struct dma_buf *ion_alloc_dmabuf(size_t len, unsigned int heap_id_mask,
 	exp_info.size = buffer->size;
 	exp_info.flags = O_RDWR;
 	exp_info.priv = buffer;
-	if (pid_info <= 0) {
+	if (pid_info <= 0)
 		exp_info.exp_name = kasprintf(GFP_KERNEL, "%s-%s-%d-%s", KBUILD_MODNAME,
-				      heap->name, current->tgid, task_comm);
-	} else {
+					      heap->name, current->tgid, task_comm);
+	else
 		exp_info.exp_name = kasprintf(GFP_KERNEL, "%s-%s-%d-%s-caller|%d-%s|", KBUILD_MODNAME,
-				      heap->name, current->tgid, task_comm, pid_info, caller_task_comm);
-	}
+					      heap->name, current->tgid, task_comm, pid_info, caller_task_comm);
+
 	dmabuf = dma_buf_export(&exp_info);
 	if (IS_ERR(dmabuf)) {
 		_ion_buffer_destroy(buffer);

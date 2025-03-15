@@ -1,6 +1,5 @@
 /*
  * Copyright (c) 2019. Xiaomi Technology Co.
- * Copyright (C) 2021 XiaoMi, Inc.
  *
  * All Rights Reserved.
  *
@@ -23,12 +22,13 @@
 #include "ion.h"
 #include "ion_secure_util.h"
 
-static gfp_t high_order_gfp_flags = (GFP_HIGHUSER | __GFP_ZERO | __GFP_NOWARN |
-				     __GFP_NORETRY) & ~__GFP_RECLAIM;
-static gfp_t low_order_gfp_flags  = GFP_HIGHUSER | __GFP_ZERO;
+static gfp_t high_order_gfp_flags =
+	(GFP_HIGHUSER | __GFP_ZERO | __GFP_NOWARN | __GFP_NORETRY) &
+	~__GFP_RECLAIM;
+static gfp_t low_order_gfp_flags = GFP_HIGHUSER | __GFP_ZERO;
 
-static bool pool_auto_refill_en  __read_mostly =
-		IS_ENABLED(CONFIG_ION_POOL_AUTO_REFILL);
+static bool pool_auto_refill_en __read_mostly =
+	IS_ENABLED(CONFIG_ION_POOL_AUTO_REFILL);
 
 int camera_order_to_index(unsigned int order)
 {
@@ -37,23 +37,26 @@ int camera_order_to_index(unsigned int order)
 	for (i = 0; i < NUM_ORDERS; i++)
 		if (order == orders[i])
 			return i;
-	BUG();
-	return -1;
+
+	WARN_ONCE(1, "index error");
+	return -EPERM;
 }
 
 int reserved_pool_page_count(struct ion_camera_heap *heap, unsigned int order)
 {
 	int index = camera_order_to_index(order);
 	struct ion_page_pool *reserved_pool = heap->reserved_pools[index];
+
 	return reserved_pool->high_count + reserved_pool->low_count;
 }
 
-bool reserved_pools_full(struct ion_camera_heap *heap,unsigned int order) {
+bool reserved_pools_full(struct ion_camera_heap *heap, unsigned int order)
+{
 	int index = camera_order_to_index(order);
 	struct ion_page_pool *reserved_pool = heap->reserved_pools[index];
-	unsigned long reserved_pool_count = reserved_pool->high_count +
-		reserved_pool->low_count;
-	if(reserved_pool_count > 0 )
+	unsigned long reserved_pool_count =
+		reserved_pool->high_count + reserved_pool->low_count;
+	if (reserved_pool_count > 0)
 		return false;
 	return true;
 }
@@ -75,8 +78,7 @@ int ion_heap_is_camera_heap_type(enum ion_heap_type type)
 
 static struct page *alloc_buffer_page(struct ion_camera_heap *heap,
 				      struct ion_buffer *buffer,
-				      unsigned long order,
-				      bool *from_pool)
+				      unsigned long order, bool *from_pool)
 {
 	int cached = (int)ion_buffer_cached(buffer);
 	struct page *page;
@@ -115,17 +117,20 @@ static struct page *alloc_buffer_page(struct ion_camera_heap *heap,
  *  hyp_unassign should be called before calling this function
  */
 void free_camera_buffer_page(struct ion_camera_heap *heap,
-		      struct ion_buffer *buffer, struct page *page,
-		      unsigned int order)
+			     struct ion_buffer *buffer, struct page *page,
+			     unsigned int order)
 {
 	bool cached = ion_buffer_cached(buffer);
 	int vmid = get_secure_vmid(buffer->flags);
 
 	if (!(buffer->flags & ION_FLAG_POOL_FORCE_ALLOC)) {
 		struct ion_page_pool *pool;
+
 		if (vmid > 0)
-			pool = heap->secure_pools[vmid][camera_order_to_index(order)];
-		else if (reserved_pool_page_count(heap, order) < cam_reserved_counts[camera_order_to_index(order)])
+			pool = heap->secure_pools[vmid]
+						 [camera_order_to_index(order)];
+		else if (reserved_pool_page_count(heap, order) <
+			 cam_reserved_counts[camera_order_to_index(order)])
 			pool = heap->reserved_pools[camera_order_to_index(order)];
 		else if (cached)
 			pool = heap->cached_pools[camera_order_to_index(order)];
@@ -181,8 +186,7 @@ static struct page_info *alloc_largest_available(struct ion_camera_heap *heap,
 	return ERR_PTR(-ENOMEM);
 }
 
-static unsigned int process_info(struct page_info *info,
-				 struct scatterlist *sg,
+static unsigned int process_info(struct page_info *info, struct scatterlist *sg,
 				 struct scatterlist *sg_sync,
 				 struct pages_mem *data, unsigned int i)
 {
@@ -221,8 +225,7 @@ static int ion_heap_alloc_pages_mem(struct pages_mem *pages_mem)
 		 * performance and availability.
 		 */
 		pages = kmalloc(page_tbl_size,
-				__GFP_COMP | __GFP_NORETRY |
-				__GFP_NOWARN);
+				__GFP_COMP | __GFP_NORETRY | __GFP_NOWARN);
 		if (!pages)
 			pages = vmalloc(page_tbl_size);
 	} else {
@@ -243,14 +246,12 @@ static void ion_heap_free_pages_mem(struct pages_mem *pages_mem)
 
 static int ion_camera_heap_allocate(struct ion_heap *heap,
 				    struct ion_buffer *buffer,
-				    unsigned long size,
-				    unsigned long flags)
+				    unsigned long size, unsigned long flags)
 {
-	struct ion_camera_heap *sys_heap = container_of(heap,
-							struct ion_camera_heap,
-							heap);
+	struct ion_camera_heap *sys_heap =
+		container_of(heap, struct ion_camera_heap, heap);
 	struct sg_table *table;
-	struct sg_table table_sync = {0};
+	struct sg_table table_sync = { 0 };
 	struct scatterlist *sg;
 	struct scatterlist *sg_sync;
 	int ret = -ENOMEM;
@@ -280,10 +281,8 @@ static int ion_camera_heap_allocate(struct ion_heap *heap,
 	INIT_LIST_HEAD(&pages_from_pool);
 
 	while (size_remaining > 0) {
-
-			info = alloc_largest_available(
-					sys_heap, buffer, size_remaining,
-					max_order);
+		info = alloc_largest_available(sys_heap, buffer, size_remaining,
+					       max_order);
 
 		if (IS_ERR(info)) {
 			ret = PTR_ERR(info);
@@ -292,9 +291,9 @@ static int ion_camera_heap_allocate(struct ion_heap *heap,
 
 		sz = (1 << info->order) * PAGE_SIZE;
 
-		mod_node_page_state(
-				page_pgdat(info->page), NR_UNRECLAIMABLE_PAGES,
-				(1 << (info->order)));
+		mod_node_page_state(page_pgdat(info->page),
+				    NR_UNRECLAIMABLE_PAGES,
+				    (1 << (info->order)));
 
 		if (info->from_pool) {
 			list_add_tail(&info->list, &pages_from_pool);
@@ -384,7 +383,7 @@ err_free_sg2:
 
 	for_each_sg(table->sgl, sg, table->nents, i)
 		free_camera_buffer_page(sys_heap, buffer, sg_page(sg),
-				 get_order(sg->length));
+					get_order(sg->length));
 err_free_table_sync:
 	if (nents_sync)
 		sg_free_table(&table_sync);
@@ -396,11 +395,13 @@ err_free_data_pages:
 	ion_heap_free_pages_mem(&data);
 err:
 	list_for_each_entry_safe(info, tmp_info, &pages, list) {
-		free_camera_buffer_page(sys_heap, buffer, info->page, info->order);
+		free_camera_buffer_page(sys_heap, buffer, info->page,
+					info->order);
 		kfree(info);
 	}
 	list_for_each_entry_safe(info, tmp_info, &pages_from_pool, list) {
-		free_camera_buffer_page(sys_heap, buffer, info->page, info->order);
+		free_camera_buffer_page(sys_heap, buffer, info->page,
+					info->order);
 		kfree(info);
 	}
 	return ret;
@@ -409,9 +410,8 @@ err:
 void ion_camera_heap_free(struct ion_buffer *buffer)
 {
 	struct ion_heap *heap = buffer->heap;
-	struct ion_camera_heap *sys_heap = container_of(heap,
-							struct ion_camera_heap,
-							heap);
+	struct ion_camera_heap *sys_heap =
+		container_of(heap, struct ion_camera_heap, heap);
 	struct sg_table *table = buffer->sg_table;
 	struct scatterlist *sg;
 	int i;
@@ -428,13 +428,13 @@ void ion_camera_heap_free(struct ion_buffer *buffer)
 
 	for_each_sg(table->sgl, sg, table->nents, i)
 		free_camera_buffer_page(sys_heap, buffer, sg_page(sg),
-				 get_order(sg->length));
+					get_order(sg->length));
 	sg_free_table(table);
 	kfree(table);
 }
 
 static int ion_camera_heap_shrink(struct ion_heap *heap, gfp_t gfp_mask,
-				 int nr_to_scan)
+				  int nr_to_scan)
 {
 	struct ion_camera_heap *sys_heap;
 	int nr_total = 0;
@@ -496,7 +496,8 @@ static void ion_camera_heap_destroy_pools(struct ion_page_pool **pools)
  * nothing. If it succeeds you'll eventually need to use
  * ion_camera_heap_destroy_pools to destroy the pools.
  */
-static int ion_camera_heap_create_pools(struct ion_camera_heap *sys_heap, struct ion_page_pool **pools,
+static int ion_camera_heap_create_pools(struct ion_camera_heap *sys_heap,
+					struct ion_page_pool **pools,
 					bool cached)
 {
 	int i;
@@ -553,11 +554,11 @@ static struct task_struct *ion_create_kworker(struct ion_page_pool **pools,
 	attr.sched_nice = ION_KTHREAD_NICE_VAL;
 	buf = cached ? "cached" : "uncached";
 
-	thread = kthread_run(ion_sys_heap_worker, pools,
-			     "ion-pool-%s-worker", buf);
+	thread = kthread_run(ion_sys_heap_worker, pools, "ion-pool-%s-worker",
+			     buf);
 	if (IS_ERR(thread)) {
-		pr_err("%s: failed to create %s worker thread: %ld\n",
-		       __func__, buf, PTR_ERR(thread));
+		pr_err("%s: failed to create %s worker thread: %ld\n", __func__,
+		       buf, PTR_ERR(thread));
 		return thread;
 	}
 	ret = sched_setattr(thread, &attr);
@@ -588,7 +589,8 @@ struct ion_heap *ion_camera_heap_create(struct ion_platform_heap *data)
 	for (i = 0; i < VMID_LAST; i++)
 		if (is_secure_vmid_valid(i))
 			if (ion_camera_heap_create_pools(heap,
-					heap->secure_pools[i], false))
+							 heap->secure_pools[i],
+							 false))
 				goto destroy_secure_pools;
 
 	if (ion_camera_heap_create_pools(heap, heap->uncached_pools, false))
@@ -601,17 +603,18 @@ struct ion_heap *ion_camera_heap_create(struct ion_platform_heap *data)
 		goto err_create_reserved_pools;
 
 	for (i = 0; i < NUM_ORDERS; i++)
-		ion_page_pool_prealloc(heap->reserved_pools[i], cam_reserved_counts[i]);
+		ion_page_pool_prealloc(heap->reserved_pools[i],
+				       cam_reserved_counts[i]);
 
 	if (pool_auto_refill_en) {
 		heap->kworker[ION_KTHREAD_UNCACHED] =
-				ion_create_kworker(heap->uncached_pools, false);
+			ion_create_kworker(heap->uncached_pools, false);
 		if (IS_ERR(heap->kworker[ION_KTHREAD_UNCACHED])) {
 			ret = PTR_ERR(heap->kworker[ION_KTHREAD_UNCACHED]);
 			goto destroy_pools;
 		}
 		heap->kworker[ION_KTHREAD_CACHED] =
-				ion_create_kworker(heap->cached_pools, true);
+			ion_create_kworker(heap->cached_pools, true);
 		if (IS_ERR(heap->kworker[ION_KTHREAD_CACHED])) {
 			kthread_stop(heap->kworker[ION_KTHREAD_UNCACHED]);
 			ret = PTR_ERR(heap->kworker[ION_KTHREAD_CACHED]);
