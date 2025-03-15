@@ -62,7 +62,7 @@ static int afe_set_parameter(int port,
 	port_id = q6audio_get_port_id(port);
 	ret = q6audio_validate_port(port_id);
 	if (ret < 0) {
-		pr_err("%s: Not a valid port id = 0x%x ret %d\n", __func__,
+		pr_debug("%s: Not a valid port id = 0x%x ret %d\n", __func__,
 		       port_id, ret);
 		return -EINVAL;
 	}
@@ -81,7 +81,7 @@ static int afe_set_parameter(int port,
 	ret = q6common_pack_pp_params(packed_param_data, &param_hdr, (u8 *)prot_config,
 				      &packed_data_size);
 	if (ret) {
-		pr_err("%s: Failed to pack param header and data, error %d\n",
+		pr_debug("%s: Failed to pack param header and data, error %d\n",
 		       __func__, ret);
 		goto fail_cmd;
 	}
@@ -136,7 +136,7 @@ static int afe_set_parameter(int port,
 		ret = apr_send_pkt(*elus_afe.ptr_apr, (uint32_t *) set_param_v2);
 	}
 	if (ret < 0) {
-		pr_err("%s: Setting param for port %d param[0x%x]failed\n",
+		pr_debug("%s: Setting param for port %d param[0x%x]failed\n",
 			   __func__, port, param_id);
 		goto fail_cmd;
 	}
@@ -144,12 +144,12 @@ static int afe_set_parameter(int port,
 		(atomic_read(elus_afe.ptr_state) == 0),
 		msecs_to_jiffies(elus_afe.timeout_ms));
 	if (!ret) {
-		pr_err("%s: wait_event timeout\n", __func__);
+		pr_debug("%s: wait_event timeout\n", __func__);
 		ret = -EINVAL;
 		goto fail_cmd;
 	}
 	if (atomic_read(elus_afe.ptr_status) != 0) {
-		pr_err("%s: set param cmd failed\n", __func__);
+		pr_debug("%s: set param cmd failed\n", __func__);
 		ret = -EINVAL;
 		goto fail_cmd;
 	}
@@ -188,7 +188,7 @@ static int32_t process_version_msg(uint32_t *payload, uint32_t payload_size)
 	size_t copy_size = 0;
 	int32_t  ret = -1;
 
-	pr_err("[ELUS]: %s() size:%d\n", __func__, payload_size);
+	pr_debug("[ELUS]: %s() size:%d\n", __func__, payload_size);
 
 	if (payload_size >= ELLIPTIC_VERSION_INFO_SIZE) {
 		pr_debug("[ELUS]: elliptic_version copied to local AP cache");
@@ -211,7 +211,7 @@ static int32_t process_branch_msg(uint32_t *payload, uint32_t payload_size)
 	size_t copy_size = 0;
 	int32_t  ret = -1;
 
-	pr_err("[ELUS]: %s() size:%d\n", __func__, payload_size);
+	pr_debug("[ELUS]: %s() size:%d\n", __func__, payload_size);
 
 	if (payload_size >= ELLIPTIC_BRANCH_INFO_SIZE) {
 		pr_debug("[ELUS]: elliptic_branch copied to local AP cache");
@@ -234,7 +234,7 @@ static int32_t process_tag_msg(uint32_t *payload, uint32_t payload_size)
 	size_t copy_size = 0;
 	int32_t  ret = -1;
 
-	pr_err("[ELUS]: %s() size:%d\n", __func__, payload_size);
+	pr_debug("[ELUS]: %s() size:%d\n", __func__, payload_size);
 
 	if (payload_size >= ELLIPTIC_TAG_INFO_SIZE) {
 		pr_debug("[ELUS]: elliptic_tag copied to local AP cache");
@@ -257,7 +257,7 @@ static int32_t process_calibration_msg(uint32_t *payload, uint32_t payload_size)
 	size_t copy_size = 0;
 	int32_t  ret = -1;
 
-	pr_err("[ELUS]: %s() size:%d\n", __func__, payload_size);
+	pr_debug("[ELUS]: %s() size:%d\n", __func__, payload_size);
 
 	if (payload_size >= ELLIPTIC_CALIBRATION_DATA_SIZE) {
 		pr_debug("[ELUS]: calibration_data copied to local AP cache");
@@ -281,7 +281,7 @@ static int32_t process_calibration_v2_msg(uint32_t *payload, uint32_t payload_si
 	size_t copy_size = 0;
 	int32_t  ret = -1;
 
-	pr_err("[ELUS]: %s() size:%d\n", __func__, payload_size);
+	pr_debug("[ELUS]: %s() size:%d\n", __func__, payload_size);
 
 	if (payload_size >= ELLIPTIC_CALIBRATION_V2_DATA_SIZE) {
 		pr_debug("[ELUS]: calibration_data copied to local AP cache");
@@ -305,7 +305,7 @@ static int32_t process_ml_msg(uint32_t *payload, uint32_t payload_size)
 	size_t copy_size = 0;
 	int32_t  ret = -1;
 
-	pr_err("[ELUS]: %s() size:%d\n", __func__, payload_size);
+	pr_debug("[ELUS]: %s() size:%d\n", __func__, payload_size);
 
 	if (payload_size >= ELLIPTIC_ML_DATA_SIZE) {
 		pr_debug("[ELUS]: ml_data copied to local AP cache");
@@ -328,7 +328,7 @@ static int32_t process_diagnostics_msg(uint32_t *payload, uint32_t payload_size)
 	size_t copy_size = 0;
 	int32_t  ret = -1;
 
-	pr_err("[ELUS]: %s() size:%d\n", __func__, payload_size);
+	pr_debug("[ELUS]: %s() size:%d\n", __func__, payload_size);
 
 	if (payload_size >= ELLIPTIC_DIAGNOSTICS_DATA_SIZE) {
 		pr_debug("[ELUS]: diagnostics_data copied to local AP cache");
@@ -349,7 +349,7 @@ static int32_t process_sensorhub_msg(uint32_t *payload, uint32_t payload_size)
 {
 	int32_t  ret = 0;
 
-	pr_err("[ELUS]: %s, paramId:%u, size:%d\n",
+	pr_debug("[ELUS]: %s, paramId:%u, size:%d\n",
 			__func__, payload[1], payload_size);
 
 	return ret;
@@ -403,14 +403,14 @@ int32_t elliptic_process_apr_payload(uint32_t *payload)
 				ELLIPTIC_DATA_PUSH_FROM_KERNEL);
 
 			if (ret != 0) {
-				pr_err("[ELUS] : failed to push apr payload to elliptic device");
+				pr_debug("[ELUS] : failed to push apr payload to elliptic device");
 				return ret;
 			}
 			ret = payload_size;
 			break;
 		default:
 			{
-				pr_err("[ELUS] : elliptic_process_apr_payload, Illegal paramId:%u", payload[1]);
+				pr_debug("[ELUS] : elliptic_process_apr_payload, Illegal paramId:%u", payload[1]);
 			}
 			break;
 		}
@@ -439,7 +439,7 @@ int elliptic_set_hall_state(int state)
 			dse.event = HALL_SLIDING;
 		break;
 		default:
-			pr_err("%s Invalid HALL state:%d\n", __func__, state);
+			pr_debug("%s Invalid HALL state:%d\n", __func__, state);
 		return ret;
 	}
 
