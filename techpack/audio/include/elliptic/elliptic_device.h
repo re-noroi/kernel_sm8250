@@ -41,10 +41,10 @@ struct elliptic_device {
 extern struct class *elliptic_class;
 
 #define EL_PRINT_E(string, arg...) \
-	pr_err("[ELUS] : (%s) : " string "\n", __func__, ##arg)
+	pr_debug("[ELUS] : (%s) : " string "\n", __func__, ##arg)
 
 #define EL_PRINT_W(string, arg...) \
-	pr_warn("[ELUS] : (%s) : " string "\n", __func__, ##arg)
+	pr_debug("[ELUS] : (%s) : " string "\n", __func__, ##arg)
 
 #define EL_PRINT_I(string, arg...) \
 	pr_info("[ELUS] : (%s) : " string "\n", __func__, ##arg)
