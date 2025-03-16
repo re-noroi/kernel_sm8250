@@ -6,7 +6,6 @@
 #include <asm/dma-iommu.h>
 #include <asm/memory.h>
 #include <linux/clk/qcom.h>
-#include <linux/coresight-stm.h>
 #include <linux/delay.h>
 #include <linux/devfreq.h>
 #include <linux/hash.h>
@@ -2931,6 +2930,7 @@ skip_power_off:
 	dprintk(CVP_WARN, "Skip PC(%#x, %#x, %#x)\n",
 		wfi_status, idle_status, pc_ready);
 	__flush_debug_queue(device, device->raw_packet);
+	__dsp_resume(device, 0);
 	return -EAGAIN;
 }
 
@@ -5031,4 +5031,3 @@ int cvp_iris_hfi_initialize(struct cvp_hfi_device *hdev, u32 device_id,
 err_iris_hfi_init:
 	return rc;
 }
-
