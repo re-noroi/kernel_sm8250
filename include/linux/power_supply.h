@@ -711,7 +711,7 @@ struct power_supply_battery_info {
 	int constant_charge_voltage_max_uv; /* microVolts */
 };
 
-extern struct atomic_notifier_head power_supply_notifier;
+extern struct blocking_notifier_head power_supply_notifier;
 extern int power_supply_reg_notifier(struct notifier_block *nb);
 extern void power_supply_unreg_notifier(struct notifier_block *nb);
 extern struct power_supply *power_supply_get_by_name(const char *name);
