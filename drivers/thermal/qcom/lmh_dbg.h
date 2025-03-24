@@ -8,9 +8,6 @@
 
 #include <linux/platform_device.h>
 
-static inline int lmh_debug_register(struct platform_device *pdev)
-{
-	return 0;
-}
+int lmh_debug_register(struct platform_device *pdev);  // Only declare, don't define
 
 #endif /* __QTI_LMH_H__ */
