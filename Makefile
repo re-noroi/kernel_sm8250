@@ -763,11 +763,14 @@ KBUILD_CFLAGS	+= -mllvm -polly \
 		   -mllvm -polly-ast-use-context \
 		   -mllvm -polly-invariant-load-hoisting \
 		   -mllvm -polly-run-inliner \
-		   -mllvm -polly-vectorizer=stripmine
+		   -mllvm -polly-vectorizer=stripmine \
+		   -mllvm -polly-detect-keep-going
 ifeq ($(shell test $(CONFIG_CLANG_VERSION) -gt 130000; echo $$?),0)
 KBUILD_CFLAGS	+= -mllvm -polly-loopfusion-greedy=1 \
 		   -mllvm -polly-reschedule=1 \
-		   -mllvm -polly-postopts=1
+		   -mllvm -polly-postopts=1 \
+		   -mllvm -polly-num-threads=2 \
+		   -mllvm -polly-scheduling-chunksize=2
 else
 KBUILD_CFLAGS	+= -mllvm -polly-opt-fusion=max
 endif
