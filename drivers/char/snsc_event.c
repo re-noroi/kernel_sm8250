@@ -26,7 +26,7 @@
 static struct subch_data_s *event_sd;
 
 void scdrv_event(unsigned long);
-DECLARE_TASKLET(sn_sysctl_event, scdrv_event, 0);
+DECLARE_TASKLET_OLD(sn_sysctl_event, scdrv_event);
 
 /*
  * scdrv_event_interrupt

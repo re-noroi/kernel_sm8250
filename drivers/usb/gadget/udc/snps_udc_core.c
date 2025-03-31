@@ -96,8 +96,7 @@ static int stop_pollstall_timer;
 static DECLARE_COMPLETION(on_pollstall_exit);
 
 /* tasklet for usb disconnect */
-static DECLARE_TASKLET(disconnect_tasklet, udc_tasklet_disconnect,
-		(unsigned long) &udc);
+static DECLARE_TASKLET(disconnect_tasklet, udc_tasklet_disconnect);
 
 
 /* endpoint names used for print */

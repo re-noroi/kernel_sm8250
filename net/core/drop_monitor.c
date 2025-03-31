@@ -404,21 +404,6 @@ static int __init init_net_drop_monitor(void)
 		return -ENOSPC;
 	}
 
-	rc = genl_register_family(&net_drop_monitor_family);
-	if (rc) {
-		pr_err("Could not create drop monitor netlink family\n");
-		return rc;
-	}
-	WARN_ON(net_drop_monitor_family.mcgrp_offset != NET_DM_GRP_ALERT);
-
-	rc = register_netdevice_notifier(&dropmon_net_notifier);
-	if (rc < 0) {
-		pr_crit("Failed to register netdevice notifier\n");
-		goto out_unreg;
-	}
-
-	rc = 0;
-
 	for_each_possible_cpu(cpu) {
 		data = &per_cpu(dm_cpu_data, cpu);
 		INIT_WORK(&data->dm_alert_work, send_dm_alert);
@@ -427,11 +412,23 @@ static int __init init_net_drop_monitor(void)
 		reset_per_cpu_data(data);
 	}
 
+	rc = register_netdevice_notifier(&dropmon_net_notifier);
+	if (rc < 0) {
+		pr_crit("Failed to register netdevice notifier\n");
+		return rc;
+	}
+
+	rc = genl_register_family(&net_drop_monitor_family);
+	if (rc) {
+		pr_err("Could not create drop monitor netlink family\n");
+		goto out_unreg;
+	}
+	WARN_ON(net_drop_monitor_family.mcgrp_offset != NET_DM_GRP_ALERT);
 
 	goto out;
 
 out_unreg:
-	genl_unregister_family(&net_drop_monitor_family);
+	WARN_ON(unregister_netdevice_notifier(&dropmon_net_notifier));
 out:
 	return rc;
 }
@@ -441,14 +438,15 @@ static void exit_net_drop_monitor(void)
 	struct per_cpu_dm_data *data;
 	int cpu;
 
-	BUG_ON(unregister_netdevice_notifier(&dropmon_net_notifier));
-
 	/*
 	 * Because of the module_get/put we do in the trace state change path
 	 * we are guarnateed not to have any current users when we get here
 	 * all we need to do is make sure that we don't have any running timers
 	 * or pending schedule calls
 	 */
+	BUG_ON(genl_unregister_family(&net_drop_monitor_family));
+
+	BUG_ON(unregister_netdevice_notifier(&dropmon_net_notifier));
 
 	for_each_possible_cpu(cpu) {
 		data = &per_cpu(dm_cpu_data, cpu);
@@ -460,8 +458,6 @@ static void exit_net_drop_monitor(void)
 		 */
 		kfree_skb(data->skb);
 	}
-
-	BUG_ON(genl_unregister_family(&net_drop_monitor_family));
 }
 
 module_init(init_net_drop_monitor);
