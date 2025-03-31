@@ -61,8 +61,8 @@ static bool _rtl92s_firmware_enable_cpu(struct ieee80211_hw *hw)
 	do {
 		cpustatus = rtl_read_byte(rtlpriv, TCR);
 		if (cpustatus & IMEM_RDY) {
-			RT_TRACE(rtlpriv, COMP_INIT, DBG_LOUD,
-				 "IMEM Ready after CPU has refilled\n");
+			rtl_dbg(rtlpriv, COMP_INIT, DBG_LOUD,
+				"IMEM Ready after CPU has refilled\n");
 			break;
 		}
 
@@ -219,8 +219,8 @@ static bool _rtl92s_firmware_checkready(struct ieee80211_hw *hw,
 	short pollingcnt = 1000;
 	bool rtstatus = true;
 
-	RT_TRACE(rtlpriv, COMP_INIT, DBG_LOUD,
-		 "LoadStaus(%d)\n", loadfw_status);
+	rtl_dbg(rtlpriv, COMP_INIT, DBG_LOUD,
+		"LoadStaus(%d)\n", loadfw_status);
 
 	firmware->fwstatus = (enum fw_status)loadfw_status;
 
@@ -280,9 +280,9 @@ static bool _rtl92s_firmware_checkready(struct ieee80211_hw *hw,
 			goto status_check_fail;
 		}
 
-		RT_TRACE(rtlpriv, COMP_INIT, DBG_LOUD,
-			 "DMEM code download success, cpustatus(%#x)\n",
-			 cpustatus);
+		rtl_dbg(rtlpriv, COMP_INIT, DBG_LOUD,
+			"DMEM code download success, cpustatus(%#x)\n",
+			cpustatus);
 
 		/* Prevent Delay too much and being scheduled out */
 		/* Polling Load Firmware ready */
@@ -294,9 +294,9 @@ static bool _rtl92s_firmware_checkready(struct ieee80211_hw *hw,
 			udelay(40);
 		} while (pollingcnt--);
 
-		RT_TRACE(rtlpriv, COMP_INIT, DBG_LOUD,
-			 "Polling Load Firmware ready, cpustatus(%x)\n",
-			 cpustatus);
+		rtl_dbg(rtlpriv, COMP_INIT, DBG_LOUD,
+			"Polling Load Firmware ready, cpustatus(%x)\n",
+			cpustatus);
 
 		if (((cpustatus & LOAD_FW_READY) != LOAD_FW_READY) ||
 		    (pollingcnt <= 0)) {
@@ -314,8 +314,8 @@ static bool _rtl92s_firmware_checkready(struct ieee80211_hw *hw,
 		rtl_write_dword(rtlpriv, RCR, (tmpu4b | RCR_APPFCS |
 				RCR_APP_ICV | RCR_APP_MIC));
 
-		RT_TRACE(rtlpriv, COMP_INIT, DBG_LOUD,
-			 "Current RCR settings(%#x)\n", tmpu4b);
+		rtl_dbg(rtlpriv, COMP_INIT, DBG_LOUD,
+			"Current RCR settings(%#x)\n", tmpu4b);
 
 		/* Set to normal mode. */
 		rtl_write_byte(rtlpriv, LBKMD_SEL, LBK_NORMAL);
@@ -328,9 +328,9 @@ static bool _rtl92s_firmware_checkready(struct ieee80211_hw *hw,
 	}
 
 status_check_fail:
-	RT_TRACE(rtlpriv, COMP_INIT, DBG_LOUD,
-		 "loadfw_status(%d), rtstatus(%x)\n",
-		 loadfw_status, rtstatus);
+	rtl_dbg(rtlpriv, COMP_INIT, DBG_LOUD,
+		"loadfw_status(%d), rtstatus(%x)\n",
+		loadfw_status, rtstatus);
 	return rtstatus;
 }
 
@@ -361,11 +361,11 @@ int rtl92s_download_fw(struct ieee80211_hw *hw)
 	firmware->firmwareversion =  byte(pfwheader->version, 0);
 	firmware->pfwheader->fwpriv.hci_sel = 1;/* pcie */
 
-	RT_TRACE(rtlpriv, COMP_INIT, DBG_LOUD,
-		 "signature:%x, version:%x, size:%x, imemsize:%x, sram size:%x\n",
-		 pfwheader->signature,
-		 pfwheader->version, pfwheader->dmem_size,
-		 pfwheader->img_imem_size, pfwheader->img_sram_size);
+	rtl_dbg(rtlpriv, COMP_INIT, DBG_LOUD,
+		"signature:%x, version:%x, size:%x, imemsize:%x, sram size:%x\n",
+		pfwheader->signature,
+		pfwheader->version, pfwheader->dmem_size,
+		pfwheader->img_imem_size, pfwheader->img_sram_size);
 
 	/* 2. Retrieve IMEM image. */
 	if ((pfwheader->img_imem_size == 0) || (pfwheader->img_imem_size >

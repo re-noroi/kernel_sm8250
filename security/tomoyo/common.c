@@ -2598,7 +2598,7 @@ ssize_t tomoyo_write_control(struct tomoyo_io_buffer *head,
 		char c;
 		if (head->w.avail >= head->writebuf_size - 1) {
 			const int len = head->writebuf_size * 2;
-			char *cp = kzalloc(len, GFP_NOFS);
+			char *cp = kzalloc(len, GFP_NOFS | __GFP_NOWARN);
 			if (!cp) {
 				error = -ENOMEM;
 				break;
