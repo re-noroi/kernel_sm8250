@@ -49,7 +49,7 @@
 static struct Scsi_Host *host;
 
 static void simscsi_interrupt (unsigned long val);
-static DECLARE_TASKLET(simscsi_tasklet, simscsi_interrupt, 0);
+static DECLARE_TASKLET_OLD(simscsi_tasklet, simscsi_interrupt);
 
 struct disk_req {
 	unsigned long addr;

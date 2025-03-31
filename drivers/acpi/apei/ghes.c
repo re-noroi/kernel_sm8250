@@ -126,8 +126,6 @@ static unsigned long ghes_estatus_pool_size_request;
 static struct ghes_estatus_cache *ghes_estatus_caches[GHES_ESTATUS_CACHES_SIZE];
 static atomic_t ghes_estatus_cache_alloced;
 
-static int ghes_panic_timeout __read_mostly = 30;
-
 static void __iomem *ghes_ioremap_pfn_nmi(u64 pfn)
 {
 	phys_addr_t paddr;
@@ -688,14 +686,16 @@ static int ghes_ack_error(struct acpi_hest_generic_v2 *gv2)
 
 static void __ghes_panic(struct ghes *ghes)
 {
+	const char *msg = GHES_PFX "Fatal hardware error";
+
 	__ghes_print_estatus(KERN_EMERG, ghes->generic, ghes->estatus);
 
 	ghes_clear_estatus(ghes);
 
-	/* reboot to log the error! */
 	if (!panic_timeout)
-		panic_timeout = ghes_panic_timeout;
-	panic("Fatal hardware error!");
+		pr_emerg("%s but panic disabled\n", msg);
+
+	panic(msg);
 }
 
 static int ghes_proc(struct ghes *ghes)
