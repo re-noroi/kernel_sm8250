@@ -735,6 +735,7 @@ static int usbhs_remove(struct platform_device *pdev)
 	dev_dbg(&pdev->dev, "usb remove\n");
 
 	dfunc->notify_hotplug = NULL;
+	flush_delayed_work(&priv->notify_hotplug_work);
 
 	/* power off */
 	if (!usbhsc_flags_has(priv, USBHSF_RUNTIME_PWCTRL))
