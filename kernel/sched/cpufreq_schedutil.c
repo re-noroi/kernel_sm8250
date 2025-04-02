@@ -385,7 +385,7 @@ unsigned long apply_dvfs_headroom(int cpu, unsigned long util, unsigned long max
 	if (!util || util >= max_cap)
 		return util;
 
-	if (refresh_rate > 60)
+	if (refresh_rate > 60 && fps > 70)
 		headroom = calculate_headroom_high(headroom, cpu, util);
 	else
 		headroom = calculate_headroom_low(headroom, cpu, util, fps);
