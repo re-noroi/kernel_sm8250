@@ -22,10 +22,16 @@
 #include <linux/pagemap.h>
 #include <linux/swap.h>
 
+#ifdef CONFIG_HAVE_RCU_TABLE_FREE
+
+#define tlb_remove_entry(tlb, entry)	tlb_remove_table(tlb, entry)
 static inline void __tlb_remove_table(void *_table)
 {
 	free_page_and_swap_cache((struct page *)_table);
 }
+#else
+#define tlb_remove_entry(tlb, entry)	tlb_remove_page(tlb, entry)
+#endif /* CONFIG_HAVE_RCU_TABLE_FREE */
 
 #define tlb_flush tlb_flush
 static void tlb_flush(struct mmu_gather *tlb);
@@ -35,21 +41,20 @@ static void tlb_flush(struct mmu_gather *tlb);
 static inline void tlb_flush(struct mmu_gather *tlb)
 {
 	struct vm_area_struct vma = TLB_FLUSH_VMA(tlb->mm, 0);
-	bool last_level = !tlb->freed_tables;
-	unsigned long stride = tlb_get_unmap_size(tlb);
 
 	/*
-	 * If we're tearing down the address space then we only care about
-	 * invalidating the walk-cache, since the ASID allocator won't
-	 * reallocate our ASID without invalidating the entire TLB.
+	 * The ASID allocator will either invalidate the ASID or mark
+	 * it as used.
 	 */
-	if (tlb->fullmm) {
-		if (!last_level)
-			flush_tlb_mm(tlb->mm);
+	if (tlb->fullmm)
 		return;
-	}
 
-	__flush_tlb_range(&vma, tlb->start, tlb->end, stride, last_level);
+	/*
+	 * The intermediate page table levels are already handled by
+	 * the __(pte|pmd|pud)_free_tlb() functions, so last level
+	 * TLBI is sufficient here.
+	 */
+	__flush_tlb_range(&vma, tlb->start, tlb->end, true);
 }
 
 static inline void __pte_free_tlb(struct mmu_gather *tlb, pgtable_t pte,
@@ -57,7 +62,7 @@ static inline void __pte_free_tlb(struct mmu_gather *tlb, pgtable_t pte,
 {
 	__flush_tlb_pgtable(tlb->mm, addr);
 	pgtable_page_dtor(pte);
-	tlb_remove_table(tlb, pte);
+	tlb_remove_entry(tlb, pte);
 }
 
 #if CONFIG_PGTABLE_LEVELS > 2
@@ -65,7 +70,7 @@ static inline void __pmd_free_tlb(struct mmu_gather *tlb, pmd_t *pmdp,
 				  unsigned long addr)
 {
 	__flush_tlb_pgtable(tlb->mm, addr);
-	tlb_remove_table(tlb, virt_to_page(pmdp));
+	tlb_remove_entry(tlb, virt_to_page(pmdp));
 }
 #endif
 
@@ -74,7 +79,7 @@ static inline void __pud_free_tlb(struct mmu_gather *tlb, pud_t *pudp,
 				  unsigned long addr)
 {
 	__flush_tlb_pgtable(tlb->mm, addr);
-	tlb_remove_table(tlb, virt_to_page(pudp));
+	tlb_remove_entry(tlb, virt_to_page(pudp));
 }
 #endif
 
