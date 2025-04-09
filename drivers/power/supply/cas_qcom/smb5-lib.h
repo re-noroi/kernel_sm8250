@@ -112,7 +112,7 @@ enum print_reason {
 #define TAPER_VOTER			"TAPER_VOTER"
 #define CP_VOTER			"CP_VOTER"
 #define BMS_FC_VOTER			"BMS_FC_VOTER"
-
+#define BYPASS_VOTER			"BYPASS_VOTER"
 
 /* thermal micros */
 #define MAX_TEMP_LEVEL		16
