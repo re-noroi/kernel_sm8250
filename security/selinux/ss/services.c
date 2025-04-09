@@ -1656,7 +1656,7 @@ static inline int compute_sid_handle_invalid_context(
 	struct context *newcontext)
 {
 #ifdef CONFIG_AUDIT
-	struct policydb *policydb = &state->ss->policydb;
+        struct policydb *policydb = &state->ss->policydb;
 	char *s = NULL, *t = NULL, *n = NULL;
 	u32 slen, tlen, nlen;
 
@@ -1977,7 +1977,6 @@ static inline int convert_context_handle_invalid_context(
 	char *s;
 	u32 len;
 #endif
-
 	if (enforcing_enabled(state))
 		return -EINVAL;
 
@@ -2134,10 +2133,10 @@ bad:
 	newc->hash = context_compute_hash(s);
 	pr_info("SELinux:  Context %s became invalid (unmapped).\n",
 		newc->str);
-	return 0;
 #else
-	return 0;
+	context_destroy(newc);
 #endif
+	return 0;
 }
 
 static void security_load_policycaps(struct selinux_state *state)
