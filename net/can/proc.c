@@ -121,6 +121,13 @@ void can_stat_update(struct timer_list *t)
 	struct s_stats *can_stats = net->can.can_stats;
 	unsigned long j = jiffies; /* snapshot */
 
+	long rx_frames = atomic_long_read(&pkg_stats->rx_frames);
+	long tx_frames = atomic_long_read(&pkg_stats->tx_frames);
+	long matches = atomic_long_read(&pkg_stats->matches);
+	long rx_frames_delta = atomic_long_read(&pkg_stats->rx_frames_delta);
+	long tx_frames_delta = atomic_long_read(&pkg_stats->tx_frames_delta);
+	long matches_delta = atomic_long_read(&pkg_stats->matches_delta);
+
 	/* restart counting in timer context on user request */
 	if (user_reset)
 		can_init_stats(net);
@@ -130,35 +137,33 @@ void can_stat_update(struct timer_list *t)
 		can_init_stats(net);
 
 	/* prevent overflow in calc_rate() */
-	if (can_stats->rx_frames > (ULONG_MAX / HZ))
+	if (rx_frames > (ULONG_MAX / HZ))
 		can_init_stats(net);
 
 	/* prevent overflow in calc_rate() */
-	if (can_stats->tx_frames > (ULONG_MAX / HZ))
+	if (tx_frames > (ULONG_MAX / HZ))
 		can_init_stats(net);
 
 	/* matches overflow - very improbable */
-	if (can_stats->matches > (ULONG_MAX / 100))
+	if (matches > (ULONG_MAX / 100))
 		can_init_stats(net);
 
 	/* calc total values */
-	if (can_stats->rx_frames)
-		can_stats->total_rx_match_ratio = (can_stats->matches * 100) /
-			can_stats->rx_frames;
+	if (rx_frames)
+		can_stats->total_rx_match_ratio = (matches * 100) / rx_frames;
 
 	can_stats->total_tx_rate = calc_rate(can_stats->jiffies_init, j,
-					    can_stats->tx_frames);
+					    tx_frames);
 	can_stats->total_rx_rate = calc_rate(can_stats->jiffies_init, j,
-					    can_stats->rx_frames);
+					    rx_frames);
 
 	/* calc current values */
-	if (can_stats->rx_frames_delta)
+	if (rx_frames_delta)
 		can_stats->current_rx_match_ratio =
-			(can_stats->matches_delta * 100) /
-			can_stats->rx_frames_delta;
+			(matches_delta * 100) / rx_frames_delta;
 
-	can_stats->current_tx_rate = calc_rate(0, HZ, can_stats->tx_frames_delta);
-	can_stats->current_rx_rate = calc_rate(0, HZ, can_stats->rx_frames_delta);
+	can_stats->current_tx_rate = calc_rate(0, HZ, tx_frames_delta);
+	can_stats->current_rx_rate = calc_rate(0, HZ, rx_frames_delta);
 
 	/* check / update maximum values */
 	if (can_stats->max_tx_rate < can_stats->current_tx_rate)
@@ -171,9 +176,9 @@ void can_stat_update(struct timer_list *t)
 		can_stats->max_rx_match_ratio = can_stats->current_rx_match_ratio;
 
 	/* clear values for 'current rate' calculation */
-	can_stats->tx_frames_delta = 0;
-	can_stats->rx_frames_delta = 0;
-	can_stats->matches_delta   = 0;
+	atomic_long_set(&can_stats->tx_frames_delta, 0);
+	atomic_long_set(&can_stats->rx_frames_delta, 0);
+	atomic_long_set(&can_stats->matches_delta, 0);
 
 	/* restart timer (one second) */
 	mod_timer(&net->can.can_stattimer, round_jiffies(jiffies + HZ));
@@ -215,9 +220,12 @@ static int can_stats_proc_show(struct seq_file *m, void *v)
 	struct s_pstats *can_pstats = net->can.can_pstats;
 
 	seq_putc(m, '\n');
-	seq_printf(m, " %8ld transmitted frames (TXF)\n", can_stats->tx_frames);
-	seq_printf(m, " %8ld received frames (RXF)\n", can_stats->rx_frames);
-	seq_printf(m, " %8ld matched frames (RXMF)\n", can_stats->matches);
+	seq_printf(m, " %8ld transmitted frames (TXF)\n",
+		   atomic_long_read(&can_stats->tx_frames));
+	seq_printf(m, " %8ld received frames (RXF)\n",
+		   atomic_long_read(&can_stats->rx_frames));
+	seq_printf(m, " %8ld matched frames (RXMF)\n",
+		   atomic_long_read(&can_stats->matches));
 
 	seq_putc(m, '\n');
 
