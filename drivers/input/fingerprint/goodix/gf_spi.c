@@ -20,6 +20,7 @@
 #include <linux/mutex.h>
 #include <linux/of_gpio.h>
 #include <linux/platform_device.h>
+#include <linux/pm_wakeup.h>
 #include <linux/regulator/consumer.h>
 #include <linux/slab.h>
 #include <linux/uaccess.h>
@@ -32,6 +33,7 @@ static struct gf_dev {
 	struct platform_device *spi;
 	struct input_dev *input;
 	struct regulator *vreg;
+	struct wakeup_source *fp_wakelock;
 	signed irq_gpio, rst_gpio;
 	int irq, irq_enabled;
 } gf;
@@ -84,7 +86,14 @@ static inline void irq_switch(struct gf_dev *gf_dev, int status) {
 	}
 }
 
+#define WAKELOCK_HOLD_TIME 400
 static inline irqreturn_t gf_irq(int irq, void *handle) {
+
+	struct gf_dev *gf_dev = handle;
+
+	if (gf_dev && gf_dev->fp_wakelock)
+		__pm_wakeup_event(gf_dev->fp_wakelock, WAKELOCK_HOLD_TIME);
+
 	return sendnlmsg();
 }
 
@@ -216,11 +225,20 @@ static inline int gf_probe(struct platform_device *pdev) {
 	mutex_unlock(&gf_lock);
 	gf_dev->input = input_allocate_device();
 	gf_dev->input->name = GF_INPUT_NAME;
+	gf_dev->fp_wakelock = wakeup_source_register(&gf_dev->spi->dev, "fp_wakelock");
+	if (!gf_dev->fp_wakelock)
+		dev_warn(&gf_dev->spi->dev, "Failed to register wakelock\n");
 	return input_register_device(gf_dev->input);
 }
 
 static inline int gf_remove(struct platform_device *pdev) {
 	struct gf_dev *gf_dev = &gf;
+
+	if (gf_dev->fp_wakelock) {
+		wakeup_source_unregister(gf_dev->fp_wakelock);
+		gf_dev->fp_wakelock = NULL;
+	}
+
 	if (gf_dev->input) {
 		input_unregister_device(gf_dev->input);
 		input_free_device(gf_dev->input);
