@@ -390,7 +390,6 @@ static const struct file_operations ufsdbg_err_inj_scenario_ops = {
 	.open		= ufsdbg_err_inj_scenario_open,
 	.read		= seq_read,
 	.write		= ufsdbg_err_inj_scenario_write,
-	.release        = single_release,
 };
 
 static int ufsdbg_err_inj_stats_read(struct seq_file *file, void *data)
@@ -432,7 +431,6 @@ static const struct file_operations ufsdbg_err_inj_stats_ops = {
 	.open		= ufsdbg_err_inj_stats_open,
 	.read		= seq_read,
 	.write		= ufsdbg_err_inj_stats_write,
-	.release        = single_release,
 };
 
 static void ufsdbg_setup_fault_injection(struct ufs_hba *hba)
@@ -616,7 +614,6 @@ static const struct file_operations ufsdbg_tag_stats_fops = {
 	.open		= ufsdbg_tag_stats_open,
 	.read		= seq_read,
 	.write		= ufsdbg_tag_stats_write,
-	.release        = single_release,
 };
 
 static int ufsdbg_query_stats_show(struct seq_file *file, void *data)
@@ -688,7 +685,6 @@ static const struct file_operations ufsdbg_query_stats_fops = {
 	.open		= ufsdbg_query_stats_open,
 	.read		= seq_read,
 	.write		= ufsdbg_query_stats_write,
-	.release        = single_release,
 };
 
 static int ufsdbg_err_stats_show(struct seq_file *file, void *data)
@@ -793,7 +789,6 @@ static const struct file_operations ufsdbg_err_stats_fops = {
 	.open		= ufsdbg_err_stats_open,
 	.read		= seq_read,
 	.write		= ufsdbg_err_stats_write,
-	.release        = single_release,
 };
 
 static int ufshcd_init_statistics(struct ufs_hba *hba)
@@ -851,7 +846,6 @@ void ufsdbg_pr_buf_to_std(struct ufs_hba *hba, int offset, int num_regs,
 		size -= BUFF_LINE_SIZE/sizeof(u32);
 	}
 }
-EXPORT_SYMBOL_GPL(ufsdbg_pr_buf_to_std);
 
 static int ufsdbg_host_regs_show(struct seq_file *file, void *data)
 {
@@ -874,7 +868,6 @@ static int ufsdbg_host_regs_open(struct inode *inode, struct file *file)
 static const struct file_operations ufsdbg_host_regs_fops = {
 	.open		= ufsdbg_host_regs_open,
 	.read		= seq_read,
-	.release        = single_release,
 };
 
 static int ufsdbg_dump_device_desc_show(struct seq_file *file, void *data)
@@ -1027,8 +1020,6 @@ static int ufsdbg_show_hba_show(struct seq_file *file, void *data)
 	seq_printf(file, "dl_pa_error_ind_received = %d\n",
 		   hba->ufs_stats.dl_err_cnt[UFS_EC_DL_PA_ERROR_IND_RECEIVED]);
 	seq_printf(file, "dme_err_cnt = %d\n", hba->ufs_stats.dme_err_cnt);
-	seq_printf(file, "d_ext_ufs_feature_sup = 0x%x\n",
-		   hba->dev_info.d_ext_ufs_feature_sup);
 
 	return 0;
 }
@@ -1041,7 +1032,6 @@ static int ufsdbg_show_hba_open(struct inode *inode, struct file *file)
 static const struct file_operations ufsdbg_show_hba_fops = {
 	.open		= ufsdbg_show_hba_open,
 	.read		= seq_read,
-	.release	= single_release,
 };
 
 static int ufsdbg_dump_device_desc_open(struct inode *inode, struct file *file)
@@ -1053,7 +1043,6 @@ static int ufsdbg_dump_device_desc_open(struct inode *inode, struct file *file)
 static const struct file_operations ufsdbg_dump_device_desc = {
 	.open		= ufsdbg_dump_device_desc_open,
 	.read		= seq_read,
-	.release	= single_release,
 };
 
 static int ufsdbg_power_mode_show(struct seq_file *file, void *data)
@@ -1341,7 +1330,6 @@ static const struct file_operations ufsdbg_power_mode_desc = {
 	.open		= ufsdbg_power_mode_open,
 	.read		= seq_read,
 	.write		= ufsdbg_power_mode_write,
-	.release	= single_release,
 };
 
 static int ufsdbg_dme_read(void *data, u64 *attr_val, bool peer)
@@ -1521,7 +1509,6 @@ static const struct file_operations ufsdbg_req_stats_desc = {
 	.open		= ufsdbg_req_stats_open,
 	.read		= seq_read,
 	.write		= ufsdbg_req_stats_write,
-	.release        = single_release,
 };
 
 static int ufsdbg_clear_err_state(void *data, u64 val)
@@ -1611,6 +1598,16 @@ void ufsdbg_add_debugfs(struct ufs_hba *hba)
 					   &ufsdbg_query_stats_fops);
 	if (!hba->debugfs_files.query_stats) {
 		dev_err(hba->dev, "%s:  NULL query_stats file, exiting\n",
+			__func__);
+		goto err;
+	}
+
+	hba->debugfs_files.err_stats =
+		debugfs_create_file("err_stats", 0600,
+					   hba->debugfs_files.stats_folder, hba,
+					   &ufsdbg_err_stats_fops);
+	if (!hba->debugfs_files.err_stats) {
+		dev_err(hba->dev, "%s:  NULL err_stats file, exiting\n",
 			__func__);
 		goto err;
 	}
