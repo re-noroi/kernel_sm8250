@@ -1895,7 +1895,6 @@ static const struct attribute_group a6xx_coresight_group_cx = {
 	.attrs = a6xx_coresight_attrs_cx,
 };
 
-
 static struct adreno_perfcount_register a6xx_perfcounters_cp[] = {
 	{ KGSL_PERFCOUNTER_NOT_USED, 0, 0, A6XX_RBBM_PERFCTR_CP_0_LO,
 		A6XX_RBBM_PERFCTR_CP_0_HI, 0, A6XX_CP_PERFCTR_CP_SEL_0 },
