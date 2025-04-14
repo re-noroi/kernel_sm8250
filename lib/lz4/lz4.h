@@ -275,7 +275,7 @@ LZ4LIB_API int LZ4_compressBound(int inputSize);
     Values > LZ4_ACCELERATION_MAX will be replaced by LZ4_ACCELERATION_MAX (currently == 65537, see lz4.c).
 */
 LZ4LIB_API int LZ4_compress_fast(const char *src, char *dst, int srcSize,
-				 int dstCapacity, int acceleration);
+				 int dstCapacity, int acceleration, void *wrkmem);
 
 /*! LZ4_compress_fast_extState() :
  *  Same as LZ4_compress_fast(), using an externally allocated memory space for its state.
