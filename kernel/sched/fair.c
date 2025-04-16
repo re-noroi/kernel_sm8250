@@ -11383,13 +11383,13 @@ static void rebalance_domains(struct rq *rq, enum cpu_idle_type idle)
 
 		interval = get_sd_balance_interval(sd, busy);
 
-		need_serialize = sd->flags & SD_SERIALIZE;
-		if (need_serialize) {
-			if (!spin_trylock(&balancing))
-				goto out;
-		}
-
 		if (time_after_eq(jiffies, sd->last_balance + interval)) {
+			need_serialize = sd->flags & SD_SERIALIZE;
+			if (need_serialize) {
+				if (!spin_trylock(&balancing))
+					goto out;
+			}
+	
 			if (load_balance(cpu, rq, sd, idle, &continue_balancing)) {
 				/*
 				 * The LBF_DST_PINNED logic could have changed
@@ -11401,9 +11401,9 @@ static void rebalance_domains(struct rq *rq, enum cpu_idle_type idle)
 			}
 			sd->last_balance = jiffies;
 			interval = get_sd_balance_interval(sd, busy);
+			if (need_serialize)
+				spin_unlock(&balancing);
 		}
-		if (need_serialize)
-			spin_unlock(&balancing);
 out:
 		if (time_after(next_balance, sd->last_balance + interval)) {
 			next_balance = sd->last_balance + interval;
