@@ -3981,7 +3981,7 @@ int qdf_get_pidx(void)
 qdf_export_symbol(qdf_get_pidx);
 
 #ifdef PANIC_ON_BUG
-#ifdef CONFIG_SLUB_DEBUG
+#if defined(CONFIG_SLUB_DEBUG) && defined(WLAN_DEBUG)
 void __qdf_bug(void)
 {
 	BUG();
