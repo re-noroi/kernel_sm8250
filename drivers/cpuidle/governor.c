@@ -109,4 +109,3 @@ int cpuidle_governor_latency_req(unsigned int cpu)
 
 	return device_req < global_req ? device_req : global_req;
 }
-EXPORT_SYMBOL_GPL(cpuidle_governor_latency_req);
