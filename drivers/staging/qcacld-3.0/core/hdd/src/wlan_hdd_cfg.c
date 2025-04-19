@@ -1118,7 +1118,7 @@ QDF_STATUS hdd_update_nss(struct hdd_adapter *adapter, uint8_t tx_nss,
 			  adapter->vdev_id);
 		if (!bval) {
 			hdd_err("Nss in 1x1, no change required, 2x2 mode disabled");
-			return QDF_STATUS_E_FAILURE;
+			return QDF_STATUS_SUCCESS;
 		}
 
 		for (band = NSS_CHAINS_BAND_2GHZ; band < NSS_CHAINS_BAND_MAX;
