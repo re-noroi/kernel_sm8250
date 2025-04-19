@@ -1514,7 +1514,7 @@ static __iw_softap_set_max_tx_power(struct net_device *dev,
 {
 	struct hdd_adapter *adapter = (netdev_priv(dev));
 	struct hdd_context *hdd_ctx;
-	int *value = (int *)extra;
+	int *value = (int *)(wrqu->data.pointer);
 	int set_value;
 	int ret;
 	struct qdf_mac_addr bssid = QDF_MAC_ADDR_BCAST_INIT;
