@@ -13,7 +13,7 @@
 #include <linux/spi/spi.h>
 #include <media/rc-core.h>
 
-#define IR_SPI_DRIVER_NAME		"ir-spi"
+#define IR_SPI_DRIVER_NAME		"ir-spi-led"
 
 #define IR_SPI_DEFAULT_FREQUENCY	38000
 #define IR_SPI_MAX_BUFSIZE		32768
