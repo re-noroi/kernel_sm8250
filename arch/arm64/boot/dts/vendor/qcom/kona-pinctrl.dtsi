@@ -4146,7 +4146,7 @@
 				};
 
 				config {
-					pins = "gpio12", "13", "gpio14",
+					pins = "gpio12", "gpio13", "gpio14",
 								"gpio15";
 					drive-strength = <6>;
 					bias-disable;
