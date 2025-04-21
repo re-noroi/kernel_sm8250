@@ -625,6 +625,14 @@
 			};
 		};
 	};
+
+	gpuss-1-usr {
+ 		status = "disabled";
+ 	};
+};
+ 
+&msm_gpu {
+ 	tzone-names = "gpuss-0-usr";
 };
 
 &sdhc_2 {
