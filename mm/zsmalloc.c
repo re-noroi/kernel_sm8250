@@ -64,7 +64,6 @@
 #include <linux/wait.h>
 #include <linux/pagemap.h>
 #include <linux/fs.h>
-#include <linux/local_lock.h>
 
 #define ZSPAGE_MAGIC	0x58
 
@@ -265,7 +264,6 @@ struct zspage {
 };
 
 struct mapping_area {
-	local_lock_t lock;
 	char *vm_buf; /* copy buffer for objects that span pages */
 	char *vm_addr; /* address of kmap_atomic()'ed pages */
 	enum zs_mapmode vm_mm; /* mapping mode */
@@ -440,9 +438,7 @@ MODULE_ALIAS("zpool-zsmalloc");
 #endif /* CONFIG_ZPOOL */
 
 /* per-cpu VM mapping areas for zspage accesses that cross page boundaries */
-static DEFINE_PER_CPU(struct mapping_area, zs_map_area) = {
-	.lock	= INIT_LOCAL_LOCK(lock),
-};
+static DEFINE_PER_CPU(struct mapping_area, zs_map_area);
 
 static __maybe_unused int is_first_page(struct page *page)
 {
@@ -1239,8 +1235,7 @@ void *zs_map_object(struct zs_pool *pool, unsigned long handle,
 	class = zspage_class(pool, zspage);
 	off = offset_in_page(class->size * obj_idx);
 
-	local_lock(&zs_map_area.lock);
-	area = this_cpu_ptr(&zs_map_area);
+	area = &get_cpu_var(zs_map_area);
 	area->vm_mm = mm;
 	if (off + class->size <= PAGE_SIZE) {
 		/* this object is contained entirely within a page */
@@ -1291,7 +1286,7 @@ void zs_unmap_object(struct zs_pool *pool, unsigned long handle)
 
 		__zs_unmap_object(area, pages, off, class->size);
 	}
-	local_unlock(&zs_map_area.lock);
+	put_cpu_var(zs_map_area);
 
 	migrate_read_unlock(zspage);
 }
