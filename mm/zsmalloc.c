@@ -59,7 +59,6 @@
 #include <linux/zsmalloc.h>
 #include <linux/zpool.h>
 #include <linux/mount.h>
-#include <linux/pseudo_fs.h>
 #include <linux/migrate.h>
 #include <linux/wait.h>
 #include <linux/pagemap.h>
@@ -1714,14 +1713,15 @@ static void lock_zspage(struct zspage *zspage)
 }
 #endif /* CONFIG_COMPACTION */
 
-static int zs_init_fs_context(struct fs_context *fc)
+static struct dentry *zs_mount(struct file_system_type *fs_type,
+				int flags, const char *dev_name, void *data)
 {
-	return init_pseudo(fc, ZSMALLOC_MAGIC) ? 0 : -ENOMEM;
+	return mount_pseudo(fs_type, "zsmalloc:", NULL, NULL, ZSMALLOC_MAGIC);
 }
 
 static struct file_system_type zsmalloc_fs = {
 	.name		= "zsmalloc",
-	.init_fs_context = zs_init_fs_context,
+	.mount		= zs_mount,
 	.kill_sb	= kill_anon_super,
 };
 
