@@ -1190,6 +1190,7 @@ again:
 			continue;
 		}
 
+		entry = pte_to_swp_entry(ptent);
 		if (!non_swap_entry(entry)) {
 			/* Genuine swap entry, hence a private anon page */
 			if (!should_zap_cows(details))
