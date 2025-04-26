@@ -614,7 +614,6 @@ this file is for attribution only of alioth
 	qcom,soc-hi-res;
 	qcom,sun-profile-only;
 	qcom,k11a-batt-profile;
-        qcom,j3s-batt-profile;
 	qcom,soc_decimal_rate = <
 		0  38
 		10 35
