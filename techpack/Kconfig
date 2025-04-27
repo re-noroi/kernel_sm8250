@@ -1,6 +1,3 @@
-source "techpack/data/Kconfig"
-source "techpack/wlan/Kconfig"
-
 config OSSFOD
 	bool "OSS FOD support"
 	depends on BOARD_XIAOMI
