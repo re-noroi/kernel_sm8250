@@ -1915,7 +1915,7 @@ static inline int remap_p4d_range(struct mm_struct *mm, pgd_t *pgd,
 /**
  * remap_pfn_range - remap kernel memory to userspace
  * @vma: user vma to map to
- * @addr: target page aligned user address to start at
+ * @addr: target user address to start at
  * @pfn: physical address of kernel memory
  * @size: size of map area
  * @prot: page protection flags for this mapping
@@ -1933,9 +1933,6 @@ int remap_pfn_range(struct vm_area_struct *vma, unsigned long addr,
 	struct mm_struct *mm = vma->vm_mm;
 	unsigned long remap_pfn = pfn;
 	int err;
-
-	if (WARN_ON_ONCE(!PAGE_ALIGNED(addr)))
-		return -EINVAL;
 
 	/*
 	 * Physically remapped pages are special. Tell the
