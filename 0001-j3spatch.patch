@@ -1,0 +1,24 @@
+From 719f0278881f55f5dc233008ad64461e770b8f0f Mon Sep 17 00:00:00 2001
+From: EmanuelCN <emanuelghub@gmail.com>
+Date: Thu, 23 Jan 2025 20:24:49 +0200
+Subject: [PATCH] arm64: dts: Load apollo battery profile in alioth's pmic
+
+---
+ arch/arm64/boot/dts/vendor/qcom/alioth-sm8250.dtsi | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/arch/arm64/boot/dts/vendor/qcom/alioth-sm8250.dtsi b/arch/arm64/boot/dts/vendor/qcom/alioth-sm8250.dtsi
+index d221b45dbcff..a2359193e1bc 100644
+--- a/arch/arm64/boot/dts/vendor/qcom/alioth-sm8250.dtsi
++++ b/arch/arm64/boot/dts/vendor/qcom/alioth-sm8250.dtsi
+@@ -614,6 +614,7 @@ this file is for attribution only of alioth
+ 	qcom,soc-hi-res;
+ 	qcom,sun-profile-only;
+ 	qcom,k11a-batt-profile;
++        qcom,j3s-batt-profile;
+ 	qcom,soc_decimal_rate = <
+ 		0  38
+ 		10 35
+-- 
+2.47.1.windows.1
+
