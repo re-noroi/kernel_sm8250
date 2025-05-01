@@ -397,7 +397,7 @@ static int rmnet_perf_config_notify_cb(struct notifier_block *nb,
 
 	switch (event) {
 	case NETDEV_UNREGISTER:
-		pr_info("%s(): rmnet_perf netdevice unregister, name = %s\n",
+		pr_debug("%s(): rmnet_perf netdevice unregister, name = %s\n",
 			__func__, dev->name);
 		if (perf && rmnet_is_real_dev_registered(dev) &&
 		    rmnet_perf_config_hook_registered() &&
@@ -405,7 +405,7 @@ static int rmnet_perf_config_notify_cb(struct notifier_block *nb,
 		     !strncmp(dev->name, "rmnet_mhi0", 10))) {
 			struct rmnet_perf_core_meta *core_meta =
 				perf->core_meta;
-			pr_info("%s(): rmnet_perf netdevice unregister\n",
+			pr_debug("%s(): rmnet_perf netdevice unregister\n",
 				__func__);
 			return_val = rmnet_perf_dereg_callbacks(dev, core_meta);
 			return_val |= rmnet_perf_netdev_down();
@@ -419,7 +419,7 @@ static int rmnet_perf_config_notify_cb(struct notifier_block *nb,
 		}
 		break;
 	case NETDEV_REGISTER:
-		pr_info("%s(): rmnet_perf netdevice register, name = %s\n",
+		pr_debug("%s(): rmnet_perf netdevice register, name = %s\n",
 			__func__, dev->name);
 		/* Check prevents us from allocating resources for every
 		 * interface
@@ -443,7 +443,7 @@ static int rmnet_perf_config_notify_cb(struct notifier_block *nb,
 					__func__);
 			}
 			rmnet_perf_core_set_ingress_hook();
-			pr_info("%s(): rmnet_perf registered on name = %s\n",
+			pr_debug("%s(): rmnet_perf registered on name = %s\n",
 				__func__, dev->name);
 		}
 		break;
