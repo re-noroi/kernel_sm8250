@@ -965,7 +965,7 @@ static void init_zspage(struct size_class *class, struct zspage *zspage)
 
 		set_first_obj_offset(page, off);
 
-		vaddr = kmap_local_page(page);
+		vaddr = kmap_atomic(page);
 		link = (struct link_free *)vaddr + off / sizeof(*link);
 
 		while ((off += class->size) < PAGE_SIZE) {
@@ -988,7 +988,7 @@ static void init_zspage(struct size_class *class, struct zspage *zspage)
 			 */
 			link->next = -1UL << OBJ_TAG_BITS;
 		}
-		kunmap_local(vaddr);
+		kunmap_atomic(vaddr);
 		page = next_page;
 		off %= PAGE_SIZE;
 	}
@@ -1158,7 +1158,7 @@ void *zs_obj_read_begin(struct zs_pool *pool, unsigned long handle,
 
 	if (off + class->size <= PAGE_SIZE) {
 		/* this object is contained entirely within a page */
-		addr = kmap_local_page(page);
+		addr = kmap_atomic(page);
 		addr += off;
 	} else {
 		size_t sizes[2];
@@ -1201,7 +1201,7 @@ void zs_obj_read_end(struct zs_pool *pool, unsigned long handle,
 		if (!ZsHugePage(zspage))
 			off += ZS_HANDLE_SIZE;
 		handle_mem -= off;
-		kunmap_local(handle_mem);
+		kunmap_atomic(handle_mem);
 	}
 
 	zspage_read_unlock(zspage);
@@ -1232,12 +1232,12 @@ void zs_obj_write(struct zs_pool *pool, unsigned long handle,
 
 	if (off + class->size <= PAGE_SIZE) {
 		/* this object is contained entirely within a page */
-		void *dst = kmap_local_page(page);
+		void *dst = kmap_atomic(page);
 
 		if (!ZsHugePage(zspage))
 			off += ZS_HANDLE_SIZE;
 		memcpy(dst + off, handle_mem, mem_len);
-		kunmap_local(dst);
+		kunmap_atomic(dst);
 	} else {
 		/* this object spans two pages */
 		size_t sizes[2];
@@ -1298,7 +1298,7 @@ static unsigned long obj_malloc(struct zs_pool *pool,
 	for (i = 0; i < nr_page; i++)
 		m_page = get_next_page(m_page);
 
-	vaddr = kmap_local_page(m_page);
+	vaddr = kmap_atomic(m_page);
 	link = (struct link_free *)vaddr + m_offset / sizeof(*link);
 	set_freeobj(zspage, link->next >> OBJ_TAG_BITS);
 	if (likely(!ZsHugePage(zspage)))
@@ -1308,7 +1308,7 @@ static unsigned long obj_malloc(struct zs_pool *pool,
 		/* record handle to page->index */
 		zspage->first_page->index = handle | OBJ_ALLOCATED_TAG;
 
-	kunmap_local(vaddr);
+	kunmap_atomic(vaddr);
 	mod_zspage_inuse(zspage, 1);
 
 	obj = location_to_obj(m_page, obj);
@@ -1399,7 +1399,7 @@ static void obj_free(int class_size, unsigned long obj)
 	f_offset = offset_in_page(class_size * f_objidx);
 	zspage = get_zspage(f_page);
 
-	vaddr = kmap_local_page(f_page);
+	vaddr = kmap_atomic(f_page);
 	link = (struct link_free *)(vaddr + f_offset);
 
 	/* Insert this object in containing zspage's freelist */
@@ -1409,7 +1409,7 @@ static void obj_free(int class_size, unsigned long obj)
 		f_page->index = 0;
 	set_freeobj(zspage, f_objidx);
 
-	kunmap_local(vaddr);
+	kunmap_atomic(vaddr);
 	mod_zspage_inuse(zspage, -1);
 }
 
@@ -1472,8 +1472,8 @@ static void zs_object_copy(struct size_class *class, unsigned long dst,
 	if (d_off + class->size > PAGE_SIZE)
 		d_size = PAGE_SIZE - d_off;
 
-	s_addr = kmap_local_page(s_page);
-	d_addr = kmap_local_page(d_page);
+	s_addr = kmap_atomic(s_page);
+	d_addr = kmap_atomic(d_page);
 
 	while (1) {
 		size = min(s_size, d_size);
@@ -1489,33 +1489,33 @@ static void zs_object_copy(struct size_class *class, unsigned long dst,
 		d_size -= size;
 
 		/*
-		 * Calling kunmap_local(d_addr) is necessary. kunmap_local()
-		 * calls must occurs in reverse order of calls to kmap_local_page().
-		 * So, to call kunmap_local(s_addr) we should first call
-		 * kunmap_local(d_addr). For more details see
+		 * Calling kunmap_atomic(d_addr) is necessary. kunmap_atomic()
+		 * calls must occurs in reverse order of calls to kmap_atomic().
+		 * So, to call kunmap_atomic(s_addr) we should first call
+		 * kunmap_atomic(d_addr). For more details see
 		 * Documentation/mm/highmem.rst.
 		 */
 		if (s_off >= PAGE_SIZE) {
-			kunmap_local(d_addr);
-			kunmap_local(s_addr);
+			kunmap_atomic(d_addr);
+			kunmap_atomic(s_addr);
 			s_page = get_next_page(s_page);
-			s_addr = kmap_local_page(s_page);
-			d_addr = kmap_local_page(d_page);
+			s_addr = kmap_atomic(s_page);
+			d_addr = kmap_atomic(d_page);
 			s_size = class->size - written;
 			s_off = 0;
 		}
 
 		if (d_off >= PAGE_SIZE) {
-			kunmap_local(d_addr);
+			kunmap_atomic(d_addr);
 			d_page = get_next_page(d_page);
-			d_addr = kmap_local_page(d_page);
+			d_addr = kmap_atomic(d_page);
 			d_size = class->size - written;
 			d_off = 0;
 		}
 	}
 
-	kunmap_local(d_addr);
-	kunmap_local(s_addr);
+	kunmap_atomic(d_addr);
+	kunmap_atomic(s_addr);
 }
 
 /*
@@ -1528,7 +1528,7 @@ static unsigned long find_alloced_obj(struct size_class *class,
 	unsigned int offset;
 	int index = *obj_idx;
 	unsigned long handle = 0;
-	void *addr = kmap_local_page(page);
+	void *addr = kmap_atomic(page);
 
 	offset = get_first_obj_offset(page);
 	offset += class->size * index;
@@ -1541,7 +1541,7 @@ static unsigned long find_alloced_obj(struct size_class *class,
 		index++;
 	}
 
-	kunmap_local(addr);
+	kunmap_atomic(addr);
 
 	*obj_idx = index;
 
@@ -1786,14 +1786,14 @@ static int zs_page_migrate(struct address_space *mapping, struct page *newpage,
 	}
 
 	offset = get_first_obj_offset(page);
-	s_addr = kmap_local_page(page);
+	s_addr = kmap_atomic(page);
 
 	/*
 	 * Here, any user cannot access all objects in the zspage so let's move.
 	 */
-	d_addr = kmap_local_page(newpage);
+	d_addr = kmap_atomic(newpage);
 	copy_page(d_addr, s_addr);
-	kunmap_local(d_addr);
+	kunmap_atomic(d_addr);
 
 	for (addr = s_addr + offset; addr < s_addr + PAGE_SIZE;
 					addr += class->size) {
@@ -1806,7 +1806,7 @@ static int zs_page_migrate(struct address_space *mapping, struct page *newpage,
 			record_obj(handle, new_obj);
 		}
 	}
-	kunmap_local(s_addr);
+	kunmap_atomic(s_addr);
 
 	replace_sub_page(class, zspage, newpage, page);
 	/*
