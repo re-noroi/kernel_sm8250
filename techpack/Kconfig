@@ -1,3 +1,5 @@
+source "techpack/data/Kconfig"
+
 config OSSFOD
 	bool "OSS FOD support"
 	depends on BOARD_XIAOMI
