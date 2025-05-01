@@ -4288,7 +4288,7 @@ static int fastrpc_device_open(struct inode *inode, struct file *filp)
 
 static int fastrpc_set_process_info(struct fastrpc_file *fl)
 {
-	int err = 0, buf_size = 0;
+	int err = 0;
 	char strpid[PID_SIZE];
 	char cur_comm[TASK_COMM_LEN];
 
