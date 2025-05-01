@@ -77,6 +77,7 @@ int blk_crypto_submit_bio(struct bio **bio_ptr)
 	if (!IS_ALIGNED(bio->bi_iter.bi_size,
 			bc->bc_key->data_unit_size)) {
 		bio->bi_status = BLK_STS_IOERR;
+		err = -EIO;
 		goto out;
 	}
 
