@@ -106,7 +106,7 @@ static void zram_slot_unlock(struct zram *zram, u32 index)
 {
 	unsigned long *lock = &zram->table[index].flags;
 
-	mutex_release(slot_dep_map(zram, index), _RET_IP_);
+	mutex_release(slot_dep_map(zram, index), 1, _RET_IP_);
 	clear_and_wake_up_bit(ZRAM_ENTRY_LOCK, lock);
 }
 
