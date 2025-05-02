@@ -1023,9 +1023,6 @@ static int vim2m_probe(struct platform_device *pdev)
 	}
 
 	video_set_drvdata(vfd, dev);
-	v4l2_info(&dev->v4l2_dev,
-			"Device registered as /dev/video%d\n", vfd->num);
-
 	platform_set_drvdata(pdev, dev);
 
 	dev->m2m_dev = v4l2_m2m_init(&m2m_ops);
@@ -1035,6 +1032,9 @@ static int vim2m_probe(struct platform_device *pdev)
 		goto unreg_dev;
 	}
 
+	v4l2_info(&dev->v4l2_dev,
+		  "Device registered as /dev/video%d\n", vfd->num);
+
 #ifdef CONFIG_MEDIA_CONTROLLER
 	dev->mdev.dev = &pdev->dev;
 	strlcpy(dev->mdev.model, "vim2m", sizeof(dev->mdev.model));
@@ -1043,6 +1043,7 @@ static int vim2m_probe(struct platform_device *pdev)
 
 	ret = v4l2_m2m_register_media_controller(dev->m2m_dev,
 			vfd, MEDIA_ENT_F_PROC_VIDEO_SCALER);
+
 	if (ret) {
 		v4l2_err(&dev->v4l2_dev, "Failed to init mem2mem media controller\n");
 		goto unreg_m2m;

@@ -4400,6 +4400,11 @@ static void zap_class(struct lock_class *class)
 		if (list_entries[i].class == class)
 			list_del_rcu(&list_entries[i].entry);
 	}
+
+	/* Class allocated but not used, -1 in nr_unused_locks */
+	if (class->usage_mask == 0)
+		debug_atomic_dec(nr_unused_locks);
+
 	/*
 	 * Unhash the class and remove it from the all_lock_classes list:
 	 */
