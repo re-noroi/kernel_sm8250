@@ -147,6 +147,9 @@ static int fsl_pwm_calculate_default_ps(struct fsl_pwm_chip *fpc,
 	if (!cnt_rate)
 		return -EINVAL;
 
+	if (cnt_rate >> fpc->clk_ps == 0)
+		return 0;
+
 	switch (index) {
 	case FSL_PWM_CLK_SYS:
 		fpc->clk_ps = 1;
@@ -245,6 +248,9 @@ static unsigned long fsl_pwm_calculate_duty(struct fsl_pwm_chip *fpc,
 {
 	unsigned long long duty;
 	u32 val;
+
+	if (!period_ns)
+		return 0;
 
 	regmap_read(fpc->regmap, FTM_MOD, &val);
 	duty = (unsigned long long)duty_ns * (val + 1);
