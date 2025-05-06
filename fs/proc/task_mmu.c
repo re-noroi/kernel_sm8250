@@ -374,13 +374,14 @@ show_map_vma(struct seq_file *m, struct vm_area_struct *vma)
 	unsigned long start, end;
 	dev_t dev = 0;
 	const char *name = NULL;
+	struct dentry *dentry = NULL;
 
 	if (file) {
 		struct inode *inode = file_inode(vma->vm_file);
 		dev = inode->i_sb->s_dev;
 		ino = inode->i_ino;
 		pgoff = ((loff_t)vma->vm_pgoff) << PAGE_SHIFT;
-		struct dentry *dentry = file->f_path.dentry;
+		dentry = file->f_path.dentry;
         if (dentry) {
         	const char *path = (const char *)dentry->d_name.name; 
             	if (strstr(path, "lineage") ||
