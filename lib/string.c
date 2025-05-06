@@ -755,36 +755,10 @@ EXPORT_SYMBOL(__sysfs_match_string);
  */
 void *memset(void *s, int c, size_t count)
 {
-	union types dest = { .as_u8 = s };
-	
-	if (count >= MIN_THRESHOLD) {
-		unsigned long cu = (unsigned long)c;
-
-		/* Compose an ulong with 'c' repeated 4/8 times */
-#ifdef CONFIG_ARCH_HAS_FAST_MULTIPLIER
-		cu *= 0x0101010101010101UL;
-#else
-		cu |= cu << 8;
-		cu |= cu << 16;
-		/* Suppress warning on 32 bit machines */
-		cu |= (cu << 16) << 16;
-#endif
-		if (!IS_ENABLED(CONFIG_HAVE_EFFICIENT_UNALIGNED_ACCESS)) {
-			/*
-			 * Fill the buffer one byte at time until
-			 * the destination is word aligned.
-			 */
-			for (; count && dest.as_uptr & WORD_MASK; count--)
-				*dest.as_u8++ = c;
-		}
-
-		/* Copy using the largest size allowed */
-		for (; count >= BYTES_LONG; count -= BYTES_LONG)
-			*dest.as_ulong++ = cu;
-	}
+	char *xs = s;
 
 	while (count--)
-		*dest.as_u8++ = c;
+		*xs++ = c;
 	return s;
 }
 EXPORT_SYMBOL(memset);
@@ -910,13 +884,19 @@ EXPORT_SYMBOL(memcpy);
  */
 void *memmove(void *dest, const void *src, size_t count)
 {
-	if (dest < src || src + count <= dest)
-		return memcpy(dest, src, count);
+	char *tmp;
+	const char *s;
 
-	if (dest > src) {
-		const char *s = src + count;
-		char *tmp = dest + count;
-
+	if (dest <= src) {
+		tmp = dest;
+		s = src;
+		while (count--)
+			*tmp++ = *s++;
+	} else {
+		tmp = dest;
+		tmp += count;
+		s = src;
+		s += count;
 		while (count--)
 			*--tmp = *--s;
 	}
