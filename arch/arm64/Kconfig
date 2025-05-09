@@ -1471,7 +1471,7 @@ endmenu
 
 config ARM64_SVE
 	bool "ARM Scalable Vector Extension support"
-	default y
+	default n
 	depends on !KVM || ARM64_VHE
 	help
 	  The Scalable Vector Extension (SVE) is an extension to the AArch64
