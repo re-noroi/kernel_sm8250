@@ -952,10 +952,10 @@ static int setup_kmem_cache_node(struct kmem_cache *cachep,
 	 * To protect lockless access to n->shared during irq disabled context.
 	 * If n->shared isn't NULL in irq disabled context, accessing to it is
 	 * guaranteed to be valid until irq is re-enabled, because it will be
-	 * freed after synchronize_rcu().
+	 * freed after synchronize_sched().
 	 */
 	if (old_shared && force_change)
-		synchronize_rcu();
+		synchronize_sched();
 
 fail:
 	kfree(old_shared);

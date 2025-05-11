@@ -1400,7 +1400,7 @@ void mini_qdisc_pair_swap(struct mini_Qdisc_pair *miniqp,
 	if (!tp_head) {
 		RCU_INIT_POINTER(*miniqp->p_miniq, NULL);
 		/* Wait for flying RCU callback before it is freed. */
-		rcu_barrier();
+		rcu_barrier_bh();
 		return;
 	}
 
@@ -1408,10 +1408,10 @@ void mini_qdisc_pair_swap(struct mini_Qdisc_pair *miniqp,
 		&miniqp->miniq1 : &miniqp->miniq2;
 
 	/* We need to make sure that readers won't see the miniq
-	 * we are about to modify. So wait until previous call_rcu callback
+	 * we are about to modify. So wait until previous call_rcu_bh callback
 	 * is done.
 	 */
-	rcu_barrier();
+	rcu_barrier_bh();
 	miniq->filter_list = tp_head;
 	rcu_assign_pointer(*miniqp->p_miniq, miniq);
 
@@ -1420,7 +1420,7 @@ void mini_qdisc_pair_swap(struct mini_Qdisc_pair *miniqp,
 		 * block potential new user of miniq_old until all readers
 		 * are not seeing it.
 		 */
-		call_rcu(&miniq_old->rcu, mini_qdisc_rcu_func);
+		call_rcu_bh(&miniq_old->rcu, mini_qdisc_rcu_func);
 }
 EXPORT_SYMBOL(mini_qdisc_pair_swap);
 
