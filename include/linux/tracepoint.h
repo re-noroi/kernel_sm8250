@@ -92,7 +92,7 @@ int unregister_tracepoint_module_notifier(struct notifier_block *nb)
 static inline void tracepoint_synchronize_unregister(void)
 {
 	synchronize_srcu(&tracepoint_srcu);
-	synchronize_rcu();
+	synchronize_sched();
 }
 #else
 static inline void tracepoint_synchronize_unregister(void)
