@@ -7400,7 +7400,7 @@ static unsigned long cpu_util_without(int cpu, struct task_struct *p)
 	 */
 	if (sched_feat(UTIL_EST)) {
 		unsigned int estimated =
-			READ_ONCE(cfs_rq->avg.util_est.enqueued);
+			READ_ONCE(cfs_rq->avg.util_est);
 
 		/*
 		 * Despite the following checks we still have a small window
