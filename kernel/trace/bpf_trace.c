@@ -2118,7 +2118,6 @@ static int __bpf_probe_register(struct bpf_raw_event_map *btp, struct bpf_prog *
 
 	return tracepoint_probe_register_may_exist(tp, (void *)btp->bpf_func,
 						   prog);
-
 }
 
 int bpf_probe_register(struct bpf_raw_event_map *btp, struct bpf_prog *prog)
