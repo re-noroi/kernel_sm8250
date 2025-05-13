@@ -47,7 +47,7 @@ void cass_cpu_util(struct cass_cpu_cand *c, int this_cpu, bool sync)
 	/* Get this CPU's utilization from CFS tasks */
 	c->util = READ_ONCE(cfs_rq->avg.util_avg);
 	if (sched_feat(UTIL_EST)) {
-		est = READ_ONCE(cfs_rq->avg.util_est.enqueued);
+		est = READ_ONCE(cfs_rq->avg.util_est);
 		if (est > c->util) {
 			/* Don't deduct @current's util from estimated util */
 			sync = false;
