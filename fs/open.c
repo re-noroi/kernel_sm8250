@@ -58,7 +58,10 @@ int do_truncate2(struct vfsmount *mnt, struct dentry *dentry, loff_t length,
 	if (ret)
 		newattrs.ia_valid |= ret | ATTR_FORCE;
 
-	inode_lock(dentry->d_inode);
+	ret = inode_lock_killable(dentry->d_inode);
+	if (ret)
+		return ret;
+
 	/* Note any delegations or leases have already been broken: */
 	ret = notify_change2(mnt, dentry, &newattrs, NULL);
 	inode_unlock(dentry->d_inode);
