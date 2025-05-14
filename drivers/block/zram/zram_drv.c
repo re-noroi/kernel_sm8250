@@ -1809,8 +1809,7 @@ static int zram_write_page(struct zram *zram, struct page *page, u32 index)
 
 	handle = zs_malloc(zram->mem_pool, comp_len,
 			   GFP_NOIO | __GFP_NOWARN |
-			   __GFP_HIGHMEM | __GFP_MOVABLE | __GFP_CMA |
-			   __GFP_OFFLINABLE);
+			   __GFP_HIGHMEM | __GFP_MOVABLE | __GFP_CMA);
 	if (IS_ERR_VALUE(handle)) {
 		zcomp_stream_put(zstrm);
 		return PTR_ERR((void *)handle);
