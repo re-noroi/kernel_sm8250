@@ -18,7 +18,6 @@
 
 #include <trace/events/sched.h>
 #include "sched.h"
-#include "walt.h"
 
 struct cluster_data {
 	bool inited;
@@ -697,7 +696,7 @@ static void update_running_avg(void)
 	spin_unlock_irqrestore(&state_lock, flags);
 
 	last_nr_big = big_avg;
-	walt_rotation_checkpoint(big_avg);
+
 }
 
 #define MAX_NR_THRESHOLD	4
@@ -930,7 +929,6 @@ static void core_ctl_call_notifier(void)
 		return;
 
 	ndata.nr_big = last_nr_big;
-	walt_fill_ta_data(&ndata);
 	trace_core_ctl_notif_data(ndata.nr_big, ndata.coloc_load_pct,
 			ndata.ta_util_pct, ndata.cur_cap_pct);
 

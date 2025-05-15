@@ -1661,12 +1661,7 @@ static void yield_task_dl(struct rq *rq)
 static int find_later_rq(struct task_struct *task);
 
 static int
-#ifdef CONFIG_SCHED_WALT
-select_task_rq_dl(struct task_struct *p, int cpu, int sd_flag, int flags,
-		  int sibling_count_hint)
-#else
 select_task_rq_dl(struct task_struct *p, int cpu, int sd_flag, int flags)
-#endif
 {
 	struct task_struct *curr;
 	bool select_rq;
@@ -2525,9 +2520,6 @@ const struct sched_class dl_sched_class = {
 	.switched_to		= switched_to_dl,
 
 	.update_curr		= update_curr_dl,
-#ifdef CONFIG_SCHED_WALT
-	.fixup_walt_sched_stats	= fixup_walt_sched_stats_common,
-#endif
 };
 
 int sched_dl_global_validate(void)
