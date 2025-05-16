@@ -134,21 +134,3 @@
  * Request max frequency from schedutil whenever a RT task is running.
  */
 #define SCHED_FEAT_SUGOV_RT_MAX_FREQ 0
-
-/*
- * Apply schedtune boost hold to tasks of all sched classes.
- * If enabled, schedtune will hold the boost applied to a CPU
- * for 50ms regardless of task activation - if the task is
- * still running 50ms later, the boost hold expires and schedtune
- * boost will expire immediately the task stops.
- * If disabled, this behaviour will only apply to tasks of the
- * RT class.
- */
-#define SCHED_FEAT_SCHEDTUNE_BOOST_HOLD_ALL 0
-
-/*
- * Inflate the effective utilization of SchedTune-boosted tasks, which
- * generally leads to usage of higher frequencies.
- * If disabled, boosts will only bias tasks to higher-capacity CPUs.
- */
-#define SCHED_FEAT_SCHEDTUNE_BOOST_UTIL 0
