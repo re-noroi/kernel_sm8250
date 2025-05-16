@@ -487,15 +487,6 @@ config IRQ_TIME_ACCOUNTING
 
 	  If in doubt, say N here.
 
-config SCHED_WALT
-	bool "Support window based load tracking"
-	depends on SMP
-	help
-	This feature will allow the scheduler to maintain a tunable window
-	based set of metrics for tasks and runqueues. These metrics can be
-	used to guide task placement as well as task frequency requirements
-	for cpufreq governors.
-
 config HAVE_SCHED_AVG_IRQ
 	def_bool y
 	depends on IRQ_TIME_ACCOUNTING || PARAVIRT_TIME_ACCOUNTING
@@ -861,7 +852,6 @@ endchoice
 
 config PELT_COMPATIBILITY_LAYER
 	bool "Compatibility layer for Qualcomm performance HALs"
-	depends on !SCHED_WALT
 	help
 	  This option enables a non-operational compatibility layer for use in
 	  lieu of Window Assisted Load Tracking on systems which expect it.
@@ -1189,11 +1179,11 @@ endif # CGROUPS
 
 config SCHED_CORE_CTL
 	bool "QTI Core Control"
-	depends on SMP && SCHED_WALT
+	depends on SMP
+	default n
 	help
-	  This options enables the core control functionality in
-	  the scheduler. Core control automatically offline and
-	  online cores based on cpu load and utilization.
+	  This option used to enable core control functionality based on WALT.
+	  Since WALT has been removed, this option is now non-functional.
 
 	  If unsure, say N here.
 
@@ -1304,38 +1294,6 @@ config SCHED_AUTOGROUP
 	  of workloads isolates aggressive CPU burners (like build jobs) from
 	  desktop applications.  Task group autogeneration is currently based
 	  upon task session.
-
-config SCHED_TUNE
-	bool "Boosting for CFS tasks (EXPERIMENTAL)"
-	depends on !UCLAMP_TASK
-	depends on SMP
-	help
-	  This option enables support for task classification using a new
-	  cgroup controller, schedtune. Schedtune allows tasks to be given
-	  a boost value and marked as latency-sensitive or not. This option
-	  provides the "schedtune" controller.
-
-	  This new controller:
-	  1. allows only a two layers hierarchy, where the root defines the
-	     system-wide boost value and its direct childrens define each one a
-	     different "class of tasks" to be boosted with a different value
-	  2. supports up to 16 different task classes, each one which could be
-	     configured with a different boost value
-
-	  Latency-sensitive tasks are not subject to energy-aware wakeup
-	  task placement. The boost value assigned to tasks is used to
-	  influence task placement and CPU frequency selection (if
-	  utilization-driven frequency selection is in use).
-
-	  If unsure, say N.
-
-config STUNE_ASSIST
-	bool "SchedTune configuration helper"
-	depends on SCHED_TUNE
-	depends on ANDROID
-	help
-	  This option enables in-kernel overrides for SchedTune values.
-          If unsure, say N.
 
 config UCLAMP_ASSIST
 	bool "UClamp configuration helper"
