@@ -839,10 +839,6 @@ TRACE_EVENT(sched_load_rt_rq,
 		  __entry->util)
 );
 
-#ifdef CONFIG_SCHED_WALT
-extern unsigned int sched_ravg_window;
-#endif
-
 /*
  * Tracepoint for accounting cpu root cfs_rq
  */
@@ -857,7 +853,6 @@ TRACE_EVENT(sched_load_avg_cpu,
 		__field(unsigned long,	load_avg)
 		__field(unsigned long,	util_avg)
 		__field(unsigned long,	util_avg_pelt)
-		__field(u32,		util_avg_walt)
 	),
 
 	TP_fast_assign(
@@ -865,18 +860,11 @@ TRACE_EVENT(sched_load_avg_cpu,
 		__entry->load_avg               = cfs_rq->avg.load_avg;
 		__entry->util_avg               = cfs_rq->avg.util_avg;
 		__entry->util_avg_pelt  = cfs_rq->avg.util_avg;
-		__entry->util_avg_walt  = 0;
-#ifdef CONFIG_SCHED_WALT
-		__entry->util_avg_walt  = div64_ul(cpu_rq(cpu)->prev_runnable_sum,
-					  sched_ravg_window >> SCHED_CAPACITY_SHIFT);
-
-		__entry->util_avg       = __entry->util_avg_walt;
-#endif
 	),
 
-	TP_printk("cpu=%d load_avg=%lu util_avg=%lu util_avg_pelt=%lu util_avg_walt=%u",
+	TP_printk("cpu=%d load_avg=%lu util_avg=%lu util_avg_pelt=%lu",
 		__entry->cpu, __entry->load_avg, __entry->util_avg,
-		__entry->util_avg_pelt, __entry->util_avg_walt)
+		__entry->util_avg_pelt)
 );
 
 
@@ -1051,7 +1039,6 @@ TRACE_EVENT(sched_cpu_util,
 		__entry->isolated           = cpu_isolated(cpu);
 		__entry->reserved           = is_reserved(cpu);
 		__entry->high_irq_load      = sched_cpu_high_irqload(cpu);
-		__entry->nr_rtg_high_prio_tasks = walt_nr_rtg_high_prio(cpu);
 	),
 
 	TP_printk("cpu=%d nr_running=%d cpu_util=%ld cpu_util_cum=%ld capacity_curr=%u capacity=%u capacity_orig=%u idle_state=%d irqload=%llu online=%u, isolated=%u, reserved=%u, high_irq_load=%u nr_rtg_hp=%u",
@@ -1152,13 +1139,8 @@ TRACE_EVENT(sched_task_util,
 		__entry->is_rtg                 = is_rtg;
 		__entry->rtg_skip_min		= rtg_skip_min;
 		__entry->start_cpu		= start_cpu;
-#ifdef CONFIG_SCHED_WALT
-		__entry->unfilter		= p->unfilter;
-		__entry->low_latency		= walt_low_latency_task(p);
-#else
 		__entry->unfilter		= 0;
 		__entry->low_latency		= 0;
-#endif
 		__entry->cpus_allowed           = cpumask_bits(&p->cpus_allowed)[0];
 	),
 
@@ -1513,7 +1495,6 @@ DECLARE_TRACE(pelt_thermal_tp,
 	TP_PROTO(struct rq *rq),
 	TP_ARGS(rq));
 
-#include "walt.h"
 #endif /* CONFIG_SMP */
 #endif /* _TRACE_SCHED_H */
 
