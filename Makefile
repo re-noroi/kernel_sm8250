@@ -695,28 +695,22 @@ KBUILD_CFLAGS   += -O3 -march=armv8.2-a+lse+crypto+dotprod+fp16 -mcpu=cortex-a55
 KBUILD_AFLAGS   += -O3 -march=armv8.2-a+lse+crypto+dotprod+fp16 -mcpu=cortex-a55
 # Machine Learning Optimization
 KBUILD_CFLAGS   += -mllvm -regalloc-enable-advisor=release
-KBUILD_CFLAGS   += -mllvm -enable-ml-inliner=release
-KBUILD_CFLAGS   += -mllvm -enable-machine-outliner
 KBUILD_LDFLAGS  += -mllvm -regalloc-enable-advisor=release
 KBUILD_LDFLAGS  += -mllvm -enable-ml-inliner=release
-
-ifdef CONFIG_INLINE_OPTIMIZATION
-# Inline tuning
-KBUILD_CFLAGS	+= -mllvm -inline-threshold=2000
-KBUILD_CFLAGS	+= -mllvm -inlinehint-threshold=3000
-KBUILD_CFLAGS	+= -mllvm -unroll-threshold=1200
-ifdef CONFIG_LTO_CLANG_THIN
-KBUILD_CFLAGS += -Wl,-mllvm,-thinlto-inline-threshold=2000
-KBUILD_CFLAGS += -Wl,-mllvm,-loop-unroll-threshold=2000
-KBUILD_CFLAGS += -Wl,-mllvm,-thinlto-jobs=8
-endif
-endif
-
-else ifdef CONFIG_CC_IS_GCC
+KBUILD_CFLAGS 	+= -mllvm -inline-threshold=500
+KBUILD_CFLAGS 	+= -mllvm -unroll-threshold=500
+KBUILD_CFLAGS 	+= -mllvm -enable-machine-outliner
+else
 KBUILD_CFLAGS   += -O3
 KBUILD_AFLAGS   += -O3
 KBUILD_LDFLAGS  += -O3
 
+ifdef CONFIG_INLINE_OPTIMIZATION
+ifdef CONFIG_CC_IS_CLANG
+KBUILD_CFLAGS	+= -mllvm -inline-threshold=2500
+KBUILD_CFLAGS	+= -mllvm -inlinehint-threshold=2000
+KBUILD_CFLAGS	+= -mllvm -unroll-threshold=1200
+else ifdef CONFIG_CC_IS_GCC
 KBUILD_CFLAGS	+= --param max-inline-insns-single=600
 KBUILD_CFLAGS	+= --param max-inline-insns-auto=750
 
@@ -725,6 +719,9 @@ KBUILD_CFLAGS	+= --param large-stack-frame=12288
 
 KBUILD_CFLAGS	+= --param inline-min-speedup=5
 KBUILD_CFLAGS	+= --param inline-unit-growth=60
+endif
+endif
+
 endif
 
 # Tell gcc to never replace conditional load with a non-conditional one
