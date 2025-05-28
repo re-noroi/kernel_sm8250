@@ -597,6 +597,10 @@ static int ptrace_detach(struct task_struct *child, unsigned int data)
 	 * the comment in ptrace_resume().
 	 */
 	child->exit_code = data;
+
+	/* Reset ptrace_message to avoid stale PID leaks */
+	child->ptrace_message = 0;
+
 	__ptrace_detach(current, child);
 	write_unlock_irq(&tasklist_lock);
 
@@ -857,17 +861,9 @@ static int ptrace_resume(struct task_struct *child, long request,
 	}
 
 	/*
-	 * Change ->exit_code and ->state under siglock to avoid the race
-	 * with wait_task_stopped() in between; a non-zero ->exit_code will
-	 * wrongly look like another report from tracee.
-	 *
-	 * Note that we need siglock even if ->exit_code == data and/or this
-	 * status was not reported yet, the new status must not be cleared by
-	 * wait_task_stopped() after resume.
-	 *
-	 * If data == 0 we do not care if wait_task_stopped() reports the old
-	 * status and clears the code too; this can't race with the tracee, it
-	 * takes siglock after resume.
+	 * Change ->exit_code and ->state under siglock to avoid races
+	 * with wait_task_stopped(); a non-zero ->exit_code may look like
+	 * a new report from the tracee.
 	 */
 	need_siglock = data && !thread_group_empty(current);
 	if (need_siglock)
@@ -876,6 +872,9 @@ static int ptrace_resume(struct task_struct *child, long request,
 	wake_up_state(child, __TASK_TRACED);
 	if (need_siglock)
 		spin_unlock_irq(&child->sighand->siglock);
+
+	/* Clear ptrace_message to avoid leaking stale event data (e.g., zygote PID) */
+	child->ptrace_message = 0;
 
 	return 0;
 }
