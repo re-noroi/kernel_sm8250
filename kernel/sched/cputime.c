@@ -19,7 +19,7 @@
  */
 DEFINE_PER_CPU(struct irqtime, cpu_irqtime);
 
-int sched_clock_irqtime;
+int __read_mostly sched_clock_irqtime;
 
 void enable_sched_clock_irqtime(void)
 {
