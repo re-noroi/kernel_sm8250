@@ -4,6 +4,7 @@
 #include <linux/slab.h>
 #include <linux/vmalloc.h>
 #include <linux/zstd.h>
+#include <linux/mm.h>
 
 #include "backend_zstd.h"
 
