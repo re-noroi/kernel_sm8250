@@ -1596,7 +1596,7 @@ static inline void enqueue_task(struct rq *rq, struct task_struct *p, int flags)
 		update_rq_clock(rq);
 
 	if (!(flags & ENQUEUE_RESTORE)) {
-		sched_info_enqueue(rq, p);
+		sched_info_queued(rq, p);
 		psi_enqueue(p, flags & ENQUEUE_WAKEUP);
 	}
 
@@ -1620,7 +1620,7 @@ inline bool dequeue_task(struct rq *rq, struct task_struct *p, int flags)
 		update_rq_clock(rq);
 
 	if (!(flags & DEQUEUE_SAVE)) {
-		sched_info_dequeue(rq, p);
+		sched_info_dequeued(rq, p);
 		psi_dequeue(p, flags & DEQUEUE_SLEEP);
 	}
 
@@ -5442,8 +5442,8 @@ recheck:
 	 * Changing the policy of the stop threads its a very bad idea:
 	 */
 	if (p == rq->stop) {
-		retval = -EINVAL;
-		goto unlock;
+		task_rq_unlock(rq, p, &rf);
+		return -EINVAL;
 	}
 
 	/*
@@ -5463,8 +5463,8 @@ recheck:
 			goto change;
 
 		p->sched_reset_on_fork = reset_on_fork;
-		retval = 0;
-		goto unlock;
+		task_rq_unlock(rq, p, &rf);
+		return 0;
 	}
 change:
 
@@ -5477,8 +5477,8 @@ change:
 		if (rt_bandwidth_enabled() && rt_policy(policy) &&
 				task_group(p)->rt_bandwidth.rt_runtime == 0 &&
 				!task_group_is_autogroup(task_group(p))) {
-			retval = -EPERM;
-			goto unlock;
+			task_rq_unlock(rq, p, &rf);
+			return -EPERM;
 		}
 #endif
 #ifdef CONFIG_SMP
@@ -5493,8 +5493,8 @@ change:
 			 */
 			if (!cpumask_subset(span, &p->cpus_allowed) ||
 			    rq->rd->dl_bw.bw == 0) {
-				retval = -EPERM;
-				goto unlock;
+				task_rq_unlock(rq, p, &rf);
+				return -EPERM;
 			}
 		}
 #endif
@@ -5513,8 +5513,8 @@ change:
 	 * is available.
 	 */
 	if ((dl_policy(policy) || dl_task(p)) && sched_dl_overflow(p, policy, attr)) {
-		retval = -EBUSY;
-		goto unlock;
+		task_rq_unlock(rq, p, &rf);
+		return -EBUSY;
 	}
 
 	p->sched_reset_on_fork = reset_on_fork;
@@ -5581,10 +5581,6 @@ change:
 	preempt_enable();
 
 	return 0;
-
-unlock:
-	task_rq_unlock(rq, p, &rf);
-	return retval;
 }
 
 static int _sched_setscheduler(struct task_struct *p, int policy,
@@ -7287,8 +7283,6 @@ void __init sched_init(void)
 		root_task_group.cfs_rq = (struct cfs_rq **)ptr;
 		ptr += nr_cpu_ids * sizeof(void **);
 
-		root_task_group.shares = ROOT_TASK_GROUP_LOAD;
-		init_cfs_bandwidth(&root_task_group.cfs_bandwidth);
 #endif /* CONFIG_FAIR_GROUP_SCHED */
 #ifdef CONFIG_RT_GROUP_SCHED
 		root_task_group.rt_se = (struct sched_rt_entity **)ptr;
@@ -7340,6 +7334,7 @@ void __init sched_init(void)
 		init_rt_rq(&rq->rt);
 		init_dl_rq(&rq->dl);
 #ifdef CONFIG_FAIR_GROUP_SCHED
+		root_task_group.shares = ROOT_TASK_GROUP_LOAD;
 		INIT_LIST_HEAD(&rq->leaf_cfs_rq_list);
 		rq->tmp_alone_branch = &rq->leaf_cfs_rq_list;
 		/*
@@ -7361,6 +7356,7 @@ void __init sched_init(void)
 		 * We achieve this by letting root_task_group's tasks sit
 		 * directly in rq->cfs (i.e root_task_group->se[] = NULL).
 		 */
+		init_cfs_bandwidth(&root_task_group.cfs_bandwidth);
 		init_tg_cfs_entry(&root_task_group, &rq->cfs, NULL, i, NULL);
 #endif /* CONFIG_FAIR_GROUP_SCHED */
 

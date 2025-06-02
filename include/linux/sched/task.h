@@ -91,11 +91,7 @@ extern void sched_exec(void);
 #define sched_exec()   {}
 #endif
 
-static inline struct task_struct *get_task_struct(struct task_struct *t)
-{
-	atomic_inc(&t->usage);
-	return t;
-}
+#define get_task_struct(tsk) do { atomic_inc(&(tsk)->usage); } while(0)
 
 extern void __put_task_struct(struct task_struct *t);
 
