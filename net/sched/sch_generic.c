@@ -562,7 +562,7 @@ struct Qdisc_ops noop_qdisc_ops __read_mostly = {
 };
 
 static struct netdev_queue noop_netdev_queue = {
-	RCU_POINTER_INITIALIZER(qdisc, &noop_qdisc),
+	.qdisc		=	&noop_qdisc,
 	.qdisc_sleeping	=	&noop_qdisc,
 };
 
