@@ -375,8 +375,12 @@ static __always_inline
 unsigned long apply_dvfs_headroom(int cpu, unsigned long util, unsigned long max_cap)
 {
 	unsigned long headroom = util;
+	int fps;
 	unsigned int refresh_rate = dsi_panel_get_refresh_rate();
-	int fps = msm_panel_fps;
+	if (!refresh_rate)
+		refresh_rate = 60;
+
+	fps = msm_panel_fps ?: 30;
 
 	if (!util || util >= max_cap)
 		return util;
