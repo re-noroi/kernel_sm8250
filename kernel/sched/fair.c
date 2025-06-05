@@ -64,10 +64,10 @@ static unsigned int normalized_sysctl_sched_base_slice	= 2800000ULL;
 const_debug unsigned int sysctl_sched_migration_cost	= 0UL;
 DEFINE_PER_CPU_READ_MOSTLY(int, sched_load_boost);
 
-unsigned int sysctl_fps_threshold_high __read_mostly = 45;
-unsigned int sysctl_fps_threshold_low __read_mostly = 25;
-unsigned int sysctl_headroom_big __read_mostly = 18;
-unsigned int sysctl_util_low __read_mostly = 200;
+unsigned int sysctl_fps_threshold_high __read_mostly = 50;
+unsigned int sysctl_fps_threshold_low __read_mostly = 30;
+unsigned int sysctl_headroom_big __read_mostly = 22;
+unsigned int sysctl_util_low __read_mostly = 180;
 
 int sched_thermal_decay_shift;
 static int __init setup_sched_thermal_decay_shift(char *str)
