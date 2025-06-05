@@ -390,6 +390,7 @@ unsigned long apply_dvfs_headroom(int cpu, unsigned long util, unsigned long max
 	else
 		headroom = calculate_headroom_low(headroom, cpu, util, fps);
 
+	headroom = min(headroom, max_cap);
 	return headroom;
 }
 
