@@ -3135,6 +3135,11 @@ bool cpus_share_cache(int this_cpu, int that_cpu)
 #if SCHED_FEAT_TTWU_QUEUE
 static inline bool ttwu_queue_cond(int cpu, int wake_flags)
 {
+#ifdef CONFIG_SMP
+	if (p->sched_class == &stop_sched_class)
+		return false;
+#endif
+
 	/*
 	 * If the CPU does not share cache, then queue the task on the
 	 * remote rqs wakelist to avoid accessing remote data.
