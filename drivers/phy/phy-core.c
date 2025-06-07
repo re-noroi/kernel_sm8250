@@ -364,13 +364,14 @@ EXPORT_SYMBOL_GPL(phy_power_off);
 
 int phy_set_mode(struct phy *phy, enum phy_mode mode)
 {
-	int ret;
+	int ret = 0;
 
-	if (!phy || !phy->ops->set_mode)
+	if (!phy)
 		return 0;
 
 	mutex_lock(&phy->mutex);
-	ret = phy->ops->set_mode(phy, mode);
+	if (phy->ops->set_mode)
+		ret = phy->ops->set_mode(phy, mode);
 	if (!ret)
 		phy->attrs.mode = mode;
 	mutex_unlock(&phy->mutex);
