@@ -176,6 +176,11 @@ struct hfsc_sched {
 
 #define	HT_INFINITY	0xffffffffffffffffULL	/* infinite time value */
 
+static bool cl_in_el_or_vttree(struct hfsc_class *cl)
+{
+	return ((cl->cl_flags & HFSC_FSC) && cl->cl_nactive) ||
+		((cl->cl_flags & HFSC_RSC) && !RB_EMPTY_NODE(&cl->el_node));
+}
 
 /*
  * eligible tree holds backlogged classes being sorted by their eligible times.
@@ -1047,6 +1052,8 @@ hfsc_change_class(struct Qdisc *sch, u32 classid, u32 parentid,
 	if (cl == NULL)
 		return -ENOBUFS;
 
+	RB_CLEAR_NODE(&cl->el_node);
+
 	err = tcf_block_get(&cl->block, &cl->filter_list, sch, extack);
 	if (err) {
 		kfree(cl);
@@ -1560,6 +1567,7 @@ hfsc_enqueue(struct sk_buff *skb, struct Qdisc *sch, struct sk_buff **to_free)
 {
 	struct hfsc_class *cl;
 	int uninitialized_var(err);
+	bool first;
 
 	cl = hfsc_classify(skb, sch, &err);
 	if (cl == NULL) {
@@ -1569,6 +1577,7 @@ hfsc_enqueue(struct sk_buff *skb, struct Qdisc *sch, struct sk_buff **to_free)
 		return err;
 	}
 
+	first = !cl->qdisc->q.qlen;
 	err = qdisc_enqueue(skb, cl->qdisc, to_free);
 	if (unlikely(err != NET_XMIT_SUCCESS)) {
 		if (net_xmit_drop_count(err)) {
@@ -1578,7 +1587,10 @@ hfsc_enqueue(struct sk_buff *skb, struct Qdisc *sch, struct sk_buff **to_free)
 		return err;
 	}
 
-	if (cl->qdisc->q.qlen == 1) {
+	qdisc_qstats_backlog_inc(sch, skb);
+	sch->q.qlen++;
+
+	if (first && !cl_in_el_or_vttree(cl)) {
 		unsigned int len = qdisc_pkt_len(skb);
 
 		if (cl->cl_flags & HFSC_RSC)
@@ -1594,9 +1606,6 @@ hfsc_enqueue(struct sk_buff *skb, struct Qdisc *sch, struct sk_buff **to_free)
 			cl->qdisc->ops->peek(cl->qdisc);
 
 	}
-
-	qdisc_qstats_backlog_inc(sch, skb);
-	sch->q.qlen++;
 
 	return NET_XMIT_SUCCESS;
 }
