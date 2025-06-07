@@ -4,10 +4,15 @@ if [ `id -u` -ne 0 ]; then
 	echo "$0: must be root to install the selinux policy"
 	exit 1
 fi
-SF=`which setfiles` || {
-	echo "no selinux tools installed: setfiles"
-	exit 1
-}
+SF=`which setfiles`
+if [ $? -eq 1 ]; then
+	if [ -f /sbin/setfiles ]; then
+		SF="/usr/setfiles"
+	else
+		echo "no selinux tools installed: setfiles"
+		exit 1
+	fi
+fi
 
 cd mdp
 

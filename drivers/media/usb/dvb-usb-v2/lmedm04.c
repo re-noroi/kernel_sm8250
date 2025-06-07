@@ -413,7 +413,7 @@ static int lme2510_int_read(struct dvb_usb_adapter *adap)
 	struct usb_host_endpoint *ep;
 	int ret;
 
-	lme_int->lme_urb = usb_alloc_urb(0, GFP_KERNEL);
+	lme_int->lme_urb = usb_alloc_urb(0, GFP_ATOMIC);
 
 	if (lme_int->lme_urb == NULL)
 			return -ENOMEM;
@@ -445,7 +445,7 @@ static int lme2510_int_read(struct dvb_usb_adapter *adap)
 
 	lme_int->lme_urb->transfer_flags |= URB_NO_TRANSFER_DMA_MAP;
 
-	ret = usb_submit_urb(lme_int->lme_urb, GFP_KERNEL);
+	ret = usb_submit_urb(lme_int->lme_urb, GFP_ATOMIC);
 	if (ret) {
 		usb_free_urb(lme_int->lme_urb);
 		return ret;

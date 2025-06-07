@@ -502,8 +502,7 @@ in_ea:
 	.section .fixup,"ax"
 	.even
 1:
-	jbsr	fpsp040_die
-	jbra	.Lnotkern
+	jbra	fpsp040_die
 
 	.section __ex_table,"a"
 	.align	4
