@@ -348,10 +348,7 @@ static int ima_eventname_init_common(struct ima_event_data *event_data,
 				     bool size_limit)
 {
 	const char *cur_filename = NULL;
-	struct name_snapshot filename;
 	u32 cur_filename_len = 0;
-	bool snapshot = false;
-	int ret;
 
 	BUG_ON(event_data->filename == NULL && event_data->file == NULL);
 
@@ -364,10 +361,7 @@ static int ima_eventname_init_common(struct ima_event_data *event_data,
 	}
 
 	if (event_data->file) {
-		take_dentry_name_snapshot(&filename,
-					  event_data->file->f_path.dentry);
-		snapshot = true;
-		cur_filename = filename.name.name;
+		cur_filename = event_data->file->f_path.dentry->d_name.name;
 		cur_filename_len = strlen(cur_filename);
 	} else
 		/*
@@ -376,13 +370,8 @@ static int ima_eventname_init_common(struct ima_event_data *event_data,
 		 */
 		cur_filename_len = IMA_EVENT_NAME_LEN_MAX;
 out:
-	ret = ima_write_template_field_data(cur_filename, cur_filename_len,
-					    DATA_FMT_STRING, field_data);
-
-	if (snapshot)
-		release_dentry_name_snapshot(&filename);
-
-	return ret;
+	return ima_write_template_field_data(cur_filename, cur_filename_len,
+					     DATA_FMT_STRING, field_data);
 }
 
 /*

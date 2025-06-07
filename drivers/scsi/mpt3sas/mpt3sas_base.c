@@ -5206,14 +5206,13 @@ _base_handshake_req_reply_wait(struct MPT3SAS_ADAPTER *ioc, int request_bytes,
 	int i;
 	u8 failed;
 	__le32 *mfp;
-	int ret_val;
 
 	/* make sure doorbell is not in use */
 	if ((readl(&ioc->chip->Doorbell) & MPI2_DOORBELL_USED)) {
 		pr_err(MPT3SAS_FMT
 			"doorbell is in use (line=%d)\n",
 			ioc->name, __LINE__);
-		goto doorbell_diag_reset;
+		return -EFAULT;
 	}
 
 	/* clear pending doorbell interrupts from previous state changes */
@@ -5307,10 +5306,6 @@ _base_handshake_req_reply_wait(struct MPT3SAS_ADAPTER *ioc, int request_bytes,
 			    le32_to_cpu(mfp[i]));
 	}
 	return 0;
-
-doorbell_diag_reset:
-	ret_val = _base_diag_reset(ioc);
-	return ret_val;
 }
 
 /**
