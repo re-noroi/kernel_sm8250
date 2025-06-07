@@ -99,57 +99,6 @@ static pud_t level3_user_vsyscall[PTRS_PER_PUD] __page_aligned_bss;
 #endif /* CONFIG_X86_64 */
 
 /*
- * Protects atomic reservation decrease/increase against concurrent increases.
- * Also protects non-atomic updates of current_pages and balloon lists.
- */
-DEFINE_SPINLOCK(xen_reservation_lock);
-
-/* Protected by xen_reservation_lock. */
-#define MIN_CONTIG_ORDER 9 /* 2MB */
-static unsigned int discontig_frames_order = MIN_CONTIG_ORDER;
-static unsigned long discontig_frames_early[1UL << MIN_CONTIG_ORDER] __initdata;
-static unsigned long *discontig_frames __refdata = discontig_frames_early;
-static bool discontig_frames_dyn;
-
-static int alloc_discontig_frames(unsigned int order)
-{
-	unsigned long *new_array, *old_array;
-	unsigned int old_order;
-	unsigned long flags;
-
-	BUG_ON(order < MIN_CONTIG_ORDER);
-	BUILD_BUG_ON(sizeof(discontig_frames_early) != PAGE_SIZE);
-
-	new_array = (unsigned long *)__get_free_pages(GFP_KERNEL,
-						      order - MIN_CONTIG_ORDER);
-	if (!new_array)
-		return -ENOMEM;
-
-	spin_lock_irqsave(&xen_reservation_lock, flags);
-
-	old_order = discontig_frames_order;
-
-	if (order > discontig_frames_order || !discontig_frames_dyn) {
-		if (!discontig_frames_dyn)
-			old_array = NULL;
-		else
-			old_array = discontig_frames;
-
-		discontig_frames = new_array;
-		discontig_frames_order = order;
-		discontig_frames_dyn = true;
-	} else {
-		old_array = new_array;
-	}
-
-	spin_unlock_irqrestore(&xen_reservation_lock, flags);
-
-	free_pages((unsigned long)old_array, old_order - MIN_CONTIG_ORDER);
-
-	return 0;
-}
-
-/*
  * Note about cr3 (pagetable base) values:
  *
  * xen_cr3 contains the current logical cr3 value; it contains the
@@ -919,9 +868,6 @@ static void __init xen_after_bootmem(void)
 	SetPagePinned(virt_to_page(level3_user_vsyscall));
 #endif
 	xen_pgd_walk(&init_mm, xen_mark_pinned, FIXADDR_TOP);
-
-	if (alloc_discontig_frames(MIN_CONTIG_ORDER))
-		BUG();
 }
 
 static int xen_unpin_page(struct mm_struct *mm, struct page *page,
@@ -2529,6 +2475,10 @@ void __init xen_init_mmu_ops(void)
 	memset(dummy_mapping, 0xff, PAGE_SIZE);
 }
 
+/* Protected by xen_reservation_lock. */
+#define MAX_CONTIG_ORDER 9 /* 2MB */
+static unsigned long discontig_frames[1<<MAX_CONTIG_ORDER];
+
 #define VOID_PTE (mfn_pte(0, __pgprot(0)))
 static void xen_zap_pfn_range(unsigned long vaddr, unsigned int order,
 				unsigned long *in_frames,
@@ -2645,24 +2595,17 @@ int xen_create_contiguous_region(phys_addr_t pstart, unsigned int order,
 				 unsigned int address_bits,
 				 dma_addr_t *dma_handle)
 {
-	unsigned long *in_frames, out_frame;
+	unsigned long *in_frames = discontig_frames, out_frame;
 	unsigned long  flags;
 	int            success;
 	unsigned long vstart = (unsigned long)phys_to_virt(pstart);
 
-	if (unlikely(order > discontig_frames_order)) {
-		if (!discontig_frames_dyn)
-			return -ENOMEM;
-
-		if (alloc_discontig_frames(order))
-			return -ENOMEM;
-	}
+	if (unlikely(order > MAX_CONTIG_ORDER))
+		return -ENOMEM;
 
 	memset((void *) vstart, 0, PAGE_SIZE << order);
 
 	spin_lock_irqsave(&xen_reservation_lock, flags);
-
-	in_frames = discontig_frames;
 
 	/* 1. Zap current PTEs, remembering MFNs. */
 	xen_zap_pfn_range(vstart, order, in_frames, NULL);
@@ -2688,20 +2631,18 @@ EXPORT_SYMBOL_GPL(xen_create_contiguous_region);
 
 void xen_destroy_contiguous_region(phys_addr_t pstart, unsigned int order)
 {
-	unsigned long *out_frames, in_frame;
+	unsigned long *out_frames = discontig_frames, in_frame;
 	unsigned long  flags;
 	int success;
 	unsigned long vstart;
 
-	if (unlikely(order > discontig_frames_order))
+	if (unlikely(order > MAX_CONTIG_ORDER))
 		return;
 
 	vstart = (unsigned long)phys_to_virt(pstart);
 	memset((void *) vstart, 0, PAGE_SIZE << order);
 
 	spin_lock_irqsave(&xen_reservation_lock, flags);
-
-	out_frames = discontig_frames;
 
 	/* 1. Find start MFN of contiguous extent. */
 	in_frame = virt_to_mfn(vstart);
@@ -2722,138 +2663,6 @@ void xen_destroy_contiguous_region(phys_addr_t pstart, unsigned int order)
 	spin_unlock_irqrestore(&xen_reservation_lock, flags);
 }
 EXPORT_SYMBOL_GPL(xen_destroy_contiguous_region);
-
-static noinline void xen_flush_tlb_all(void)
-{
-	struct mmuext_op *op;
-	struct multicall_space mcs;
-
-	preempt_disable();
-
-	mcs = xen_mc_entry(sizeof(*op));
-
-	op = mcs.args;
-	op->cmd = MMUEXT_TLB_FLUSH_ALL;
-	MULTI_mmuext_op(mcs.mc, op, 1, NULL, DOMID_SELF);
-
-	xen_mc_issue(PARAVIRT_LAZY_MMU);
-
-	preempt_enable();
-}
-
-#define REMAP_BATCH_SIZE 16
-
-struct remap_data {
-	xen_pfn_t *pfn;
-	bool contiguous;
-	bool no_translate;
-	pgprot_t prot;
-	struct mmu_update *mmu_update;
-};
-
-static int remap_area_pfn_pte_fn(pte_t *ptep, pgtable_t token,
-				 unsigned long addr, void *data)
-{
-	struct remap_data *rmd = data;
-	pte_t pte = pte_mkspecial(mfn_pte(*rmd->pfn, rmd->prot));
-
-	/*
-	 * If we have a contiguous range, just update the pfn itself,
-	 * else update pointer to be "next pfn".
-	 */
-	if (rmd->contiguous)
-		(*rmd->pfn)++;
-	else
-		rmd->pfn++;
-
-	rmd->mmu_update->ptr = virt_to_machine(ptep).maddr;
-	rmd->mmu_update->ptr |= rmd->no_translate ?
-		MMU_PT_UPDATE_NO_TRANSLATE :
-		MMU_NORMAL_PT_UPDATE;
-	rmd->mmu_update->val = pte_val_ma(pte);
-	rmd->mmu_update++;
-
-	return 0;
-}
-
-int xen_remap_pfn(struct vm_area_struct *vma, unsigned long addr,
-		  xen_pfn_t *pfn, int nr, int *err_ptr, pgprot_t prot,
-		  unsigned int domid, bool no_translate, struct page **pages)
-{
-	int err = 0;
-	struct remap_data rmd;
-	struct mmu_update mmu_update[REMAP_BATCH_SIZE];
-	unsigned long range;
-	int mapped = 0;
-
-	BUG_ON(!((vma->vm_flags & (VM_PFNMAP | VM_IO)) == (VM_PFNMAP | VM_IO)));
-
-	rmd.pfn = pfn;
-	rmd.prot = prot;
-	/*
-	 * We use the err_ptr to indicate if there we are doing a contiguous
-	 * mapping or a discontigious mapping.
-	 */
-	rmd.contiguous = !err_ptr;
-	rmd.no_translate = no_translate;
-
-	while (nr) {
-		int index = 0;
-		int done = 0;
-		int batch = min(REMAP_BATCH_SIZE, nr);
-		int batch_left = batch;
-
-		range = (unsigned long)batch << PAGE_SHIFT;
-
-		rmd.mmu_update = mmu_update;
-		err = apply_to_page_range(vma->vm_mm, addr, range,
-					  remap_area_pfn_pte_fn, &rmd);
-		if (err)
-			goto out;
-
-		/*
-		 * We record the error for each page that gives an error, but
-		 * continue mapping until the whole set is done
-		 */
-		do {
-			int i;
-
-			err = HYPERVISOR_mmu_update(&mmu_update[index],
-						    batch_left, &done, domid);
-
-			/*
-			 * @err_ptr may be the same buffer as @gfn, so
-			 * only clear it after each chunk of @gfn is
-			 * used.
-			 */
-			if (err_ptr) {
-				for (i = index; i < index + done; i++)
-					err_ptr[i] = 0;
-			}
-			if (err < 0) {
-				if (!err_ptr)
-					goto out;
-				err_ptr[i] = err;
-				done++; /* Skip failed frame. */
-			} else
-				mapped += done;
-			batch_left -= done;
-			index += done;
-		} while (batch_left);
-
-		nr -= batch;
-		addr += range;
-		if (err_ptr)
-			err_ptr += batch;
-		cond_resched();
-	}
-out:
-
-	xen_flush_tlb_all();
-
-	return err < 0 ? err : mapped;
-}
-EXPORT_SYMBOL_GPL(xen_remap_pfn);
 
 #ifdef CONFIG_KEXEC_CORE
 phys_addr_t paddr_vmcoreinfo_note(void)
