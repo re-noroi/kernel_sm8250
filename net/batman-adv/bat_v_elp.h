@@ -22,6 +22,7 @@
 #include "main.h"
 
 struct sk_buff;
+struct work_struct;
 
 int batadv_v_elp_iface_enable(struct batadv_hard_iface *hard_iface);
 void batadv_v_elp_iface_disable(struct batadv_hard_iface *hard_iface);

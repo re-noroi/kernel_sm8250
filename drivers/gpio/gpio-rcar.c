@@ -409,15 +409,10 @@ static int gpio_rcar_parse_dt(struct gpio_rcar_priv *p, unsigned int *npins)
 	int ret;
 
 	info = of_device_get_match_data(&p->pdev->dev);
-	p->has_both_edge_trigger = info->has_both_edge_trigger;
 
 	ret = of_parse_phandle_with_fixed_args(np, "gpio-ranges", 3, 0, &args);
-	if (ret) {
-		*npins = RCAR_MAX_GPIO_PER_BANK;
-	} else {
-		*npins = args.args[2];
-		of_node_put(args.np);
-	}
+	*npins = ret == 0 ? args.args[2] : RCAR_MAX_GPIO_PER_BANK;
+	p->has_both_edge_trigger = info->has_both_edge_trigger;
 
 	if (*npins == 0 || *npins > RCAR_MAX_GPIO_PER_BANK) {
 		dev_warn(&p->pdev->dev,

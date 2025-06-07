@@ -58,11 +58,8 @@ static void __init setup_default_timer_irq(void)
 /* Default timer init function */
 void __init hpet_time_init(void)
 {
-	if (!hpet_enable()) {
-		if (!pit_timer_init())
-			return;
-	}
-
+	if (!hpet_enable())
+		setup_pit_timer();
 	setup_default_timer_irq();
 }
 

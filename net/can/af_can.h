@@ -81,9 +81,9 @@ struct can_dev_rcv_lists {
 struct s_stats {
 	unsigned long jiffies_init;
 
-	atomic_long_t rx_frames;
-	atomic_long_t tx_frames;
-	atomic_long_t matches;
+	unsigned long rx_frames;
+	unsigned long tx_frames;
+	unsigned long matches;
 
 	unsigned long total_rx_rate;
 	unsigned long total_tx_rate;
@@ -97,9 +97,9 @@ struct s_stats {
 	unsigned long max_tx_rate;
 	unsigned long max_rx_match_ratio;
 
-	atomic_long_t rx_frames_delta;
-	atomic_long_t tx_frames_delta;
-	atomic_long_t matches_delta;
+	unsigned long rx_frames_delta;
+	unsigned long tx_frames_delta;
+	unsigned long matches_delta;
 };
 
 /* persistent statistics */

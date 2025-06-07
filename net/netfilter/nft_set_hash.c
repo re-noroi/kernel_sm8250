@@ -319,17 +319,16 @@ static void nft_rhash_gc(struct work_struct *work)
 	if (!gc)
 		goto done;
 
+	/* Elements never collected use a zero gc worker sequence number. */
+	if (unlikely(++priv->wq_gc_seq == 0))
+		priv->wq_gc_seq++;
+
 	err = rhashtable_walk_init(&priv->ht, &hti, GFP_KERNEL);
 	if (err) {
 		nft_trans_gc_destroy(gc);
 		goto done;
 	}
 
-	/* Elements never collected use a zero gc worker sequence number. */
-	if (unlikely(++priv->wq_gc_seq == 0))
-		priv->wq_gc_seq++;
-
-	rhashtable_walk_enter(&priv->ht, &hti);
 	rhashtable_walk_start(&hti);
 
 	while ((he = rhashtable_walk_next(&hti))) {

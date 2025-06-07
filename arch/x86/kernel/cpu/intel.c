@@ -953,7 +953,7 @@ static void intel_tlb_lookup(const unsigned char desc)
 			tlb_lld_2m[ENTRIES] = TLB_0x63_2M_4M_ENTRIES;
 		if (tlb_lld_4m[ENTRIES] < TLB_0x63_2M_4M_ENTRIES)
 			tlb_lld_4m[ENTRIES] = TLB_0x63_2M_4M_ENTRIES;
-		fallthrough;
+		/* fallthrough */
 	case TLB_DATA_1G:
 		if (tlb_lld_1g[ENTRIES] < intel_tlb_table[k].entries)
 			tlb_lld_1g[ENTRIES] = intel_tlb_table[k].entries;
