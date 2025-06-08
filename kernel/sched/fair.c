@@ -6410,11 +6410,6 @@ static bool dequeue_task_fair(struct rq *rq, struct task_struct *p, int flags)
 
 #ifdef CONFIG_SMP
 
-static inline unsigned int cfs_h_nr_delayed(struct rq *rq)
-{
-	return (rq->cfs.h_nr_running - rq->cfs.h_nr_runnable);
-}
-
 /* Working cpumask for: load_balance, load_balance_newidle. */
 DEFINE_PER_CPU(cpumask_var_t, load_balance_mask);
 DEFINE_PER_CPU(cpumask_var_t, select_idle_mask);
@@ -8499,7 +8494,7 @@ static void yield_task_fair(struct rq *rq)
 	/*
 	 * Are we the only task in the tree?
 	 */
-	if (unlikely(rq->nr_running == 1))
+	if (unlikely((rq->nr_running - cfs_h_nr_delayed(rq)) == 1))
 		return;
 
 	clear_buddies(cfs_rq, se);
