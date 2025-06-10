@@ -938,13 +938,19 @@ static inline void sched_cpufreq_governor_change(struct cpufreq_policy *policy,
 extern void arch_freq_prepare_all(void);
 extern unsigned int arch_freq_get_on_cpu(int cpu);
 
+#ifndef arch_set_min_freq_scale
+static __always_inline
+void arch_set_min_freq_scale(const struct cpumask *cpus,
+			     unsigned long min_freq,
+			     unsigned long max_freq)
+{
+}
+#endif
+
 extern void arch_set_freq_scale(struct cpumask *cpus, unsigned long cur_freq,
 				unsigned long max_freq);
 extern void arch_set_max_freq_scale(struct cpumask *cpus,
 				    unsigned long policy_max_freq);
-extern void arch_set_min_freq_scale(const struct cpumask *cpus,
-				    unsigned long min_freq,
-				    unsigned long max_freq);
 
 extern void arch_set_max_thermal_scale(struct cpumask *cpus,
 					unsigned long max_thermal_freq);
