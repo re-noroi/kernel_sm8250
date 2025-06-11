@@ -291,7 +291,6 @@ config GRACE_PERIOD
 config LOCKD
 	tristate
 	depends on FILE_LOCKING
-	select CRC32
 	select GRACE_PERIOD
 
 config LOCKD_V4
