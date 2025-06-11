@@ -20,7 +20,7 @@ static void init_codecs(struct venus_core *core)
 	unsigned long bit;
 
 	core->codecs_count = 0;
-
+	
 	if (hweight_long(core->dec_codecs) +
 		hweight_long(core->enc_codecs) > MAX_CODEC_NUM)
 		return;

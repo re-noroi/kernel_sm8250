@@ -393,9 +393,6 @@ static int r852_wait(struct mtd_info *mtd, struct nand_chip *chip)
 static int r852_ready(struct mtd_info *mtd)
 {
 	struct r852_device *dev = r852_get_dev(mtd);
-	if (dev->card_unstable)
-		return 0;
-
 	return !(r852_read_reg(dev, R852_CARD_STA) & R852_CARD_STA_BUSY);
 }
 
