@@ -22,10 +22,10 @@
 #include <crypto/internal/skcipher.h>
 #include <linux/init.h>
 #include <linux/module.h>
-#include <linux/spinlock.h>
+#include <linux/mm.h>
 #include <linux/string.h>
 
-static DEFINE_SPINLOCK(crypto_default_null_skcipher_lock);
+static DEFINE_MUTEX(crypto_default_null_skcipher_lock);
 static struct crypto_sync_skcipher *crypto_default_null_skcipher;
 static int crypto_default_null_skcipher_refcnt;
 
@@ -154,32 +154,23 @@ MODULE_ALIAS_CRYPTO("cipher_null");
 
 struct crypto_sync_skcipher *crypto_get_default_null_skcipher(void)
 {
-	struct crypto_sync_skcipher *ntfm = NULL;
 	struct crypto_sync_skcipher *tfm;
 
-	spin_lock_bh(&crypto_default_null_skcipher_lock);
+	mutex_lock(&crypto_default_null_skcipher_lock);
 	tfm = crypto_default_null_skcipher;
 
 	if (!tfm) {
-		spin_unlock_bh(&crypto_default_null_skcipher_lock);
+		tfm = crypto_alloc_sync_skcipher("ecb(cipher_null)", 0, 0);
+		if (IS_ERR(tfm))
+			goto unlock;
 
-		ntfm = crypto_alloc_sync_skcipher("ecb(cipher_null)", 0, 0);
-		if (IS_ERR(ntfm))
-			return ntfm;
-
-		spin_lock_bh(&crypto_default_null_skcipher_lock);
-		tfm = crypto_default_null_skcipher;
-		if (!tfm) {
-			tfm = ntfm;
-			ntfm = NULL;
-			crypto_default_null_skcipher = tfm;
-		}
+		crypto_default_null_skcipher = tfm;
 	}
 
 	crypto_default_null_skcipher_refcnt++;
-	spin_unlock_bh(&crypto_default_null_skcipher_lock);
 
-	crypto_free_sync_skcipher(ntfm);
+unlock:
+	mutex_unlock(&crypto_default_null_skcipher_lock);
 
 	return tfm;
 }
@@ -187,16 +178,12 @@ EXPORT_SYMBOL_GPL(crypto_get_default_null_skcipher);
 
 void crypto_put_default_null_skcipher(void)
 {
-	struct crypto_sync_skcipher *tfm = NULL;
-
-	spin_lock_bh(&crypto_default_null_skcipher_lock);
+	mutex_lock(&crypto_default_null_skcipher_lock);
 	if (!--crypto_default_null_skcipher_refcnt) {
-		tfm = crypto_default_null_skcipher;
+		crypto_free_sync_skcipher(crypto_default_null_skcipher);
 		crypto_default_null_skcipher = NULL;
 	}
-	spin_unlock_bh(&crypto_default_null_skcipher_lock);
-
-	crypto_free_sync_skcipher(tfm);
+	mutex_unlock(&crypto_default_null_skcipher_lock);
 }
 EXPORT_SYMBOL_GPL(crypto_put_default_null_skcipher);
 
