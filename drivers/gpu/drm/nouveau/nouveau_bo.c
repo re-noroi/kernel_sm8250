@@ -140,10 +140,6 @@ nouveau_bo_del_ttm(struct ttm_buffer_object *bo)
 		DRM_ERROR("bo %p still attached to GEM object\n", bo);
 	WARN_ON(nvbo->pin_refcnt > 0);
 	nv10_bo_put_tile_region(dev, nvbo->tile, NULL);
-
-	if (bo->base.import_attach)
-		drm_prime_gem_destroy(&bo->base, bo->sg);
-
 	kfree(nvbo);
 }
 
