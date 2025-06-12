@@ -206,11 +206,6 @@ struct qfq_sched {
  */
 enum update_reason {enqueue, requeue};
 
-static bool cl_is_active(struct qfq_class *cl)
-{
-	return !list_empty(&cl->alist);
-}
-
 static struct qfq_class *qfq_find_class(struct Qdisc *sch, u32 classid)
 {
 	struct qfq_sched *q = qdisc_priv(sch);
@@ -1271,8 +1266,8 @@ static int qfq_enqueue(struct sk_buff *skb, struct Qdisc *sch,
 	++sch->q.qlen;
 
 	agg = cl->agg;
-	/* if the class is active, then done here */
-	if (cl_is_active(cl)) {
+	/* if the queue was not empty, then done here */
+	if (cl->qdisc->q.qlen != 1) {
 		if (unlikely(skb == cl->qdisc->ops->peek(cl->qdisc)) &&
 		    list_first_entry(&agg->active, struct qfq_class, alist)
 		    == cl && cl->deficit < qdisc_pkt_len(skb))
