@@ -917,23 +917,32 @@ struct sched_entity *__pick_first_entity(struct cfs_rq *cfs_rq)
 }
 
 /*
- * HACK, stash a copy of deadline at the point of pick in vlag,
- * which isn't used until dequeue.
+ * HACK, Set the vruntime, up to which the entity can run before picking
+ * another one, in vlag, which isn't used until dequeue.
+ * In case of run to parity, we use the shortest slice of the enqueued
+ * entities.
  */
 static inline void set_protect_slice(struct sched_entity *se)
 {
-	se->vlag = se->deadline;
+	u64 min_slice;
+
+	min_slice = cfs_rq_min_slice(cfs_rq_of(se));
+
+	if (min_slice != se->slice)
+		se->vlag = min(se->deadline, se->vruntime + calc_delta_fair(min_slice, se));
+	else
+		se->vlag = se->deadline;
 }
 
 static inline bool protect_slice(struct sched_entity *se)
 {
-	return se->vlag == se->deadline;
+	return ((s64)(se->vlag - se->vruntime) > 0);
 }
 
 static inline void cancel_protect_slice(struct sched_entity *se)
 {
 	if (protect_slice(se))
-		se->vlag = se->deadline + 1;
+		se->vlag = se->vruntime;
 }
 
 /*
