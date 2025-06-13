@@ -336,26 +336,25 @@ unsigned long schedutil_cpu_util(int cpu, unsigned long util_cfs,
 	return min(scale, util);
 }
 
+static const unsigned long factor[8] = { [0 ... 7] = 1280 - SCHED_CAPACITY_SCALE };
+
 static inline unsigned long apply_dvfs_headroom(unsigned long util, int cpu)
 {
-        unsigned int sched_dvfs_headroom[8] = { [0 ... 7] = 1280 };
-        unsigned long capacity = capacity_orig_of(cpu);
-        unsigned long headroom;
+	unsigned long capacity = capacity_orig_of(cpu);
+	unsigned long delta;
+	unsigned long headroom;
 
-        if (util >= capacity)
-                return util;
+	if (util >= capacity)
+		return util;
 
-        /*
-         * Taper the boosting at e top end as these are expensive and
-         * we don't need that much of a big headroom as we approach max
-         * capacity
-         *
-         */
-        headroom = (capacity - util);
-        /* formula: headroom * (1.X - 1) == headroom * 0.X */
-        headroom = headroom *
-                (sched_dvfs_headroom[cpu] - SCHED_CAPACITY_SCALE) >> SCHED_CAPACITY_SHIFT;
-        return util + headroom;
+	/*
+	 * Quadratic taper the boosting at the top end as these are expensive and
+	 * we don't need that much of a big headroom as we approach max capacity
+	 */
+	delta = capacity - util;
+	headroom = (delta * delta * factor[cpu]) >> (SCHED_CAPACITY_SHIFT + 10);
+
+	return util + headroom;
 }
 
 unsigned long sugov_effective_cpu_perf(int cpu, unsigned long actual,
