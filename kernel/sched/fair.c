@@ -931,7 +931,7 @@ static inline void set_protect_slice(struct sched_entity *se)
 	if (sched_feat(RUN_TO_PARITY))
 		quantum = cfs_rq_min_slice(cfs_rq_of(se));
 	else
-		quantum = min(se->slice, normalized_sysctl_sched_base_slice);
+		quantum = min(se->slice,(u64)normalized_sysctl_sched_base_slice);
 
 	if (quantum != se->slice)
 		se->vlag = min(se->deadline, se->vruntime + calc_delta_fair(quantum, se));
