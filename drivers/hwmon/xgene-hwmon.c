@@ -122,7 +122,7 @@ struct xgene_hwmon_dev {
 
 	phys_addr_t		comm_base_addr;
 	void			*pcc_comm_addr;
-	unsigned int		usecs_lat;
+	u64			usecs_lat;
 };
 
 /*
