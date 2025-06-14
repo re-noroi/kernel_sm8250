@@ -16,7 +16,7 @@
 
 #include <linux/kernel.h>
 #include <linux/wait.h>
-#include <linux/mutex.h>
+#include <linux/spinlock_types.h>
 #include <linux/device.h>
 #include <linux/cdev.h>
 #include <linux/init.h>
@@ -136,9 +136,9 @@ struct axis_fifo {
 	int has_tx_fifo; /* whether the IP has the tx fifo enabled */
 
 	wait_queue_head_t read_queue; /* wait queue for asynchronos read */
-	struct mutex read_lock; /* lock for reading */
+	spinlock_t read_queue_lock; /* lock for reading waitqueue */
 	wait_queue_head_t write_queue; /* wait queue for asynchronos write */
-	struct mutex write_lock; /* lock for writing */
+	spinlock_t write_queue_lock; /* lock for writing waitqueue */
 	unsigned int write_flags; /* write file flags */
 	unsigned int read_flags; /* read file flags */
 
@@ -339,21 +339,7 @@ static void reset_ip_core(struct axis_fifo *fifo)
 	iowrite32(XLLF_INT_ALL_MASK, fifo->base_addr + XLLF_ISR_OFFSET);
 }
 
-/**
- * axis_fifo_write() - Read a packet from AXIS-FIFO character device.
- * @f Open file.
- * @buf User space buffer to read to.
- * @len User space buffer length.
- * @off Buffer offset.
- *
- * As defined by the device's documentation, we need to check the device's
- * occupancy before reading the length register and then the data. All these
- * operations must be executed atomically, in order and one after the other
- * without missing any.
- *
- * Returns the number of bytes read from the device or negative error code
- *	on failure.
- */
+/* reads a single packet from the fifo as dictated by the tlast signal */
 static ssize_t axis_fifo_read(struct file *f, char __user *buf,
 			      size_t len, loff_t *off)
 {
@@ -367,61 +353,60 @@ static ssize_t axis_fifo_read(struct file *f, char __user *buf,
 	u32 tmp_buf[READ_BUF_SIZE];
 
 	if (fifo->read_flags & O_NONBLOCK) {
-		/*
-		 * Device opened in non-blocking mode. Try to lock it and then
-		 * check if any packet is available.
+		/* opened in non-blocking mode
+		 * return if there are no packets available
 		 */
-		if (!mutex_trylock(&fifo->read_lock))
+		if (!ioread32(fifo->base_addr + XLLF_RDFO_OFFSET))
 			return -EAGAIN;
-
-		if (!ioread32(fifo->base_addr + XLLF_RDFO_OFFSET)) {
-			ret = -EAGAIN;
-			goto end_unlock;
-		}
 	} else {
 		/* opened in blocking mode
 		 * wait for a packet available interrupt (or timeout)
 		 * if nothing is currently available
 		 */
-		mutex_lock(&fifo->read_lock);
-		ret = wait_event_interruptible_timeout(fifo->read_queue,
+		spin_lock_irq(&fifo->read_queue_lock);
+		ret = wait_event_interruptible_lock_irq_timeout(
+			fifo->read_queue,
 			ioread32(fifo->base_addr + XLLF_RDFO_OFFSET),
+			fifo->read_queue_lock,
 			(read_timeout >= 0) ? msecs_to_jiffies(read_timeout) :
 				MAX_SCHEDULE_TIMEOUT);
+		spin_unlock_irq(&fifo->read_queue_lock);
 
-		if (ret <= 0) {
-			if (ret == 0) {
-				ret = -EAGAIN;
-			} else if (ret != -ERESTARTSYS) {
-				dev_err(fifo->dt_device, "wait_event_interruptible_timeout() error in read (ret=%i)\n",
-					ret);
-			}
-
-			goto end_unlock;
+		if (ret == 0) {
+			/* timeout occurred */
+			dev_dbg(fifo->dt_device, "read timeout");
+			return -EAGAIN;
+		} else if (ret == -ERESTARTSYS) {
+			/* signal received */
+			return -ERESTARTSYS;
+		} else if (ret < 0) {
+			dev_err(fifo->dt_device, "wait_event_interruptible_timeout() error in read (ret=%i)\n",
+				ret);
+			return ret;
 		}
 	}
 
 	bytes_available = ioread32(fifo->base_addr + XLLF_RLR_OFFSET);
 	if (!bytes_available) {
-		dev_err(fifo->dt_device, "received a packet of length 0\n");
-		ret = -EIO;
-		goto end_unlock;
+		dev_err(fifo->dt_device, "received a packet of length 0 - fifo core will be reset\n");
+		reset_ip_core(fifo);
+		return -EIO;
 	}
 
 	if (bytes_available > len) {
-		dev_err(fifo->dt_device, "user read buffer too small (available bytes=%zu user buffer bytes=%zu)\n",
+		dev_err(fifo->dt_device, "user read buffer too small (available bytes=%zu user buffer bytes=%zu) - fifo core will be reset\n",
 			bytes_available, len);
-		ret = -EINVAL;
-		goto end_unlock;
+		reset_ip_core(fifo);
+		return -EINVAL;
 	}
 
 	if (bytes_available % sizeof(u32)) {
 		/* this probably can't happen unless IP
 		 * registers were previously mishandled
 		 */
-		dev_err(fifo->dt_device, "received a packet that isn't word-aligned\n");
-		ret = -EIO;
-		goto end_unlock;
+		dev_err(fifo->dt_device, "received a packet that isn't word-aligned - fifo core will be reset\n");
+		reset_ip_core(fifo);
+		return -EIO;
 	}
 
 	words_available = bytes_available / sizeof(u32);
@@ -440,37 +425,17 @@ static ssize_t axis_fifo_read(struct file *f, char __user *buf,
 
 		if (copy_to_user(buf + copied * sizeof(u32), tmp_buf,
 				 copy * sizeof(u32))) {
-			ret = -EFAULT;
-			goto end_unlock;
+			reset_ip_core(fifo);
+			return -EFAULT;
 		}
 
 		copied += copy;
 		words_available -= copy;
 	}
 
-	ret = bytes_available;
-
-end_unlock:
-	mutex_unlock(&fifo->read_lock);
-
-	return ret;
+	return bytes_available;
 }
 
-/**
- * axis_fifo_write() - Write buffer to AXIS-FIFO character device.
- * @f Open file.
- * @buf User space buffer to write to the device.
- * @len User space buffer length.
- * @off Buffer offset.
- *
- * As defined by the device's documentation, we need to write to the device's
- * data buffer then to the device's packet length register atomically. Also,
- * we need to lock before checking if the device has available space to avoid
- * any concurrency issue.
- *
- * Returns the number of bytes written to the device or negative error code
- *	on failure.
- */
 static ssize_t axis_fifo_write(struct file *f, const char __user *buf,
 			       size_t len, loff_t *off)
 {
@@ -503,17 +468,12 @@ static ssize_t axis_fifo_write(struct file *f, const char __user *buf,
 	}
 
 	if (fifo->write_flags & O_NONBLOCK) {
-		/*
-		 * Device opened in non-blocking mode. Try to lock it and then
-		 * check if there is any room to write the given buffer.
+		/* opened in non-blocking mode
+		 * return if there is not enough room available in the fifo
 		 */
-		if (!mutex_trylock(&fifo->write_lock))
-			return -EAGAIN;
-
 		if (words_to_write > ioread32(fifo->base_addr +
 					      XLLF_TDFV_OFFSET)) {
-			ret = -EAGAIN;
-			goto end_unlock;
+			return -EAGAIN;
 		}
 	} else {
 		/* opened in blocking mode */
@@ -521,22 +481,29 @@ static ssize_t axis_fifo_write(struct file *f, const char __user *buf,
 		/* wait for an interrupt (or timeout) if there isn't
 		 * currently enough room in the fifo
 		 */
-		mutex_lock(&fifo->write_lock);
-		ret = wait_event_interruptible_timeout(fifo->write_queue,
+		spin_lock_irq(&fifo->write_queue_lock);
+		ret = wait_event_interruptible_lock_irq_timeout(
+			fifo->write_queue,
 			ioread32(fifo->base_addr + XLLF_TDFV_OFFSET)
 				>= words_to_write,
+			fifo->write_queue_lock,
 			(write_timeout >= 0) ? msecs_to_jiffies(write_timeout) :
 				MAX_SCHEDULE_TIMEOUT);
+		spin_unlock_irq(&fifo->write_queue_lock);
 
-		if (ret <= 0) {
-			if (ret == 0) {
-				ret = -EAGAIN;
-			} else if (ret != -ERESTARTSYS) {
-				dev_err(fifo->dt_device, "wait_event_interruptible_timeout() error in write (ret=%i)\n",
-					ret);
-			}
-
-			goto end_unlock;
+		if (ret == 0) {
+			/* timeout occurred */
+			dev_dbg(fifo->dt_device, "write timeout\n");
+			return -EAGAIN;
+		} else if (ret == -ERESTARTSYS) {
+			/* signal received */
+			return -ERESTARTSYS;
+		} else if (ret < 0) {
+			/* unknown error */
+			dev_err(fifo->dt_device,
+				"wait_event_interruptible_timeout() error in write (ret=%i)\n",
+				ret);
+			return ret;
 		}
 	}
 
@@ -549,8 +516,8 @@ static ssize_t axis_fifo_write(struct file *f, const char __user *buf,
 
 		if (copy_from_user(tmp_buf, buf + copied * sizeof(u32),
 				   copy * sizeof(u32))) {
-			ret = -EFAULT;
-			goto end_unlock;
+			reset_ip_core(fifo);
+			return -EFAULT;
 		}
 
 		for (i = 0; i < copy; i++)
@@ -561,15 +528,10 @@ static ssize_t axis_fifo_write(struct file *f, const char __user *buf,
 		words_to_write -= copy;
 	}
 
-	ret = copied * sizeof(u32);
-
 	/* write packet size to fifo */
-	iowrite32(ret, fifo->base_addr + XLLF_TLR_OFFSET);
+	iowrite32(copied * sizeof(u32), fifo->base_addr + XLLF_TLR_OFFSET);
 
-end_unlock:
-	mutex_unlock(&fifo->write_lock);
-
-	return ret;
+	return (ssize_t)copied * sizeof(u32);
 }
 
 static irqreturn_t axis_fifo_irq(int irq, void *dw)
@@ -740,65 +702,6 @@ static int get_dts_property(struct axis_fifo *fifo,
 	return 0;
 }
 
-static int axis_fifo_parse_dt(struct axis_fifo *fifo)
-{
-	int ret;
-	unsigned int value;
-
-	ret = get_dts_property(fifo, "xlnx,axi-str-rxd-tdata-width", &value);
-	if (ret) {
-		dev_err(fifo->dt_device, "missing xlnx,axi-str-rxd-tdata-width property\n");
-		goto end;
-	} else if (value != 32) {
-		dev_err(fifo->dt_device, "xlnx,axi-str-rxd-tdata-width only supports 32 bits\n");
-		ret = -EIO;
-		goto end;
-	}
-
-	ret = get_dts_property(fifo, "xlnx,axi-str-txd-tdata-width", &value);
-	if (ret) {
-		dev_err(fifo->dt_device, "missing xlnx,axi-str-txd-tdata-width property\n");
-		goto end;
-	} else if (value != 32) {
-		dev_err(fifo->dt_device, "xlnx,axi-str-txd-tdata-width only supports 32 bits\n");
-		ret = -EIO;
-		goto end;
-	}
-
-	ret = get_dts_property(fifo, "xlnx,rx-fifo-depth",
-			       &fifo->rx_fifo_depth);
-	if (ret) {
-		dev_err(fifo->dt_device, "missing xlnx,rx-fifo-depth property\n");
-		ret = -EIO;
-		goto end;
-	}
-
-	ret = get_dts_property(fifo, "xlnx,tx-fifo-depth",
-			       &fifo->tx_fifo_depth);
-	if (ret) {
-		dev_err(fifo->dt_device, "missing xlnx,tx-fifo-depth property\n");
-		ret = -EIO;
-		goto end;
-	}
-
-	ret = get_dts_property(fifo, "xlnx,use-rx-data", &fifo->has_rx_fifo);
-	if (ret) {
-		dev_err(fifo->dt_device, "missing xlnx,use-rx-data property\n");
-		ret = -EIO;
-		goto end;
-	}
-
-	ret = get_dts_property(fifo, "xlnx,use-tx-data", &fifo->has_tx_fifo);
-	if (ret) {
-		dev_err(fifo->dt_device, "missing xlnx,use-tx-data property\n");
-		ret = -EIO;
-		goto end;
-	}
-
-end:
-	return ret;
-}
-
 static int axis_fifo_probe(struct platform_device *pdev)
 {
 	struct resource *r_irq; /* interrupt resources */
@@ -809,6 +712,34 @@ static int axis_fifo_probe(struct platform_device *pdev)
 	char device_name[32];
 
 	int rc = 0; /* error return value */
+
+	/* IP properties from device tree */
+	unsigned int rxd_tdata_width;
+	unsigned int txc_tdata_width;
+	unsigned int txd_tdata_width;
+	unsigned int tdest_width;
+	unsigned int tid_width;
+	unsigned int tuser_width;
+	unsigned int data_interface_type;
+	unsigned int has_tdest;
+	unsigned int has_tid;
+	unsigned int has_tkeep;
+	unsigned int has_tstrb;
+	unsigned int has_tuser;
+	unsigned int rx_fifo_depth;
+	unsigned int rx_programmable_empty_threshold;
+	unsigned int rx_programmable_full_threshold;
+	unsigned int axi_id_width;
+	unsigned int axi4_data_width;
+	unsigned int select_xpm;
+	unsigned int tx_fifo_depth;
+	unsigned int tx_programmable_empty_threshold;
+	unsigned int tx_programmable_full_threshold;
+	unsigned int use_rx_cut_through;
+	unsigned int use_rx_data;
+	unsigned int use_tx_control;
+	unsigned int use_tx_cut_through;
+	unsigned int use_tx_data;
 
 	/* ----------------------------
 	 *     init wrapper device
@@ -826,8 +757,8 @@ static int axis_fifo_probe(struct platform_device *pdev)
 	init_waitqueue_head(&fifo->read_queue);
 	init_waitqueue_head(&fifo->write_queue);
 
-	mutex_init(&fifo->read_lock);
-	mutex_init(&fifo->write_lock);
+	spin_lock_init(&fifo->read_queue_lock);
+	spin_lock_init(&fifo->write_queue_lock);
 
 	/* ----------------------------
 	 *   init device memory space
@@ -876,9 +807,164 @@ static int axis_fifo_probe(struct platform_device *pdev)
 	 * ----------------------------
 	 */
 
-	rc = axis_fifo_parse_dt(fifo);
+	/* retrieve device tree properties */
+	rc = get_dts_property(fifo, "xlnx,axi-str-rxd-tdata-width",
+			      &rxd_tdata_width);
 	if (rc)
 		goto err_unmap;
+	rc = get_dts_property(fifo, "xlnx,axi-str-txc-tdata-width",
+			      &txc_tdata_width);
+	if (rc)
+		goto err_unmap;
+	rc = get_dts_property(fifo, "xlnx,axi-str-txd-tdata-width",
+			      &txd_tdata_width);
+	if (rc)
+		goto err_unmap;
+	rc = get_dts_property(fifo, "xlnx,axis-tdest-width", &tdest_width);
+	if (rc)
+		goto err_unmap;
+	rc = get_dts_property(fifo, "xlnx,axis-tid-width", &tid_width);
+	if (rc)
+		goto err_unmap;
+	rc = get_dts_property(fifo, "xlnx,axis-tuser-width", &tuser_width);
+	if (rc)
+		goto err_unmap;
+	rc = get_dts_property(fifo, "xlnx,data-interface-type",
+			      &data_interface_type);
+	if (rc)
+		goto err_unmap;
+	rc = get_dts_property(fifo, "xlnx,has-axis-tdest", &has_tdest);
+	if (rc)
+		goto err_unmap;
+	rc = get_dts_property(fifo, "xlnx,has-axis-tid", &has_tid);
+	if (rc)
+		goto err_unmap;
+	rc = get_dts_property(fifo, "xlnx,has-axis-tkeep", &has_tkeep);
+	if (rc)
+		goto err_unmap;
+	rc = get_dts_property(fifo, "xlnx,has-axis-tstrb", &has_tstrb);
+	if (rc)
+		goto err_unmap;
+	rc = get_dts_property(fifo, "xlnx,has-axis-tuser", &has_tuser);
+	if (rc)
+		goto err_unmap;
+	rc = get_dts_property(fifo, "xlnx,rx-fifo-depth", &rx_fifo_depth);
+	if (rc)
+		goto err_unmap;
+	rc = get_dts_property(fifo, "xlnx,rx-fifo-pe-threshold",
+			      &rx_programmable_empty_threshold);
+	if (rc)
+		goto err_unmap;
+	rc = get_dts_property(fifo, "xlnx,rx-fifo-pf-threshold",
+			      &rx_programmable_full_threshold);
+	if (rc)
+		goto err_unmap;
+	rc = get_dts_property(fifo, "xlnx,s-axi-id-width", &axi_id_width);
+	if (rc)
+		goto err_unmap;
+	rc = get_dts_property(fifo, "xlnx,s-axi4-data-width", &axi4_data_width);
+	if (rc)
+		goto err_unmap;
+	rc = get_dts_property(fifo, "xlnx,select-xpm", &select_xpm);
+	if (rc)
+		goto err_unmap;
+	rc = get_dts_property(fifo, "xlnx,tx-fifo-depth", &tx_fifo_depth);
+	if (rc)
+		goto err_unmap;
+	rc = get_dts_property(fifo, "xlnx,tx-fifo-pe-threshold",
+			      &tx_programmable_empty_threshold);
+	if (rc)
+		goto err_unmap;
+	rc = get_dts_property(fifo, "xlnx,tx-fifo-pf-threshold",
+			      &tx_programmable_full_threshold);
+	if (rc)
+		goto err_unmap;
+	rc = get_dts_property(fifo, "xlnx,use-rx-cut-through",
+			      &use_rx_cut_through);
+	if (rc)
+		goto err_unmap;
+	rc = get_dts_property(fifo, "xlnx,use-rx-data", &use_rx_data);
+	if (rc)
+		goto err_unmap;
+	rc = get_dts_property(fifo, "xlnx,use-tx-ctrl", &use_tx_control);
+	if (rc)
+		goto err_unmap;
+	rc = get_dts_property(fifo, "xlnx,use-tx-cut-through",
+			      &use_tx_cut_through);
+	if (rc)
+		goto err_unmap;
+	rc = get_dts_property(fifo, "xlnx,use-tx-data", &use_tx_data);
+	if (rc)
+		goto err_unmap;
+
+	/* check validity of device tree properties */
+	if (rxd_tdata_width != 32) {
+		dev_err(fifo->dt_device,
+			"rxd_tdata_width width [%u] unsupported\n",
+			rxd_tdata_width);
+		rc = -EIO;
+		goto err_unmap;
+	}
+	if (txd_tdata_width != 32) {
+		dev_err(fifo->dt_device,
+			"txd_tdata_width width [%u] unsupported\n",
+			txd_tdata_width);
+		rc = -EIO;
+		goto err_unmap;
+	}
+	if (has_tdest) {
+		dev_err(fifo->dt_device, "tdest not supported\n");
+		rc = -EIO;
+		goto err_unmap;
+	}
+	if (has_tid) {
+		dev_err(fifo->dt_device, "tid not supported\n");
+		rc = -EIO;
+		goto err_unmap;
+	}
+	if (has_tkeep) {
+		dev_err(fifo->dt_device, "tkeep not supported\n");
+		rc = -EIO;
+		goto err_unmap;
+	}
+	if (has_tstrb) {
+		dev_err(fifo->dt_device, "tstrb not supported\n");
+		rc = -EIO;
+		goto err_unmap;
+	}
+	if (has_tuser) {
+		dev_err(fifo->dt_device, "tuser not supported\n");
+		rc = -EIO;
+		goto err_unmap;
+	}
+	if (use_rx_cut_through) {
+		dev_err(fifo->dt_device, "rx cut-through not supported\n");
+		rc = -EIO;
+		goto err_unmap;
+	}
+	if (use_tx_cut_through) {
+		dev_err(fifo->dt_device, "tx cut-through not supported\n");
+		rc = -EIO;
+		goto err_unmap;
+	}
+	if (use_tx_control) {
+		dev_err(fifo->dt_device, "tx control not supported\n");
+		rc = -EIO;
+		goto err_unmap;
+	}
+
+	/* TODO
+	 * these exist in the device tree but it's unclear what they do
+	 * - select-xpm
+	 * - data-interface-type
+	 */
+
+	/* set device wrapper properties based on IP config */
+	fifo->rx_fifo_depth = rx_fifo_depth;
+	/* IP sets TDFV to fifo depth - 4 so we will do the same */
+	fifo->tx_fifo_depth = tx_fifo_depth - 4;
+	fifo->has_rx_fifo = use_rx_data;
+	fifo->has_tx_fifo = use_tx_data;
 
 	reset_ip_core(fifo);
 
