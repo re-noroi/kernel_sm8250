@@ -106,6 +106,8 @@ static struct sde_crtc_custom_events custom_events[] = {
 #define MAX_FRAME_COUNT			1000
 #define MILI_TO_MICRO			1000
 
+unsigned char msm_panel_fps = 60;
+
 static inline struct sde_kms *_sde_crtc_get_kms(struct drm_crtc *crtc)
 {
 	struct msm_drm_private *priv;
