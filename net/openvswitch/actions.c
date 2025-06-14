@@ -1028,7 +1028,8 @@ static int output_userspace(struct datapath *dp, struct sk_buff *skb,
 	upcall.cmd = OVS_PACKET_CMD_ACTION;
 	upcall.mru = OVS_CB(skb)->mru;
 
-	nla_for_each_nested(a, attr, rem) {
+	for (a = nla_data(attr), rem = nla_len(attr); rem > 0;
+		 a = nla_next(a, &rem)) {
 		switch (nla_type(a)) {
 		case OVS_USERSPACE_ATTR_USERDATA:
 			upcall.userdata = a;

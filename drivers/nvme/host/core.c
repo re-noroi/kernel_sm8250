@@ -3547,8 +3547,7 @@ static void nvme_fw_act_work(struct work_struct *work)
 		msleep(100);
 	}
 
-	if (ctrl->state != NVME_CTRL_CONNECTING ||
-		ctrl->state != NVME_CTRL_LIVE)
+	if (ctrl->state != NVME_CTRL_LIVE)
 		return;
 
 	nvme_start_queues(ctrl);
