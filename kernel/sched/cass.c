@@ -73,6 +73,15 @@ void cass_cpu_util(struct cass_cpu_cand *c, int this_cpu, bool sync)
 }
 
 /*
+ * Returns true if @c is a little CPU.
+ */
+static __always_inline
+bool cass_little_cpu(const struct cass_cpu_cand *c)
+{
+	return c->cpu < 4;
+}
+
+/*
  * Returns true if @c is a CPU with the maximum possible original capacity and
  * there's only one such CPU in the system (i.e., if @c is the prime CPU).
  */
@@ -112,8 +121,8 @@ bool cass_cpu_better(const struct cass_cpu_cand *a,
 		     fits_capacity(p_util, b->cap_max)))
 		goto done;
 
-	/* Prefer the CPU that isn't the single fastest one in the system */
-	if (cass_cmp(cass_prime_cpu(b), cass_prime_cpu(a)))
+	/* Prefer the CPU that isn't the slowest one in the system */
+	if (cass_cmp(cass_little_cpu(b), cass_little_cpu(a)))
 		goto done;
 
 	/* Prefer the CPU with lower relative utilization */
@@ -209,7 +218,7 @@ static int cass_best_cpu(struct task_struct *p, int prev_cpu, bool sync, bool rt
 			 */
 			min_cap = max(arch_scale_min_freq_capacity(cpu), curr->cap_max >> 2);
 			if (!has_idle && uc_min <= min_cap && 
-				!cass_prime_cpu(curr)){
+				!cass_little_cpu(curr)){
 				/* Discard any previous non-idle candidate */
 				best = curr;
 				has_idle = true;
