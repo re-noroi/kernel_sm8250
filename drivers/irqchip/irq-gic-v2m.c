@@ -247,7 +247,7 @@ static struct msi_domain_info gicv2m_pmsi_domain_info = {
 	.chip	= &gicv2m_pmsi_irq_chip,
 };
 
-static void __init gicv2m_teardown(void)
+static void gicv2m_teardown(void)
 {
 	struct v2m_data *v2m, *tmp;
 
@@ -262,7 +262,7 @@ static void __init gicv2m_teardown(void)
 	}
 }
 
-static __init int gicv2m_allocate_domains(struct irq_domain *parent)
+static int gicv2m_allocate_domains(struct irq_domain *parent)
 {
 	struct irq_domain *inner_domain, *pci_domain, *plat_domain;
 	struct v2m_data *v2m;
@@ -381,7 +381,7 @@ err_free_v2m:
 	return ret;
 }
 
-static __initconst struct of_device_id gicv2m_device_id[] = {
+static struct of_device_id gicv2m_device_id[] = {
 	{	.compatible	= "arm,gic-v2m-frame",	},
 	{},
 };

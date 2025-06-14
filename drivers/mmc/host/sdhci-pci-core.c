@@ -612,12 +612,8 @@ static void sdhci_intel_set_power(struct sdhci_host *host, unsigned char mode,
 
 	sdhci_set_power(host, mode, vdd);
 
-	if (mode == MMC_POWER_OFF) {
-		if (slot->chip->pdev->device == PCI_DEVICE_ID_INTEL_APL_SD ||
-		    slot->chip->pdev->device == PCI_DEVICE_ID_INTEL_BYT_SD)
-			usleep_range(15000, 17500);
+	if (mode == MMC_POWER_OFF)
 		return;
-	}
 
 	/*
 	 * Bus power might not enable after D3 -> D0 transition due to the
