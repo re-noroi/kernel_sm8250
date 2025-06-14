@@ -25,6 +25,8 @@
  * satisfy the overall load at any given moment.
  */
 
+#include <drm/drm_refresh_rate.h>
+
 struct cass_cpu_cand {
 	int cpu;
 	unsigned int exit_lat;
@@ -121,8 +123,12 @@ bool cass_cpu_better(const struct cass_cpu_cand *a,
 		     fits_capacity(p_util, b->cap_max)))
 		goto done;
 
-	/* Prefer the CPU that isn't the slowest one in the system */
-	if (cass_cmp(cass_little_cpu(b), cass_little_cpu(a)))
+	/* 
+	Prefer the CPU that isn't the slowest one in the system for
+	regular usage and Prefer the CPU that isn't the fastest one otherwise
+	*/
+	if ((msm_panel_fps <= 60) ? (cass_cmp(cass_little_cpu(b), cass_little_cpu(a)))
+		: (cass_cmp(cass_prime_cpu(b), cass_prime_cpu(a))))
 		goto done;
 
 	/* Prefer the CPU with lower relative utilization */
@@ -218,7 +224,8 @@ static int cass_best_cpu(struct task_struct *p, int prev_cpu, bool sync, bool rt
 			 */
 			min_cap = max(arch_scale_min_freq_capacity(cpu), curr->cap_max >> 2);
 			if (!has_idle && uc_min <= min_cap && 
-				!cass_little_cpu(curr)){
+				((msm_panel_fps > 60) ? (!cass_little_cpu(curr))
+				: (!cass_prime_cpu(curr)))){
 				/* Discard any previous non-idle candidate */
 				best = curr;
 				has_idle = true;
