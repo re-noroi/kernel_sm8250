@@ -524,16 +524,16 @@ static int tegra_xusb_port_init(struct tegra_xusb_port *port,
 
 	err = dev_set_name(&port->dev, "%s-%u", name, index);
 	if (err < 0)
-		goto put_device;
+		goto unregister;
 
 	err = device_add(&port->dev);
 	if (err < 0)
-		goto put_device;
+		goto unregister;
 
 	return 0;
 
-put_device:
-	put_device(&port->dev);
+unregister:
+	device_unregister(&port->dev);
 	return err;
 }
 
