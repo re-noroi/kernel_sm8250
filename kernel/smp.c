@@ -128,8 +128,7 @@ static __always_inline void csd_lock(struct __call_single_data *csd)
 
 static __always_inline void csd_unlock(struct __call_single_data *csd)
 {
-	if (!(csd->flags & CSD_FLAG_LOCK))
-		return;
+	WARN_ON(!(csd->flags & CSD_FLAG_LOCK));
 
 	/*
 	 * ensure we're all done before releasing data:
@@ -161,48 +160,33 @@ void __smp_call_single_queue(int cpu, struct llist_node *node)
  * for execution on the given CPU. data must already have
  * ->func, ->info, and ->flags set.
  */
-int generic_exec_single(int cpu, struct __call_single_data *csd,
- 			       smp_call_func_t func, void *info)
+static int generic_exec_single(int cpu, struct __call_single_data *csd)
 {
 	if (cpu == smp_processor_id()) {
- 		unsigned long flags;
- 
- 		/*
- 		 * We can unlock early even for the synchronous on-stack case,
- 		 * since we're doing this from the same CPU..
- 		 */
- 		csd_unlock(csd);
- 		local_irq_save(flags);
- 		func(info);
- 		local_irq_restore(flags);
- 		return 0;
- 	}
- 
- 
- 	if ((unsigned)cpu >= nr_cpu_ids || !cpu_online(cpu)) {
- 		csd_unlock(csd);
- 		return -ENXIO;
- 	}
- 
- 	csd->func = func;
- 	csd->info = info;
- 
- 	/*
- 	 * The list addition should be visible before sending the IPI
- 	 * handler locks the list to pull the entry off it because of
- 	 * normal cache coherency rules implied by spinlocks.
- 	 *
- 	 * If IPIs can go out of order to the cache coherency protocol
- 	 * in an architecture, sufficient synchronisation should be added
- 	 * to arch code to make it appear to obey cache coherency WRT
- 	 * locking and barrier primitives. Generic code isn't really
- 	 * equipped to do the right thing...
- 	 */
- 	if (llist_add(&csd->llist, &per_cpu(call_single_queue, cpu)))
- 		arch_send_call_function_single_ipi(cpu);
- 
- 	return 0;
- }
+		smp_call_func_t func = csd->func;
+		void *info = csd->info;
+		unsigned long flags;
+
+		/*
+		 * We can unlock early even for the synchronous on-stack case,
+		 * since we're doing this from the same CPU..
+		 */
+		csd_unlock(csd);
+		local_irq_save(flags);
+		func(info);
+		local_irq_restore(flags);
+		return 0;
+	}
+
+	if ((unsigned)cpu >= nr_cpu_ids || !cpu_online(cpu)) {
+		csd_unlock(csd);
+		return -ENXIO;
+	}
+
+	__smp_call_single_queue(cpu, &csd->llist);
+
+	return 0;
+}
 
 /**
  * generic_smp_call_function_single_interrupt - Execute SMP IPI callbacks
@@ -394,7 +378,7 @@ int smp_call_function_single(int cpu, smp_call_func_t func, void *info,
 	csd->func = func;
 	csd->info = info;
 
-	err = generic_exec_single(cpu, csd, csd->func, csd->info);
+	err = generic_exec_single(cpu, csd);
 
 	if (wait)
 		csd_lock_wait(csd);
@@ -434,7 +418,7 @@ int smp_call_function_single_async(int cpu, struct __call_single_data *csd)
 	csd->flags = CSD_FLAG_LOCK;
 	smp_wmb();
 
-	err = generic_exec_single(cpu, csd, csd->func, csd->info);
+	err = generic_exec_single(cpu, csd);
 	preempt_enable();
 
 	return err;
