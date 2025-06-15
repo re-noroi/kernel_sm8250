@@ -85,7 +85,8 @@ void cass_cpu_util(struct cass_cpu_cand *c, int this_cpu, bool sync)
 static __always_inline
 bool cass_little_cpu(const struct cass_cpu_cand *c)
 {
-	return c->cpu < 4;
+	bool is_little = (c->cpu < 4);
+	return is_little && (c->eff_util > (c->cap_max * 30 / 100));
 }
 
 /*
