@@ -914,8 +914,8 @@ bool pm_wakeup_pending(void)
 
 void pm_system_wakeup(void)
 {
-	if (atomic_inc_return_relaxed(&pm_abort_suspend) == 1)
-		s2idle_wake();
+	atomic_inc(&pm_abort_suspend);
+	s2idle_wake();
 }
 EXPORT_SYMBOL_GPL(pm_system_wakeup);
 
