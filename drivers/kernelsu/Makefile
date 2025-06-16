@@ -16,8 +16,8 @@ ccflags-y += -I$(objtree)/security/selinux -include $(srctree)/include/uapi/asm-
 
 obj-$(CONFIG_KSU) += kernelsu.o
 
-# https://github.com/KernelSU-Next/KernelSU-Next/commit/22a48e52eb16ea1500847eaf18995e9e2d3245e1
-KSU_GIT_VERSION := 2421
+# https://github.com/KernelSU-Next/KernelSU-Next/commit/9d9f9ed5d5f3a66a2f44e24c926075554f9275ce
+KSU_GIT_VERSION := 2501
 
 # ksu_version: major * 10000 + git version + 200 for historical reasons
 $(eval KSU_VERSION=$(shell expr 10000 + $(KSU_GIT_VERSION) + 200))
