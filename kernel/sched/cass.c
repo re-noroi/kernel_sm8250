@@ -318,7 +318,7 @@ static int cass_select_task_rq(struct task_struct *p, int prev_cpu,
 	bool sync;
 
 	/* Don't balance on exec since we don't know what @p will look like */
-	if (wake_flags & SD_BALANCE_EXEC)
+	if (wake_flags & WF_EXEC)
 		return prev_cpu;
 
 	/*
@@ -330,7 +330,7 @@ static int cass_select_task_rq(struct task_struct *p, int prev_cpu,
 		return cpumask_first(&p->cpus_allowed);
 
 	/* cass_best_cpu() needs the CFS task's utilization, so sync it up */
-	if (!rt && !(wake_flags & SD_BALANCE_FORK))
+	if (!rt && !(wake_flags & WF_FORK))
 		sync_entity_load_avg(&p->se);
 
 	sync = (wake_flags & WF_SYNC) && !(current->flags & PF_EXITING);
@@ -338,13 +338,13 @@ static int cass_select_task_rq(struct task_struct *p, int prev_cpu,
 }
 
 static int cass_select_task_rq_fair(struct task_struct *p, int prev_cpu,
-				    int sd_flag, int wake_flags)
+				    int wake_flags)
 {
 	return cass_select_task_rq(p, prev_cpu, wake_flags, false);
 }
 
 int cass_select_task_rq_rt(struct task_struct *p, int prev_cpu,
- 			   int sd_flag, int wake_flags)
+ 			   int wake_flags)
 {
 	return cass_select_task_rq(p, prev_cpu, wake_flags, true);
 }
