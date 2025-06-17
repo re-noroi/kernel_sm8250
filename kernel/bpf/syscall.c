@@ -1778,11 +1778,11 @@ static int bpf_prog_attach(const union bpf_attr *attr)
 		ptype = BPF_PROG_TYPE_CGROUP_DEVICE;
 		break;
 	case BPF_SK_MSG_VERDICT:
-		ret = sock_map_get_from_fd(attr, prog);
+		ptype = BPF_PROG_TYPE_SK_MSG;
 		break;
 	case BPF_SK_SKB_STREAM_PARSER:
 	case BPF_SK_SKB_STREAM_VERDICT:
-		ret = sock_map_get_from_fd(attr, prog);
+		ptype = BPF_PROG_TYPE_SK_SKB;
 		break;
 	case BPF_FLOW_DISSECTOR:
 		ptype = BPF_PROG_TYPE_FLOW_DISSECTOR;
