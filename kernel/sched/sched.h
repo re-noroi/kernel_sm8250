@@ -1800,9 +1800,11 @@ static inline int task_on_rq_migrating(struct task_struct *p)
 #define WF_ON_CPU   0x40 /* Wakee is on_cpu */
 
 #ifdef CONFIG_SMP
-static_assert(WF_EXEC == SD_BALANCE_EXEC);
-static_assert(WF_FORK == SD_BALANCE_FORK);
-static_assert(WF_TTWU == SD_BALANCE_WAKE);
+enum {
+    __wf_exec_mismatch = BUILD_BUG_ON_ZERO(WF_EXEC  != SD_BALANCE_EXEC),
+    __wf_fork_mismatch = BUILD_BUG_ON_ZERO(WF_FORK  != SD_BALANCE_FORK),
+    __wf_ttwu_mismatch = BUILD_BUG_ON_ZERO(WF_TTWU  != SD_BALANCE_WAKE),
+};
 #endif
 /*
  * To aid in avoiding the subversion of "niceness" due to uneven distribution
