@@ -354,8 +354,9 @@ unsigned long schedutil_cpu_util(int cpu, unsigned long util_cfs,
 static __always_inline
 unsigned long calculate_headroom_high(unsigned long headroom, int cpu, unsigned long util) {
 	if (cpumask_test_cpu(cpu, cpu_prime_mask))
-		return util; // we don't want to boost prime cluster if there is no touchboost
-	return util + (cpumask_test_cpu(cpu, cpu_lp_mask) ? util : (sysctl_headroom_big/2 + util));
+		return util; // No need to give prime core headroom
+	return util + (cpumask_test_cpu(cpu, cpu_lp_mask) ? (util/4 + util/2)
+	 : (sysctl_headroom_big/2 + util/2));
 }
 
 static __always_inline
