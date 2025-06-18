@@ -66,7 +66,7 @@ DEFINE_PER_CPU_READ_MOSTLY(int, sched_load_boost);
 
 unsigned int sysctl_fps_threshold_high __read_mostly = 50;
 unsigned int sysctl_fps_threshold_low __read_mostly = 30;
-unsigned int sysctl_headroom_big __read_mostly = 16;
+unsigned int sysctl_headroom_big __read_mostly = 26;
 unsigned int sysctl_util_low __read_mostly = 200;
 
 int sched_thermal_decay_shift;
