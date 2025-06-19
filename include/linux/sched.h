@@ -433,7 +433,7 @@ struct sched_avg {
  * Since max value of util_est for a task is 1024 (PELT util_avg for a task)
  * it is safe to use MSB.
  */
-#define UTIL_EST_WEIGHT_SHIFT		2
+#define UTIL_EST_WEIGHT_SHIFT		5
 #define UTIL_AVG_UNCHANGED		0x80000000
 
 struct sched_statistics {
