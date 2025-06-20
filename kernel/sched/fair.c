@@ -671,8 +671,6 @@ u64 avg_vruntime(struct cfs_rq *cfs_rq)
 	return cfs_rq->min_vruntime + avg;
 }
 
-static inline u64 cfs_rq_max_slice(struct cfs_rq *cfs_rq);
-
 /*
  * lag_i = S - s_i = w_i * (V - v_i)
  *
@@ -686,16 +684,17 @@ static inline u64 cfs_rq_max_slice(struct cfs_rq *cfs_rq);
  * EEVDF gives the following limit for a steady state system:
  *
  *   -r_max < lag < max(r_max, q)
+ *
+ * XXX could add max_slice to the augmented data to track this.
  */
 static void update_entity_lag(struct cfs_rq *cfs_rq, struct sched_entity *se)
 {
-	u64 max_slice = cfs_rq_max_slice(cfs_rq) + TICK_NSEC;
 	s64 vlag, limit;
 
 	SCHED_WARN_ON(!se->on_rq);
 
 	vlag = avg_vruntime(cfs_rq) - se->vruntime;
-	limit = calc_delta_fair(max_slice, se);
+	limit = calc_delta_fair(max_t(u64, 2*se->slice, TICK_NSEC), se);
 
 	se->vlag = clamp(vlag, -limit, limit);
 }
@@ -788,21 +787,6 @@ static inline u64 cfs_rq_min_slice(struct cfs_rq *cfs_rq)
 	return min_slice;
 }
 
-static inline u64 cfs_rq_max_slice(struct cfs_rq *cfs_rq)
-{
-	struct sched_entity *root = __pick_root_entity(cfs_rq);
-	struct sched_entity *curr = cfs_rq->curr;
-	u64 max_slice = 0ULL;
-
-	if (curr && curr->on_rq)
-	max_slice = curr->slice;
-
-	if (root)
-		max_slice = max(max_slice, root->max_slice);
-
-	return max_slice;
-}
-
 static inline bool __entity_less(struct rb_node *a, const struct rb_node *b)
 {
 	return entity_before(__node_2_se(a), __node_2_se(b));
@@ -828,16 +812,6 @@ static inline void __min_slice_update(struct sched_entity *se, struct rb_node *n
 	}
 }
 
-static inline void __max_slice_update(struct sched_entity *se, struct rb_node *node)
-{
-	if (node) {
-		struct sched_entity *rse = __node_2_se(node);
-
-		if (rse->max_slice > se->max_slice)
-			se->max_slice = rse->max_slice;
-	}
-}
-
 /*
  * se->min_vruntime = min(se->vruntime, {left,right}->min_vruntime)
  */
@@ -845,7 +819,6 @@ static inline bool min_vruntime_update(struct sched_entity *se, bool exit)
 {
 	u64 old_min_vruntime = se->min_vruntime;
 	u64 old_min_slice = se->min_slice;
-	u64 old_max_slice = se->max_slice;
 	struct rb_node *node = &se->run_node;
 
 	se->min_vruntime = se->vruntime;
@@ -856,13 +829,8 @@ static inline bool min_vruntime_update(struct sched_entity *se, bool exit)
 	__min_slice_update(se, node->rb_right);
 	__min_slice_update(se, node->rb_left);
 
-	se->max_slice = se->slice;
-	__max_slice_update(se, node->rb_right);
-	__max_slice_update(se, node->rb_left);
-
 	return se->min_vruntime == old_min_vruntime &&
-	       se->min_slice == old_min_slice &&
-	       se->max_slice == old_max_slice;
+	       se->min_slice == old_min_slice;
 }
 
 RB_DECLARE_CALLBACKS(static, min_vruntime_cb, struct sched_entity,
@@ -876,7 +844,6 @@ static void __enqueue_entity(struct cfs_rq *cfs_rq, struct sched_entity *se)
 	avg_vruntime_add(cfs_rq, se);
 	se->min_vruntime = se->vruntime;
 	se->min_slice = se->slice;
-	se->max_slice = se->slice;
 	rb_add_augmented_cached(&se->run_node, &cfs_rq->tasks_timeline,
 				__entity_less, &min_vruntime_cb);
 }
@@ -909,37 +876,23 @@ struct sched_entity *__pick_first_entity(struct cfs_rq *cfs_rq)
 }
 
 /*
- * HACK, Set the vruntime, up to which the entity can run before picking
- * another one, in vlag, which isn't used until dequeue.
- * In case of run to parity, we use the shortest slice of the enqueued
- * entities.
- * When run to parity is disable we give a minimum quantum to the
- * running entity to ensure progress.
+ * HACK, stash a copy of deadline at the point of pick in vlag,
+ * which isn't used until dequeue.
  */
 static inline void set_protect_slice(struct sched_entity *se)
 {
-	u64 quantum;
-
-	if (sched_feat(RUN_TO_PARITY))
-		quantum = cfs_rq_min_slice(cfs_rq_of(se));
-	else
-		quantum = min(se->slice,(u64)normalized_sysctl_sched_base_slice);
-
-	if (quantum != se->slice)
-		se->vlag = min(se->deadline, se->vruntime + calc_delta_fair(quantum, se));
-	else
-		se->vlag = se->deadline;
+	se->vlag = se->deadline;
 }
 
 static inline bool protect_slice(struct sched_entity *se)
 {
-	return ((s64)(se->vlag - se->vruntime) > 0);
+	return se->vlag == se->deadline;
 }
 
 static inline void cancel_protect_slice(struct sched_entity *se)
 {
 	if (protect_slice(se))
-		se->vlag = se->vruntime;
+		se->vlag = se->deadline + 1;
 }
 
 /*
@@ -978,7 +931,7 @@ static struct sched_entity *pick_eevdf(struct cfs_rq *cfs_rq)
 	if (curr && (!curr->on_rq || !entity_eligible(cfs_rq, curr)))
 		curr = NULL;
 
-	if (curr && protect_slice(curr))
+	if (sched_feat(RUN_TO_PARITY) && curr && protect_slice(curr))
 		return curr;
 
 	/* Pick the leftmost entity if it's eligible */
@@ -1191,9 +1144,12 @@ static void update_tg_load_avg(struct cfs_rq *cfs_rq)
 }
 #endif /* CONFIG_SMP */
 
-static inline bool resched_next_quantum(struct cfs_rq *cfs_rq, struct sched_entity *curr)
+static inline bool did_preempt_short(struct cfs_rq *cfs_rq, struct sched_entity *curr)
 {
-	if (protect_slice(curr))
+	if (!sched_feat(PREEMPT_SHORT))
+		return false;
+
+	if (curr->vlag == curr->deadline)
 		return false;
 
 	return !entity_eligible(cfs_rq, curr);
@@ -1263,7 +1219,7 @@ static void update_curr(struct cfs_rq *cfs_rq)
 	if (cfs_rq->nr_running == 1)
 		return;
 
-	if (resched || resched_next_quantum(cfs_rq, curr)) {
+	if (resched || did_preempt_short(cfs_rq, curr)) {
 		resched_curr(rq);
 		clear_buddies(cfs_rq, curr);
 	}
