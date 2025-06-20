@@ -66,7 +66,6 @@ DEFINE_PER_CPU_READ_MOSTLY(int, sched_load_boost);
 
 unsigned int sysctl_fps_threshold_high __read_mostly = 50;
 unsigned int sysctl_fps_threshold_low __read_mostly = 30;
-unsigned int sysctl_headroom_big __read_mostly = 26;
 unsigned int sysctl_util_low __read_mostly = 200;
 
 int sched_thermal_decay_shift;
@@ -133,13 +132,6 @@ static struct ctl_table sched_fair_sysctls[] = {
 		{
     		.procname       = "sched_fps_threshold_low",
     		.data           = &sysctl_fps_threshold_low,
-    		.maxlen         = sizeof(unsigned int),
-    		.mode           = 0644,
-    		.proc_handler   = proc_dointvec,
-    	},
-		{
-    		.procname       = "sched_headroom_big",
-    		.data           = &sysctl_headroom_big,
     		.maxlen         = sizeof(unsigned int),
     		.mode           = 0644,
     		.proc_handler   = proc_dointvec,
