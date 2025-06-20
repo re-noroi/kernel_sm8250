@@ -413,7 +413,8 @@ unsigned long apply_dvfs_headroom(int cpu, unsigned long util, unsigned long max
 
 	fps = msm_panel_fps ?: 30;
 
-	if (!util || util >= max_cap)
+	/* Skip headroom entirely for zero, full, or high util */
+	if (!util || util >= max_cap || util > 3 * (max_cap >> 2))
 		return util;
 
 	want_high = (refresh_rate > 60 && fps > 70);
