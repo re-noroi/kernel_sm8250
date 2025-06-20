@@ -21,6 +21,9 @@
 
 
 #define IOWAIT_BOOST_MIN	(SCHED_CAPACITY_SCALE / 8)
+#define HEADROOM_STREAK_THRESHOLD 3
+static int last_headroom_mode = 1; // 1 = high mode, 0 = low mode
+static int headroom_streak = 0;
 
 struct sugov_tunables {
 	struct gov_attr_set	attr_set;
@@ -404,6 +407,7 @@ unsigned long apply_dvfs_headroom(int cpu, unsigned long util, unsigned long max
 	unsigned long headroom = util;
 	int fps;
 	unsigned int refresh_rate = dsi_panel_get_refresh_rate();
+	bool want_high;
 	if (!refresh_rate)
 		refresh_rate = 60;
 
@@ -412,13 +416,29 @@ unsigned long apply_dvfs_headroom(int cpu, unsigned long util, unsigned long max
 	if (!util || util >= max_cap)
 		return util;
 
-	if (refresh_rate > 60 && fps > 70)
+	want_high = (refresh_rate > 60 && fps > 70);
+
+	/* If we want HIGH, switch instantly */
+	if (want_high) {
+		last_headroom_mode = 1;
+		headroom_streak = 0;
+	}
+	/* Otherwise, only drop into LOW after N consecutive ticks */
+	else if (last_headroom_mode) {
+		headroom_streak++;
+		if (headroom_streak >= HEADROOM_STREAK_THRESHOLD) {
+			last_headroom_mode = want_high;
+			headroom_streak = 0;
+		}
+	}
+
+	/* Apply boosted decision */
+	if (last_headroom_mode)
 		headroom = calculate_headroom_high(headroom, cpu, util);
 	else
 		headroom = calculate_headroom_low(headroom, cpu, util, fps);
 
-	headroom = min(headroom, max_cap);
-	return headroom;
+	return min(headroom, max_cap);
 }
 
 unsigned long sugov_effective_cpu_perf(int cpu, unsigned long actual,
