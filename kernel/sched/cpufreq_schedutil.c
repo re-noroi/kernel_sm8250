@@ -352,11 +352,36 @@ unsigned long schedutil_cpu_util(int cpu, unsigned long util_cfs,
 }
 
 static __always_inline
-unsigned long calculate_headroom_high(unsigned long headroom, int cpu, unsigned long util) {
-	if (cpumask_test_cpu(cpu, cpu_prime_mask))
-		return util; // No need to give prime core headroom
-	return util + (cpumask_test_cpu(cpu, cpu_lp_mask) ? (util/4 + util/2)
-	 : (sysctl_headroom_big/2 + util/2));
+unsigned long calculate_headroom_high(unsigned long headroom, int cpu, unsigned long util)
+{
+	unsigned long base_boost = util;
+	unsigned long capacity = capacity_orig_of(cpu);
+	unsigned long delta, quad_boost, max_boost, min_boost;
+
+	/* Manual boost */
+	if (cpumask_test_cpu(cpu, cpu_lp_mask))
+		base_boost += util >> 1; // +50%
+	else if (cpumask_test_cpu(cpu, cpu_prime_mask))
+		base_boost += 0; // no manual boost for prime
+	else
+		base_boost += util >> 2; // +25% for big
+
+	/* Apply quadratic tapering boost on top */
+	if (util < capacity && util >= (capacity >> 4)) {
+		delta = capacity - util;
+		quad_boost = (delta * delta * 7) >> 15;
+
+		max_boost = capacity >> 2; // 25%
+		min_boost = capacity >> 8; // ~0.39%
+
+		if (cpumask_test_cpu(cpu, cpu_prime_mask))
+			quad_boost >>= 1; // halve for prime cores
+
+		if (quad_boost >= min_boost)
+			base_boost += min(quad_boost, max_boost);
+	}
+
+	return min(base_boost, capacity); // Clamp to max capacity
 }
 
 static __always_inline
