@@ -359,7 +359,7 @@ unsigned long calculate_headroom_high(unsigned long headroom, int cpu, unsigned 
 {
 	unsigned long base_boost = util;
 	unsigned long capacity = capacity_orig_of(cpu);
-	unsigned long delta, quad_boost, max_boost, min_boost;
+	unsigned long delta, quad_boost, max_boost, min_util;
 
 	/* Manual boost */
 	if (cpumask_test_cpu(cpu, cpu_lp_mask))
@@ -370,19 +370,24 @@ unsigned long calculate_headroom_high(unsigned long headroom, int cpu, unsigned 
 		base_boost += util >> 3; // +12.5% for big
 
 	/* Apply quadratic tapering boost on top */
-	if (util < capacity && util >= (capacity >> 4)) {
-		delta = capacity - util;
-		quad_boost = (delta * delta * 7) >> 15;
+	delta      = capacity - util;
+	quad_boost = (delta * delta) / (4 * capacity);
 
-		max_boost = capacity >> 2; // 25%
-		min_boost = capacity >> 8; // ~0.39%
-
-		if (cpumask_test_cpu(cpu, cpu_prime_mask))
-			quad_boost >>= 1; // halve for prime cores
-
-		if (quad_boost >= min_boost)
-			base_boost += min(quad_boost, max_boost);
+	/* Suppress boosts at very low util */
+	min_util = capacity / 10;
+	if (util < min_util) {
+		quad_boost = quad_boost * util * util 
+					/ (min_util * min_util);
 	}
+
+	/* Cap the quadratic boost to 25% of capacity */
+	if (cpumask_test_cpu(cpu, cpu_prime_mask))
+		max_boost = capacity >> 3;  // 12.5% for prime
+	else
+		max_boost = capacity >> 2;  // 25% for little & big
+
+	if (quad_boost > max_boost)
+		quad_boost = max_boost;
 
 	return min(base_boost, capacity); // Clamp to max capacity
 }
