@@ -363,11 +363,11 @@ unsigned long calculate_headroom_high(unsigned long headroom, int cpu, unsigned 
 
 	/* Manual boost */
 	if (cpumask_test_cpu(cpu, cpu_lp_mask))
-		base_boost += util >> 1; // +50%
+		base_boost += util >> 2; // +25%
 	else if (cpumask_test_cpu(cpu, cpu_prime_mask))
 		base_boost += 0; // no manual boost for prime
 	else
-		base_boost += util >> 2; // +25% for big
+		base_boost += util >> 3; // +12.5% for big
 
 	/* Apply quadratic tapering boost on top */
 	if (util < capacity && util >= (capacity >> 4)) {
