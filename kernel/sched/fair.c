@@ -67,6 +67,10 @@ DEFINE_PER_CPU_READ_MOSTLY(int, sched_load_boost);
 unsigned int sysctl_fps_threshold_high __read_mostly = 50;
 unsigned int sysctl_fps_threshold_low __read_mostly = 30;
 unsigned int sysctl_util_low __read_mostly = 200;
+unsigned int sysctl_boost_lpmask __read_mostly = 25;
+unsigned int sysctl_boost_bpmask __read_mostly = 13;
+static int zero		= 0;
+static int hundred	= 100;
 
 int sched_thermal_decay_shift;
 static int __init setup_sched_thermal_decay_shift(char *str)
@@ -142,6 +146,24 @@ static struct ctl_table sched_fair_sysctls[] = {
     		.maxlen         = sizeof(unsigned int),
     		.mode           = 0644,
     		.proc_handler   = proc_dointvec,
+    	},
+    	{
+    		.procname       = "sched_boost_little_cores",
+    		.data           = &sysctl_boost_lpmask,
+    		.maxlen         = sizeof(unsigned int),
+    		.mode           = 0644,
+    		.proc_handler   = proc_dointvec_minmax,
+    		.extra1         = &zero,
+    		.extra2         = &hundred,
+    	},
+    	{
+    		.procname       = "sched_boost_big_cores",
+    		.data           = &sysctl_boost_bpmask,
+    		.maxlen         = sizeof(unsigned int),
+    		.mode           = 0644,
+    		.proc_handler   = proc_dointvec_minmax,
+    		.extra1         = &zero,
+    		.extra2         = &hundred,
     	},
 	{}
 };
