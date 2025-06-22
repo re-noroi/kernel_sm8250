@@ -459,7 +459,11 @@ static void handle_thermal_trip(struct thermal_zone_device *tz, int trip)
 		handle_critical_trips(tz, trip, type);
 	else
 		handle_non_critical_trips(tz, trip);
-
+	/*
+	 * Alright, we handled this trip successfully.
+	 * So, start monitoring again.
+	 */
+	monitor_thermal_zone(tz);
 	trace_thermal_handle_trip(tz, trip);
 }
 
@@ -552,8 +556,6 @@ void thermal_zone_device_update(struct thermal_zone_device *tz,
 
 	for (count = 0; count < tz->trips; count++)
 		handle_thermal_trip(tz, count);
-
-	monitor_thermal_zone(tz);
 }
 EXPORT_SYMBOL_GPL(thermal_zone_device_update);
 
@@ -1725,8 +1727,6 @@ thermal_sconfig_store(struct device *dev,
 	else
 		atomic_set(&switch_mode, val);
 
-	if (ret)
-		return ret;
 	return len;
 }
 
