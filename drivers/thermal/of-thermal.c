@@ -143,13 +143,6 @@ static int virt_sensor_read_temp(void *data, int *val)
 			return ret;
 		}
 		switch (sens->logic) {
-		case VIRT_COUNT_THRESHOLD:
-			if ((sens->coefficients[idx] < 0 &&
-			     sens_temp < -sens->coefficients[idx]) ||
-			    (sens->coefficients[idx] > 0 &&
-			     sens_temp >= sens->coefficients[idx]))
-				temp += 1;
-			break;
 		case VIRT_WEIGHTED_AVG:
 			temp += sens_temp * sens->coefficients[idx];
 			if (idx == (sens->num_sensors - 1))
@@ -1002,8 +995,7 @@ struct thermal_zone_device *devm_thermal_of_virtual_sensor_register(
 	sens->virt_tz = tzd;
 	sens->logic = sensor_data->logic;
 	sens->num_sensors = sensor_data->num_sensors;
-	if ((sens->logic == VIRT_WEIGHTED_AVG) ||
-	    (sens->logic == VIRT_COUNT_THRESHOLD)) {
+	if (sens->logic == VIRT_WEIGHTED_AVG) {
 		int coeff_ct = sensor_data->coefficient_ct;
 
 		/*
@@ -1011,7 +1003,7 @@ struct thermal_zone_device *devm_thermal_of_virtual_sensor_register(
 		 * n+2 coefficients.
 		 */
 		if (coeff_ct != sens->num_sensors) {
-			dev_err(dev, "sens:%s invalid coefficient\n",
+			dev_err(dev, "sens:%s Invalid coefficient\n",
 					sensor_data->virt_zone_name);
 			return ERR_PTR(-EINVAL);
 		}
@@ -1335,8 +1327,6 @@ __init *thermal_of_build_thermal_zone(struct device_node *np)
 
 	tz->is_wakeable = of_property_read_bool(np,
 					"wake-capable-sensor");
-	tz->default_disable = of_property_read_bool(np,
-					"disable-thermal-zone");
 	/*
 	 * REVIST: for now, the thermal framework supports only
 	 * one sensor per thermal zone. Thus, we are considering
