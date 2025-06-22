@@ -2164,6 +2164,8 @@ extern unsigned int sysctl_sched_base_slice;
 extern unsigned int sysctl_fps_threshold_high;
 extern unsigned int sysctl_fps_threshold_low;
 extern unsigned int sysctl_util_low;
+extern unsigned int sysctl_boost_lpmask;
+extern unsigned int sysctl_boost_bpmask;
 
 #ifdef CONFIG_SCHED_HRTICK
 
