@@ -67,8 +67,8 @@ DEFINE_PER_CPU_READ_MOSTLY(int, sched_load_boost);
 unsigned int sysctl_fps_threshold_high __read_mostly = 50;
 unsigned int sysctl_fps_threshold_low __read_mostly = 30;
 unsigned int sysctl_util_low __read_mostly = 200;
-unsigned int sysctl_boost_lpmask __read_mostly = 25;
-unsigned int sysctl_boost_bpmask __read_mostly = 13;
+unsigned int sysctl_boost_lpmask __read_mostly = 30;
+unsigned int sysctl_boost_bpmask __read_mostly = 15;
 static int zero		= 0;
 static int hundred	= 100;
 
