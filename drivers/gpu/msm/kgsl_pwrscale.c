@@ -524,29 +524,19 @@ int kgsl_busmon_get_dev_status(struct device *dev,
 	return 0;
 }
 
-#ifdef DEVFREQ_FLAG_FAST_HINT
-static inline bool _check_fast_hint(u32 flags)
+static int _read_hint(u32 flags)
 {
-	return (flags & DEVFREQ_FLAG_FAST_HINT);
+	switch (flags) {
+	case BUSMON_FLAG_FAST_HINT:
+		return 1;
+	case BUSMON_FLAG_SUPER_FAST_HINT:
+		return 2;
+	case BUSMON_FLAG_SLOW_HINT:
+		return -1;
+	default:
+		return 0;
+	}
 }
-#else
-static inline bool _check_fast_hint(u32 flags)
-{
-	return false;
-}
-#endif
-
-#ifdef DEVFREQ_FLAG_SLOW_HINT
-static inline bool _check_slow_hint(u32 flags)
-{
-	return (flags & DEVFREQ_FLAG_SLOW_HINT);
-}
-#else
-static inline bool _check_slow_hint(u32 flags)
-{
-	return false;
-}
-#endif
 
 /*
  * kgsl_busmon_target - devfreq_dev_profile.target callback
@@ -596,10 +586,7 @@ int kgsl_busmon_target(struct device *dev, unsigned long *freq, u32 flags)
 	}
 
 	b = pwr->bus_mod;
-	if (_check_fast_hint(bus_flag))
-		pwr->bus_mod++;
-	else if (_check_slow_hint(bus_flag))
-		pwr->bus_mod--;
+	pwr->bus_mod += _read_hint(bus_flag);
 
 	/* trim calculated change to fit range */
 	if (pwr_level->bus_freq + pwr->bus_mod < pwr_level->bus_min)
