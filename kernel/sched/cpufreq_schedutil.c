@@ -371,7 +371,7 @@ unsigned long calculate_headroom_high(unsigned long headroom, int cpu, unsigned 
 
 	/* Apply quadratic tapering boost on top */
 	delta      = capacity - util;
-	quad_boost = (delta * delta) / (4 * capacity);
+	quad_boost = (delta * delta) / (5 * capacity);
 
 	/* Suppress boosts at very low util */
 	min_util = capacity / 10;
