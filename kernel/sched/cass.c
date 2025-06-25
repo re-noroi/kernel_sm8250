@@ -188,7 +188,6 @@ static int cass_best_cpu(struct task_struct *p, int prev_cpu, bool sync, bool rt
 		struct cass_cpu_cand *curr = &cands[cidx];
 		struct cpuidle_state *idle_state;
 		struct rq *rq = cpu_rq(cpu);
-		unsigned long min_cap = 0;
 
 		/* Get the original, maximum _possible_ capacity of this CPU */
 		curr->cap_orig = arch_scale_cpu_capacity(cpu);
@@ -215,9 +214,9 @@ static int cass_best_cpu(struct task_struct *p, int prev_cpu, bool sync, bool rt
 			 * found so far is the prime CPU. Otherwise, prefer idle
 			 * candidates.
 			 */
-			min_cap = max(arch_scale_min_freq_capacity(cpu), curr->cap_max >> 2);
-			if (!has_idle && uc_min <= min_cap && 
-				!cass_prime_cpu(curr)){
+			if (!has_idle &&
+				uc_min <= arch_scale_min_freq_capacity(cpu) &&
+				!cass_prime_cpu(curr)) {
 				/* Discard any previous non-idle candidate */
 				best = curr;
 				has_idle = true;
