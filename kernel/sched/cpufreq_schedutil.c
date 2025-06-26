@@ -13,7 +13,7 @@
 
 #include "sched.h"
 
-#include <linux/spinlock.h> 
+#include <linux/atomic.h>
 #include <linux/sched/cpufreq.h>
 #include <trace/events/power.h>
 #include <linux/sched/sysctl.h>
@@ -27,20 +27,9 @@
 
 /* We have three clusters: little, prime, big */
 #define NR_CLUSTERS 3
-// Declare individual spinlocks
-static DEFINE_SPINLOCK(cluster_lock_little);
-static DEFINE_SPINLOCK(cluster_lock_prime);
-static DEFINE_SPINLOCK(cluster_lock_big);
 
-// Pointer array to access spinlocks by cluster
-static spinlock_t *const cluster_lock[NR_CLUSTERS] = {
-    &cluster_lock_little,
-    &cluster_lock_prime,
-    &cluster_lock_big,
-};
-
-static int headroom_mode[NR_CLUSTERS];   /* 1 = high, 0 = low */
-static int headroom_streak[NR_CLUSTERS]; /* consecutive false-want_high ticks */
+static atomic_t headroom_mode[NR_CLUSTERS];   // 1 = high, 0 = low
+static atomic_t headroom_streak[NR_CLUSTERS]; // consecutive false-want_high ticks
 
 enum {
 	CLUSTER_LITTLE = 0,
@@ -436,7 +425,6 @@ static __always_inline
 unsigned long apply_dvfs_headroom(int cpu, unsigned long util, unsigned long max_cap)
 {
 	int cluster = cpu_cluster_id(cpu);
-	unsigned long flags;
 	unsigned long headroom = util;
 	int fps;
 	unsigned int refresh_rate = dsi_panel_get_refresh_rate();
@@ -456,30 +444,24 @@ unsigned long apply_dvfs_headroom(int cpu, unsigned long util, unsigned long max
 
 	/* Reset streak when util is low */
 	if (util < (max_cap >> 2)) {
-		spin_lock_irqsave(cluster_lock[cluster], flags);
-		headroom_mode[cluster]  = 0;
-		headroom_streak[cluster] = 0;
-		spin_unlock_irqrestore(cluster_lock[cluster], flags);
+		atomic_set(&headroom_mode[cluster], 0);
+		atomic_set(&headroom_streak[cluster], 0);
 	}
 	/* Decide whether we "want" high headroom */
 	want_high = (refresh_rate > 60 && fps > 70);
 
 	/* Apply per-cluster hysteresis */
-	spin_lock_irqsave(cluster_lock[cluster], flags);
-
-	mode   = &headroom_mode[cluster];  
-	streak = &headroom_streak[cluster];
-
-    // Use pointers consistently for updates
 	if (want_high) {
-		*mode = 1;
-		*streak = 0;
-	} else if (*mode && ++(*streak) >= HEADROOM_STREAK_THRESHOLD) {
-		*mode = 0;
-		*streak = 0;
+		atomic_set(&headroom_mode[cluster], 1);
+		atomic_set(&headroom_streak[cluster], 0);
+	} else if (atomic_read(&headroom_mode[cluster])) {
+		int streak_val = atomic_inc_return(&headroom_streak[cluster]);
+		if (streak_val >= HEADROOM_STREAK_THRESHOLD) {
+			atomic_set(&headroom_mode[cluster], 0);
+			atomic_set(&headroom_streak[cluster], 0);
+		}
 	}
-	use_high = *mode;
-	spin_unlock_irqrestore(cluster_lock[cluster], flags);
+	use_high = atomic_read(&headroom_mode[cluster]);
 
 	/* pick the per-cluster mode */
 	if (use_high)
