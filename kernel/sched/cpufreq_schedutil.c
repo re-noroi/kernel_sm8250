@@ -13,17 +13,52 @@
 
 #include "sched.h"
 
+#include <linux/spinlock.h> 
 #include <linux/sched/cpufreq.h>
 #include <trace/events/power.h>
 #include <linux/sched/sysctl.h>
 #include <linux/binfmts.h>
 #include <drm/drm_refresh_rate.h>
 
-
 #define IOWAIT_BOOST_MIN	(SCHED_CAPACITY_SCALE / 8)
+
+/* Per-cluster headroom hysteresis */
 #define HEADROOM_STREAK_THRESHOLD 3
-static int last_headroom_mode = 1; // 1 = high mode, 0 = low mode
-static int headroom_streak = 0;
+
+/* We have three clusters: little, prime, big */
+#define NR_CLUSTERS 3
+// Declare individual spinlocks
+static DEFINE_SPINLOCK(cluster_lock_little);
+static DEFINE_SPINLOCK(cluster_lock_prime);
+static DEFINE_SPINLOCK(cluster_lock_big);
+
+// Pointer array to access spinlocks by cluster
+static spinlock_t *const cluster_lock[NR_CLUSTERS] = {
+    &cluster_lock_little,
+    &cluster_lock_prime,
+    &cluster_lock_big,
+};
+
+static int headroom_mode[NR_CLUSTERS];   /* 1 = high, 0 = low */
+static int headroom_streak[NR_CLUSTERS]; /* consecutive false-want_high ticks */
+
+enum {
+	CLUSTER_LITTLE = 0,
+	CLUSTER_PRIME  = 1,
+	CLUSTER_BIG    = 2,
+};
+
+/*
+ * cpu_cluster_id - map a cpu to one of CLUSTER_{LITTLE,PRIME,BIG}
+ */
+static inline int cpu_cluster_id(int cpu)
+{
+	if (cpumask_test_cpu(cpu, cpu_lp_mask))
+		return CLUSTER_LITTLE;
+	else if (cpumask_test_cpu(cpu, cpu_prime_mask))
+		return CLUSTER_PRIME;
+	return CLUSTER_BIG;
+}
 
 struct sugov_tunables {
 	struct gov_attr_set	attr_set;
@@ -396,10 +431,16 @@ unsigned long calculate_headroom_low(unsigned long headroom, int cpu, unsigned l
 static __always_inline
 unsigned long apply_dvfs_headroom(int cpu, unsigned long util, unsigned long max_cap)
 {
+	int cluster = cpu_cluster_id(cpu);
+	unsigned long flags;
 	unsigned long headroom = util;
 	int fps;
 	unsigned int refresh_rate = dsi_panel_get_refresh_rate();
 	bool want_high;
+	int *mode;
+	int *streak;
+	bool use_high;
+
 	if (!refresh_rate)
 		refresh_rate = 60;
 
@@ -409,24 +450,28 @@ unsigned long apply_dvfs_headroom(int cpu, unsigned long util, unsigned long max
 	if (!util || util >= max_cap || util > 3 * (max_cap >> 2))
 		return util;
 
+	/* Decide whether we "want" high headroom */
 	want_high = (refresh_rate > 60 && fps > 70);
 
-	/* If we want HIGH, switch instantly */
-	if (want_high) {
-		last_headroom_mode = 1;
-		headroom_streak = 0;
-	}
-	/* Otherwise, only drop into LOW after N consecutive ticks */
-	else if (last_headroom_mode) {
-		headroom_streak++;
-		if (headroom_streak >= HEADROOM_STREAK_THRESHOLD) {
-			last_headroom_mode = want_high;
-			headroom_streak = 0;
-		}
-	}
+	/* Apply per-cluster hysteresis */
+	spin_lock_irqsave(cluster_lock[cluster], flags);
 
-	/* Apply boosted decision */
-	if (last_headroom_mode)
+	mode   = &headroom_mode[cluster];  
+	streak = &headroom_streak[cluster];
+
+    // Use pointers consistently for updates
+	if (want_high) {
+		*mode = 1;
+		*streak = 0;
+	} else if (*mode && ++(*streak) >= HEADROOM_STREAK_THRESHOLD) {
+		*mode = 0;
+		*streak = 0;
+	}
+	use_high = *mode;
+	spin_unlock_irqrestore(cluster_lock[cluster], flags);
+
+	/* pick the per-cluster mode */
+	if (use_high)
 		headroom = calculate_headroom_high(headroom, cpu, util);
 	else
 		headroom = calculate_headroom_low(headroom, cpu, util, fps);
