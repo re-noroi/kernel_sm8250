@@ -447,8 +447,15 @@ unsigned long apply_dvfs_headroom(int cpu, unsigned long util, unsigned long max
 	fps = msm_panel_fps ?: 30;
 
 	/* Skip headroom entirely for zero, full, or high util */
-	if (!util || util >= max_cap || util > 3 * (max_cap >> 2))
+	if (!util || util >= max_cap || util > 3 * (max_cap >> 2)) {
+		spin_lock_irqsave(cluster_lock[cluster], flags);
+		if (util < (max_cap >> 2)) {  // Only reset if utilization is "very low"
+			headroom_mode[cluster] = 0;
+			headroom_streak[cluster] = 0;
+		}
+		spin_unlock_irqrestore(cluster_lock[cluster], flags);
 		return util;
+	}
 
 	/* Decide whether we "want" high headroom */
 	want_high = (refresh_rate > 60 && fps > 70);
