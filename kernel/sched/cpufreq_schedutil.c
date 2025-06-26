@@ -28,8 +28,8 @@
 /* We have three clusters: little, prime, big */
 #define NR_CLUSTERS 3
 
-static atomic_t headroom_mode[NR_CLUSTERS];   // 1 = high, 0 = low
-static atomic_t headroom_streak[NR_CLUSTERS]; // consecutive false-want_high ticks
+/* Combined atomic: 1 bit mode (0=low, 1=high), 15 bits streak */
+static atomic_t headroom_state[NR_CLUSTERS];  // [mode:1][streak:3] (0–7)
 
 enum {
 	CLUSTER_LITTLE = 0,
@@ -429,8 +429,8 @@ unsigned long apply_dvfs_headroom(int cpu, unsigned long util, unsigned long max
 	int fps;
 	unsigned int refresh_rate = dsi_panel_get_refresh_rate();
 	bool want_high;
-	int *mode;
-	int *streak;
+	int old, new;
+	int mode, streak;
 	bool use_high;
 
 	if (!refresh_rate)
@@ -444,24 +444,33 @@ unsigned long apply_dvfs_headroom(int cpu, unsigned long util, unsigned long max
 
 	/* Reset streak when util is low */
 	if (util < (max_cap >> 2)) {
-		atomic_set(&headroom_mode[cluster], 0);
-		atomic_set(&headroom_streak[cluster], 0);
+		atomic_set(&headroom_state[cluster], 0);
 	}
 	/* Decide whether we "want" high headroom */
 	want_high = (refresh_rate > 60 && fps > 70);
 
 	/* Apply per-cluster hysteresis */
 	if (want_high) {
-		atomic_set(&headroom_mode[cluster], 1);
-		atomic_set(&headroom_streak[cluster], 0);
-	} else if (atomic_read(&headroom_mode[cluster])) {
-		int streak_val = atomic_inc_return(&headroom_streak[cluster]);
-		if (streak_val >= HEADROOM_STREAK_THRESHOLD) {
-			atomic_set(&headroom_mode[cluster], 0);
-			atomic_set(&headroom_streak[cluster], 0);
-		}
+		// Set mode=1, streak=0
+		atomic_set(&headroom_state[cluster], 0x8); // 0b1000
+	} else {
+		do {
+			old = atomic_read(&headroom_state[cluster]);
+			mode   = (old & 0x8); // 0b1000
+			streak = (old & 0x7); // 0b0111
+
+			if (!mode) break; // Already low
+
+			streak++;
+			if (streak >= HEADROOM_STREAK_THRESHOLD) {
+				new = 0; // mode=0, streak=0
+			} else {
+				new = 0x8 | (streak & 0x7); // mode=1, streak=0–7
+			}
+		} while (!atomic_try_cmpxchg(&headroom_state[cluster], &old, new));
 	}
-	use_high = atomic_read(&headroom_mode[cluster]);
+	/* Extract mode from atomic state */
+	use_high = (atomic_read(&headroom_state[cluster]) >> 3) & 0x1;
 
 	/* pick the per-cluster mode */
 	if (use_high)
