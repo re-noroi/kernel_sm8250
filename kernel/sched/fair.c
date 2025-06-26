@@ -64,9 +64,6 @@ static unsigned int normalized_sysctl_sched_base_slice	= 2800000ULL;
 const_debug unsigned int sysctl_sched_migration_cost	= 0UL;
 DEFINE_PER_CPU_READ_MOSTLY(int, sched_load_boost);
 
-unsigned int sysctl_fps_threshold_high __read_mostly = 50;
-unsigned int sysctl_fps_threshold_low __read_mostly = 30;
-unsigned int sysctl_util_low __read_mostly = 200;
 unsigned int sysctl_boost_lpmask __read_mostly = 30;
 unsigned int sysctl_boost_bpmask __read_mostly = 15;
 static int zero		= 0;
@@ -126,27 +123,6 @@ unsigned int sysctl_sched_cfs_bandwidth_slice		= 5000UL;
 #endif
 
 static struct ctl_table sched_fair_sysctls[] = {
-		{
-    		.procname       = "sched_fps_threshold_high",
-    		.data           = &sysctl_fps_threshold_high,
-    		.maxlen         = sizeof(unsigned int),
-    		.mode           = 0644,
-    		.proc_handler   = proc_dointvec,
-    	},
-		{
-    		.procname       = "sched_fps_threshold_low",
-    		.data           = &sysctl_fps_threshold_low,
-    		.maxlen         = sizeof(unsigned int),
-    		.mode           = 0644,
-    		.proc_handler   = proc_dointvec,
-    	},
-		{
-    		.procname       = "sched_util_low",
-    		.data           = &sysctl_util_low,
-    		.maxlen         = sizeof(unsigned int),
-    		.mode           = 0644,
-    		.proc_handler   = proc_dointvec,
-    	},
     	{
     		.procname       = "sched_boost_little_cores",
     		.data           = &sysctl_boost_lpmask,

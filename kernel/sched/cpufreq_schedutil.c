@@ -416,12 +416,16 @@ unsigned long calculate_headroom_high(unsigned long headroom, int cpu, unsigned 
 
 static __always_inline
 unsigned long calculate_headroom_low(unsigned long headroom, int cpu, unsigned long util, int fps) {
-	if (util <= sysctl_util_low) { // check if util is way too high for decreasing headroom
+	const unsigned int fps_threshold_high = 50;
+	const unsigned int fps_threshold_low = 30;
+	const unsigned int util_low = 200;
+	
+	if (util <= util_low) { // check if util is way too high for decreasing headroom
 		if (cpumask_test_cpu(cpu, cpu_prime_mask))
 			return (util >> 3); // we want to reduce headroom of prime cluster if phone is idling with screen on
 		else
-			return (fps > sysctl_fps_threshold_high) ? (util - (util >> 1)) :
-			(fps < sysctl_fps_threshold_low) ? (util >> 3) :
+			return (fps > fps_threshold_high) ? (util - (util >> 1)) :
+			(fps <fps_threshold_low) ? (util >> 3) :
 			(util >> 2);
 	} else {
 		return util;
