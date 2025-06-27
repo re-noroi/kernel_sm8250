@@ -68,7 +68,7 @@ static DEFINE_SPINLOCK(pm_qos_lock);
 
 static struct pm_qos_object null_pm_qos;
 
-SRCU_NOTIFIER_HEAD_STATIC(cpu_dma_lat_notifier);
+static BLOCKING_NOTIFIER_HEAD(cpu_dma_lat_notifier);
 static struct pm_qos_constraints cpu_dma_constraints = {
 	.list = PLIST_HEAD_INIT(cpu_dma_constraints.list),
 	.target_value = PM_QOS_CPU_DMA_LAT_DEFAULT_VALUE,
@@ -84,7 +84,7 @@ static struct pm_qos_object cpu_dma_pm_qos = {
 	.name = "cpu_dma_latency",
 };
 
-SRCU_NOTIFIER_HEAD_STATIC(network_lat_notifier);
+static BLOCKING_NOTIFIER_HEAD(network_lat_notifier);
 static struct pm_qos_constraints network_lat_constraints = {
 	.list = PLIST_HEAD_INIT(network_lat_constraints.list),
 	.target_value = PM_QOS_NETWORK_LAT_DEFAULT_VALUE,
@@ -100,7 +100,7 @@ static struct pm_qos_object network_lat_pm_qos = {
 	.name = "network_latency",
 };
 
-SRCU_NOTIFIER_HEAD_STATIC(network_throughput_notifier);
+static BLOCKING_NOTIFIER_HEAD(network_throughput_notifier);
 static struct pm_qos_constraints network_tput_constraints = {
 	.list = PLIST_HEAD_INIT(network_tput_constraints.list),
 	.target_value = PM_QOS_NETWORK_THROUGHPUT_DEFAULT_VALUE,
@@ -117,7 +117,7 @@ static struct pm_qos_object network_throughput_pm_qos = {
 };
 
 
-SRCU_NOTIFIER_HEAD_STATIC(memory_bandwidth_notifier);
+static BLOCKING_NOTIFIER_HEAD(memory_bandwidth_notifier);
 static struct pm_qos_constraints memory_bw_constraints = {
 	.list = PLIST_HEAD_INIT(memory_bw_constraints.list),
 	.target_value = PM_QOS_MEMORY_BANDWIDTH_DEFAULT_VALUE,
@@ -271,9 +271,6 @@ static inline int pm_qos_set_value_for_cpus(struct pm_qos_request *new_req,
 					    struct pm_qos_constraints *c,
 					    unsigned long *cpus, bool dev_req)
 {
-	s32 qos_val[NR_CPUS] = {
-		[0 ... (NR_CPUS - 1)] = PM_QOS_CPU_DMA_LAT_DEFAULT_VALUE
-	};
 	struct pm_qos_request *req;
 	unsigned long new_req_cpus;
 	bool changed = false;
@@ -318,14 +315,19 @@ static inline int pm_qos_set_value_for_cpus(struct pm_qos_request *new_req,
 			continue;
 
 		for_each_cpu(cpu, to_cpumask(&affected_cpus)) {
-			if (qos_val[cpu] > req->node.prio)
-				qos_val[cpu] = req->node.prio;
+			if (c->target_per_cpu[cpu] != req->node.prio) {
+				c->target_per_cpu[cpu] = req->node.prio;
+				*cpus |= BIT(cpu);
+			}
 		}
+
+		if (!(new_req_cpus &= ~affected_cpus))
+			return 0;
 	}
 
 	for_each_cpu(cpu, to_cpumask(&new_req_cpus)) {
-		if (c->target_per_cpu[cpu] != qos_val[cpu]) {
-			c->target_per_cpu[cpu] = qos_val[cpu];
+		if (c->target_per_cpu[cpu] != PM_QOS_CPU_DMA_LAT_DEFAULT_VALUE) {
+			c->target_per_cpu[cpu] = PM_QOS_CPU_DMA_LAT_DEFAULT_VALUE;
 			*cpus |= BIT(cpu);
 		}
 	}
@@ -397,7 +399,7 @@ int pm_qos_update_target(struct pm_qos_constraints *c, struct plist_node *node,
 	   (ret && prev_value != curr_value)) {
 		ret = 1;
 		if (c->notifiers)
-			srcu_notifier_call_chain(c->notifiers,
+			blocking_notifier_call_chain(c->notifiers,
 				     (unsigned long)curr_value, &cpus);
 	} else {
 		ret = 0;
@@ -727,7 +729,7 @@ int pm_qos_add_notifier(int pm_qos_class, struct notifier_block *notifier)
 {
 	int retval;
 
-	retval = srcu_notifier_chain_register(
+	retval = blocking_notifier_chain_register(
 			pm_qos_array[pm_qos_class]->constraints->notifiers,
 			notifier);
 
@@ -747,7 +749,7 @@ int pm_qos_remove_notifier(int pm_qos_class, struct notifier_block *notifier)
 {
 	int retval;
 
-	retval = srcu_notifier_chain_unregister(
+	retval = blocking_notifier_chain_unregister(
 			pm_qos_array[pm_qos_class]->constraints->notifiers,
 			notifier);
 
@@ -849,15 +851,6 @@ static ssize_t pm_qos_power_write(struct file *filp, const char __user *buf,
 		ret = kstrtos32_from_user(buf, count, 16, &value);
 		if (ret)
 			return ret;
-	}
-
-	switch (value) {
-		case 0x44:
-			value = 44;
-			break;
-		case 0x100:
-			return count;
-			break;
 	}
 
 	req = filp->private_data;
