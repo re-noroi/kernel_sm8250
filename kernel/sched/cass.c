@@ -142,7 +142,7 @@ bool cass_cpu_better(const struct cass_cpu_cand *a,
 		goto done;
 
 	/* Prefer the previous CPU */
-	if (cass_cmp( (a->cpu == prev_cpu), (b->cpu == prev_cpu) ))
+	if (cass_eq(a->cpu, prev_cpu) || !cass_cmp(b->cpu, prev_cpu))
 		goto done;
 
 	/* Prefer the CPU that shares a cache with the previous CPU */
