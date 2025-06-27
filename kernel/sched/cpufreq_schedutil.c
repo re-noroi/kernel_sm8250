@@ -400,7 +400,11 @@ unsigned long calculate_headroom_high(unsigned long headroom, int cpu, unsigned 
 	if (quad_boost > max_boost)
 		quad_boost = max_boost;
 
-	return min(base_boost, capacity); // Clamp to max capacity
+	base_boost += quad_boost;
+	if (base_boost > capacity)
+		base_boost = capacity;
+
+	return base_boost;
 }
 
 static __always_inline
