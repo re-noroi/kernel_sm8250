@@ -372,13 +372,15 @@ unsigned long calculate_headroom_high(unsigned long headroom, int cpu, unsigned 
 	unsigned long capacity = capacity_orig_of(cpu);
 	unsigned long delta, quad_boost, max_boost, min_util;
 
-	/* Manual boost */
-	if (cpumask_test_cpu(cpu, cpu_lp_mask))
-		base_boost += util * sysctl_boost_lpmask / 100;
-	else if (cpumask_test_cpu(cpu, cpu_prime_mask))
-		base_boost += 0; // no manual boost for prime
-	else
-		base_boost += util * sysctl_boost_bpmask / 100;
+	/* Only apply “manual” % boosts when util < 75% */
+	if (util < (capacity * 75) / 100) {
+		if (cpumask_test_cpu(cpu, cpu_lp_mask))
+			base_boost += util * sysctl_boost_lpmask / 100;
+		else if (cpumask_test_cpu(cpu, cpu_prime_mask))
+			base_boost += 0; // no manual boost for prime
+		else
+			base_boost += util * sysctl_boost_bpmask / 100;
+	}
 
 	/* Apply quadratic tapering boost on top */
 	delta      = capacity - util;
@@ -446,8 +448,8 @@ unsigned long apply_dvfs_headroom(int cpu, unsigned long util, unsigned long max
 	if (!util || util >= max_cap || util < (max_cap >> 2))
 		atomic_set(&headroom_state[cluster], 0);
 
-	/* Skip headroom entirely for zero, full, or high util */
-	if (!util || util >= max_cap || util > 3 * (max_cap >> 2))
+	/* Skip headroom entirely for zero or full */
+	if (!util || util >= max_cap)
 		return util;
 
 	/* Decide whether we "want" high headroom */
