@@ -442,8 +442,8 @@ unsigned long apply_dvfs_headroom(int cpu, unsigned long util, unsigned long max
 
 	fps = msm_panel_fps ?: 30;
 
-	/* Reset streak when util is low */
-	if (util < (max_cap >> 2))
+	/* Reset streak when util is zero, full, or very low */
+	if (!util || util >= max_cap || util < (max_cap >> 2))
 		atomic_set(&headroom_state[cluster], 0);
 
 	/* Skip headroom entirely for zero, full, or high util */
