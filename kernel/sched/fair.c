@@ -8167,13 +8167,10 @@ select_task_rq_fair(struct task_struct *p, int prev_cpu, int wake_flags)
 		record_wakee(p);
 
                 if (sched_energy_enabled()) {
-			if (cpu_rq(prev_cpu)->nr_running == 0)
-        		return prev_cpu;
-
-    		new_cpu = find_energy_efficient_cpu(p, prev_cpu, sync, 1);
-    		if (new_cpu >= 0)
-        		return new_cpu;
-    		new_cpu = prev_cpu;
+			new_cpu = find_energy_efficient_cpu(p, prev_cpu, sync, 1);
+			if (new_cpu >= 0)
+				return new_cpu;
+			new_cpu = prev_cpu;
 		}
 
 		want_affine = !wake_wide(p) &&
@@ -8203,13 +8200,11 @@ select_task_rq_fair(struct task_struct *p, int prev_cpu, int wake_flags)
 
 	if (unlikely(sd)) {
 		/* Slow path */
-		if (cpu_rq(prev_cpu)->nr_running <= 2)
-        	new_cpu = prev_cpu;
-    	else
-        	new_cpu = find_idlest_cpu(sd, p, cpu, prev_cpu, sd_flag);
+		new_cpu = find_idlest_cpu(sd, p, cpu, prev_cpu, sd_flag);
 	} else if (wake_flags & WF_TTWU) { /* XXX always ? */
 		/* Fast path */
-		new_cpu = (cpu_rq(prev_cpu)->nr_running < 3) ? prev_cpu : select_idle_sibling(p, prev_cpu, new_cpu);
+
+		new_cpu = select_idle_sibling(p, prev_cpu, new_cpu);
 	}
 	rcu_read_unlock();
 
