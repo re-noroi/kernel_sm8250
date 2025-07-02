@@ -26,7 +26,6 @@
 #include <drm/drm_crtc.h>
 #include <drm/drm_crtc_helper.h>
 #include <drm/drm_flip_work.h>
-#include <drm/drm_refresh_rate.h>
 #include <linux/clk/qcom.h>
 
 #include "sde_kms.h"
@@ -106,8 +105,6 @@ static struct sde_crtc_custom_events custom_events[] = {
 #define MAX_FRAME_COUNT			1000
 #define MILI_TO_MICRO			1000
 
-unsigned char msm_panel_fps = 60;
-
 static inline struct sde_kms *_sde_crtc_get_kms(struct drm_crtc *crtc)
 {
 	struct msm_drm_private *priv;
@@ -149,7 +146,6 @@ static void sde_crtc_calc_fps(struct sde_crtc *sde_crtc)
 		 /* Multiplying with 10 to get fps in floating point */
 		fps = ((u64)sde_crtc->fps_info.frame_count)
 						* DEFAULT_FPS_PERIOD_1_SEC * 10;
-		msm_panel_fps = fps/10;
 		do_div(fps, diff_us);
 		sde_crtc->fps_info.measured_fps = (unsigned int)fps;
 		SDE_DEBUG(" FPS for crtc%d is %d.%d\n",
