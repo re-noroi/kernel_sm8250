@@ -2161,9 +2161,6 @@ extern const_debug unsigned int sysctl_sched_nr_migrate;
 extern const_debug unsigned int sysctl_sched_migration_cost;
 
 extern unsigned int sysctl_sched_base_slice;
-extern unsigned int sysctl_boost_lpmask;
-extern unsigned int sysctl_boost_bpmask;
-
 #ifdef CONFIG_SCHED_HRTICK
 
 /*
