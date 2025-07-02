@@ -13,41 +13,12 @@
 
 #include "sched.h"
 
-#include <linux/atomic.h>
 #include <linux/sched/cpufreq.h>
 #include <trace/events/power.h>
 #include <linux/sched/sysctl.h>
 #include <linux/binfmts.h>
-#include <drm/drm_refresh_rate.h>
 
 #define IOWAIT_BOOST_MIN	(SCHED_CAPACITY_SCALE / 8)
-
-/* Per-cluster headroom hysteresis */
-#define HEADROOM_STREAK_THRESHOLD 3
-
-/* We have three clusters: little, prime, big */
-#define NR_CLUSTERS 3
-
-/* Combined atomic: 1 bit mode (0=low, 1=high), 15 bits streak */
-static atomic_t headroom_state[NR_CLUSTERS];  // [mode:1][streak:3] (0–7)
-
-enum {
-	CLUSTER_LITTLE = 0,
-	CLUSTER_PRIME  = 1,
-	CLUSTER_BIG    = 2,
-};
-
-/*
- * cpu_cluster_id - map a cpu to one of CLUSTER_{LITTLE,PRIME,BIG}
- */
-static inline int cpu_cluster_id(int cpu)
-{
-	if (cpumask_test_cpu(cpu, cpu_lp_mask))
-		return CLUSTER_LITTLE;
-	else if (cpumask_test_cpu(cpu, cpu_prime_mask))
-		return CLUSTER_PRIME;
-	return CLUSTER_BIG;
-}
 
 struct sugov_tunables {
 	struct gov_attr_set	attr_set;
@@ -366,125 +337,16 @@ unsigned long schedutil_cpu_util(int cpu, unsigned long util_cfs,
 }
 
 static __always_inline
-unsigned long calculate_headroom_high(unsigned long headroom, int cpu, unsigned long util)
+unsigned long apply_dvfs_headroom(int cpu, unsigned long util)
 {
-	unsigned long base_boost = util;
-	unsigned long capacity = capacity_orig_of(cpu);
-	unsigned long delta, quad_boost, max_boost, min_util;
+	unsigned long headroom;
 
-	/* Only apply “manual” % boosts when util < 75% */
-	if (util < (capacity * 75) / 100) {
-		if (cpumask_test_cpu(cpu, cpu_lp_mask))
-			base_boost += util * sysctl_boost_lpmask / 100;
-		else if (cpumask_test_cpu(cpu, cpu_prime_mask))
-			base_boost += 0; // no manual boost for prime
-		else
-			base_boost += util * sysctl_boost_bpmask / 100;
-	}
-
-	/* Apply quadratic tapering boost on top */
-	delta      = capacity - util;
-	quad_boost = (delta * delta) / (5 * capacity);
-
-	/* Suppress boosts at very low util */
-	min_util = capacity / 10;
-	if (util < min_util) {
-		quad_boost = quad_boost * util * util 
-					/ (min_util * min_util);
-	}
-
-	/* Cap the quadratic boost to 25% of capacity */
-	if (cpumask_test_cpu(cpu, cpu_prime_mask))
-		max_boost = capacity >> 3;  // 12.5% for prime
+	if (cpumask_test_cpu(cpu, cpu_lp_mask))
+		headroom = util + (util >> 1);
 	else
-		max_boost = capacity >> 2;  // 25% for little & big
+		headroom = util + (util >> 2);
 
-	if (quad_boost > max_boost)
-		quad_boost = max_boost;
-
-	base_boost += quad_boost;
-	if (base_boost > capacity)
-		base_boost = capacity;
-
-	return base_boost;
-}
-
-static __always_inline
-unsigned long calculate_headroom_low(unsigned long headroom, int cpu, unsigned long util, int fps) {
-	const unsigned int fps_threshold_high = 50;
-	const unsigned int fps_threshold_low = 30;
-	const unsigned int util_low = 300;
-	
-	if (util <= util_low) { // check if util is way too high for decreasing headroom
-		if (cpumask_test_cpu(cpu, cpu_prime_mask))
-			return (util >> 2); // we want to reduce headroom of prime cluster if phone is idling with screen on
-		else
-			return (fps > fps_threshold_high) ? (util - (util >> 1)) :
-			(fps <fps_threshold_low) ? (util >> 3) :
-			(util >> 2);
-	} else {
-		return util;
-	}
-}
-
-static __always_inline
-unsigned long apply_dvfs_headroom(int cpu, unsigned long util, unsigned long max_cap)
-{
-	int cluster = cpu_cluster_id(cpu);
-	unsigned long headroom = util;
-	int fps;
-	unsigned int refresh_rate = dsi_panel_get_refresh_rate();
-	bool want_high;
-	int old, new;
-	int mode, streak;
-	bool use_high;
-
-	if (!refresh_rate)
-		refresh_rate = 60;
-
-	fps = msm_panel_fps ?: 30;
-
-	/* Reset streak when util is zero, full, or very low */
-	if (!util || util >= max_cap || util < (max_cap >> 2))
-		atomic_set(&headroom_state[cluster], 0);
-
-	/* Skip headroom entirely for zero or full */
-	if (!util || util >= max_cap)
-		return util;
-
-	/* Decide whether we "want" high headroom */
-	want_high = (refresh_rate > 60 && fps > 70);
-
-	/* Apply per-cluster hysteresis */
-	if (want_high) {
-		// Set mode=1, streak=0
-		atomic_set(&headroom_state[cluster], 0x8); // 0b1000
-	} else {
-		do {
-			old = atomic_read(&headroom_state[cluster]);
-			mode   = (old & 0x8); // 0b1000
-			streak = (old & 0x7); // 0b0111
-
-			if (!mode) break; // Already low
-
-			streak++;
-			if (streak >= HEADROOM_STREAK_THRESHOLD) {
-				new = 0; // mode=0, streak=0
-			} else {
-				new = 0x8 | (streak & 0x7); // mode=1, streak=0–7
-			}
-		} while (!atomic_try_cmpxchg(&headroom_state[cluster], &old, new));
-	}
-	/* Extract mode from atomic state */
-	use_high = (atomic_read(&headroom_state[cluster]) >> 3) & 0x1;
-
-	/* pick the per-cluster mode */
-	if (use_high)
-		headroom = calculate_headroom_high(headroom, cpu, util);
-	else
-		headroom = calculate_headroom_low(headroom, cpu, util, fps);
-
-	return min(headroom, max_cap);
+	return headroom;
 }
 
 unsigned long sugov_effective_cpu_perf(int cpu, unsigned long actual,
@@ -492,7 +354,7 @@ unsigned long sugov_effective_cpu_perf(int cpu, unsigned long actual,
 				 unsigned long max)
 {
 	/* Add dvfs headroom to actual utilization */
-	actual = apply_dvfs_headroom(cpu, actual,max);
+	actual = apply_dvfs_headroom(cpu, actual);
 	/* Actually we don't need to target the max performance */
 	if (actual < max)
 		max = actual;
