@@ -64,6 +64,14 @@ static unsigned int normalized_sysctl_sched_base_slice	= 2800000ULL;
 const_debug unsigned int sysctl_sched_migration_cost	= 0UL;
 DEFINE_PER_CPU_READ_MOSTLY(int, sched_load_boost);
 
+/*
+ * Headroom manual boost value += boost * util / 100
+ */
+unsigned int sysctl_boost_lpmask __read_mostly = 30;
+unsigned int sysctl_boost_bpmask __read_mostly = 15;
+static int zero		= 0;
+static int hundred	= 100;
+
 int sched_thermal_decay_shift;
 static int __init setup_sched_thermal_decay_shift(char *str)
 {
@@ -116,6 +124,35 @@ int __weak arch_asym_cpu_priority(int cpu)
  */
 unsigned int sysctl_sched_cfs_bandwidth_slice		= 5000UL;
 #endif
+
+static struct ctl_table sched_headroom_sysctls[] = {
+	{
+		.procname       = "sched_boost_little_cores",
+		.data           = &sysctl_boost_lpmask,
+		.maxlen         = sizeof(unsigned int),
+		.mode           = 0644,
+		.proc_handler   = proc_dointvec_minmax,
+		.extra1         = &zero,
+		.extra2         = &hundred,
+	},
+	{
+		.procname       = "sched_boost_big_cores",
+		.data           = &sysctl_boost_bpmask,
+		.maxlen         = sizeof(unsigned int),
+		.mode           = 0644,
+		.proc_handler   = proc_dointvec_minmax,
+		.extra1         = &zero,
+		.extra2         = &hundred,
+	},
+	{}
+};
+
+static int __init sched_headroom_sysctl_init(void)
+{
+	register_sysctl("kernel", sched_headroom_sysctls);
+	return 0;
+}
+late_initcall(sched_headroom_sysctl_init);
 
 static inline void update_load_add(struct load_weight *lw, unsigned long inc)
 {
