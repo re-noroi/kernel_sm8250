@@ -4,4 +4,3 @@
  */
 
 unsigned int dsi_panel_get_refresh_rate(void);
-extern unsigned char msm_panel_fps;
