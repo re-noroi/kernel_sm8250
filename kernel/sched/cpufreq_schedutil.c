@@ -342,26 +342,13 @@ static inline unsigned long apply_dvfs_headroom(unsigned long util, int cpu)
 	unsigned long delta, headroom, min_util;
 	unsigned long base_boost = 0 , max_boost, final_hr;
 
-	/*
-	 * Apply manual headroom boost using sched_headroom_sysctls
-	 * Only apply “manual” % boosts if util < 75%
-	 */
-	if (util < (capacity * 60) / 100) {
-		if (cpumask_test_cpu(cpu, cpu_lp_mask))
-			base_boost = util * sysctl_boost_lpmask / 100;
-		else if (cpumask_test_cpu(cpu, cpu_prime_mask))
-			base_boost = 0; // no manual boost for prime
-		else
-			base_boost = util * sysctl_boost_bpmask / 100;
-
-	} else if (util < (capacity * 75) / 100) {
-		if (cpumask_test_cpu(cpu, cpu_lp_mask))
-			base_boost = util * sysctl_boost_lpmask / 200;
-		else if (cpumask_test_cpu(cpu, cpu_prime_mask))
-			base_boost = 0; // no manual boost for prime
-		else
-			base_boost = util * sysctl_boost_bpmask / 200;
-	}
+	/* Apply manual headroom boost using sched_headroom_sysctls */
+	if (cpumask_test_cpu(cpu, cpu_lp_mask))
+		base_boost = util * sysctl_boost_lpmask / 100;
+	else if (cpumask_test_cpu(cpu, cpu_prime_mask))
+		base_boost = 0; // no manual boost for prime
+	else
+		base_boost = util * sysctl_boost_bpmask / 100;
 
 	if (util >= capacity)
 		return util;
