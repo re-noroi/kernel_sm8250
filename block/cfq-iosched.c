@@ -6,7 +6,6 @@
  *
  *  Copyright (C) 2003 Jens Axboe <axboe@kernel.dk>
  */
-#include <linux/binfmts.h>
 #include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/sched/clock.h>
@@ -37,8 +36,6 @@ static u64 cfq_slice_idle = 0;
 static u64 cfq_group_idle = 0;
 static const u64 cfq_target_latency = (u64)NSEC_PER_SEC * 3/10; /* 300 ms */
 static const int cfq_hist_divisor = 4;
-
-extern struct blkcg *blkcg_bg;
 
 /*
  * offset from end of queue service tree for idle class
@@ -1655,14 +1652,6 @@ static void cfq_pd_init(struct blkg_policy_data *pd)
 	struct cfq_group *cfqg = pd_to_cfqg(pd);
 	struct cfq_group_data *cgd = blkcg_to_cfqgd(pd->blkg->blkcg);
 
-	if (pd->blkg->blkcg == &blkcg_root) {
-		cgd->weight = 1000;
-		cgd->group_idle = 2000 * NSEC_PER_USEC;
-	} else if (pd->blkg->blkcg == blkcg_bg) {
-		cgd->weight = 200;
-		cgd->group_idle = 0;
-	}
-
 	cfqg->weight = cgd->weight;
 	cfqg->leaf_weight = cgd->leaf_weight;
 	cfqg->group_idle = cgd->group_idle;
@@ -1934,9 +1923,6 @@ static int cfq_set_group_idle(struct cgroup_subsys_state *css,
 	struct cfq_group_data *cfqgd;
 	struct blkcg_gq *blkg;
 	int ret = 0;
-
-	if (task_is_booster(current))
-		return ret;
 
 	spin_lock_irq(&blkcg->lock);
 	cfqgd = blkcg_to_cfqgd(blkcg);
