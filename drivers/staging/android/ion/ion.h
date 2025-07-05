@@ -439,7 +439,7 @@ struct ion_page_pool {
 	struct list_head low_items;
 	ktime_t last_low_watermark_ktime;
 	/* Protect the pool */
-	spinlock_t lock;
+	struct mutex mutex;
 	gfp_t gfp_mask;
 	unsigned int order;
 	struct plist_node list;
