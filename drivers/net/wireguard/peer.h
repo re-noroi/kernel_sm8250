@@ -39,7 +39,6 @@ struct wg_peer {
 	struct prev_queue tx_queue, rx_queue;
 	struct sk_buff_head staged_packet_queue;
 	int serial_work_cpu;
-	bool is_dead;
 	struct noise_keypairs keypairs;
 	struct endpoint endpoint;
 	struct dst_cache endpoint_cache;
@@ -62,8 +61,9 @@ struct wg_peer {
 	struct rcu_head rcu;
 	struct list_head peer_list;
 	struct list_head allowedips_list;
-	struct napi_struct napi;
 	u64 internal_id;
+	struct napi_struct napi;
+	bool is_dead;
 };
 
 struct wg_peer *wg_peer_create(struct wg_device *wg,
