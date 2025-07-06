@@ -347,7 +347,7 @@ static inline unsigned long apply_dvfs_headroom(unsigned long util, int cpu)
 		if (cpumask_test_cpu(cpu, cpu_lp_mask))
 			base_boost = util * sysctl_boost_lpmask / 100;
 		else if (cpumask_test_cpu(cpu, cpu_prime_mask))
-			base_boost = 0; // no manual boost for prime
+			base_boost = util * sysctl_boost_prime / 100;
 		else
 			base_boost = util * sysctl_boost_bpmask / 100;
 	} else {
