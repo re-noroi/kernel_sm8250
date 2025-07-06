@@ -70,6 +70,7 @@ DEFINE_PER_CPU_READ_MOSTLY(int, sched_load_boost);
 unsigned int sysctl_boost_lpmask __read_mostly = 30;
 unsigned int sysctl_boost_bpmask __read_mostly = 15;
 unsigned int sysctl_manual_boost __read_mostly = 1;
+unsigned int sysctl_suppress_boost __read_mostly = 10;
 static int zero		= 0;
 static int n_one	= 1;
 static int hundred	= 100;
@@ -154,6 +155,15 @@ static struct ctl_table sched_headroom_sysctls[] = {
 		.proc_handler   = proc_dointvec_minmax,
 		.extra1         = &zero,
 		.extra2         = &n_one,
+	},
+	{
+		.procname       = "sched_boost_suppress",
+		.data           = &sysctl_suppress_boost,
+		.maxlen         = sizeof(unsigned int),
+		.mode           = 0644,
+		.proc_handler   = proc_dointvec_minmax,
+		.extra1         = &zero,
+		.extra2         = &hundred,
 	},
 	{}
 };

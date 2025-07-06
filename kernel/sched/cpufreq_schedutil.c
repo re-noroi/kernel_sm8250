@@ -373,8 +373,8 @@ static inline unsigned long apply_dvfs_headroom(unsigned long util, int cpu)
 	if (headroom > max_boost)
 		headroom = max_boost;
 
-	/* 10% of capacity threshold */
-	min_util = capacity / 10;
+	/* x% of capacity threshold */
+	min_util = capacity * sysctl_suppress_boost / 100;
 
 	/* Suppress boosting below the threshold */
 	if (util < min_util) {
