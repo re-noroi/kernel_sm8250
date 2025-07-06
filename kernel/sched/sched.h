@@ -2164,6 +2164,7 @@ extern unsigned int sysctl_sched_base_slice;
 
 extern unsigned int sysctl_boost_lpmask;
 extern unsigned int sysctl_boost_bpmask;
+extern unsigned int sysctl_boost_prime;
 extern unsigned int sysctl_manual_boost;
 extern unsigned int sysctl_suppress_boost;
 
