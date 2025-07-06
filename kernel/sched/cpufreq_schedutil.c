@@ -342,6 +342,9 @@ static inline unsigned long apply_dvfs_headroom(unsigned long util, int cpu)
 	unsigned long delta, headroom, min_util;
 	unsigned long base_boost = 0 , max_boost, final_hr;
 
+	if (util >= capacity)
+		return util;
+
 	/* Apply manual headroom boost using sched_headroom_sysctls */
 	if (sysctl_manual_boost) {
 		if (cpumask_test_cpu(cpu, cpu_lp_mask))
@@ -354,8 +357,6 @@ static inline unsigned long apply_dvfs_headroom(unsigned long util, int cpu)
 		base_boost = 0;
 	}
 
-	if (util >= capacity)
-		return util;
 	/*
 	 * Quadratic taper the boosting at the top end as these are expensive
 	 * and we don't need that much of a big headroom as we approach max
