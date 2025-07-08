@@ -872,8 +872,6 @@ int cnss_pci_recover_link_down(struct cnss_pci_data *pci_priv)
 	 */
 	msleep(WAKE_EVENT_TIMEOUT);
 
-	/* Always do PCIe L2 suspend/resume during link down recovery */
-	pci_priv->drv_connected_last = 0;
 	ret = cnss_suspend_pci_link(pci_priv);
 	if (ret)
 		cnss_pr_err("Failed to suspend PCI link, err = %d\n", ret);
@@ -1629,6 +1627,7 @@ int cnss_pci_call_driver_probe(struct cnss_pci_data *pci_priv)
 				    ret);
 			goto out;
 		}
+		clear_bit(CNSS_DRIVER_RECOVERY, &plat_priv->driver_state);
 		complete(&plat_priv->recovery_complete);
 	} else if (test_bit(CNSS_DRIVER_LOADING, &plat_priv->driver_state)) {
 		ret = pci_priv->driver_ops->probe(pci_priv->pci_dev,
@@ -1638,6 +1637,7 @@ int cnss_pci_call_driver_probe(struct cnss_pci_data *pci_priv)
 				    ret);
 			goto out;
 		}
+		clear_bit(CNSS_DRIVER_RECOVERY, &plat_priv->driver_state);
 		clear_bit(CNSS_DRIVER_LOADING, &plat_priv->driver_state);
 		set_bit(CNSS_DRIVER_PROBED, &plat_priv->driver_state);
 		complete_all(&plat_priv->power_up_complete);
@@ -1652,15 +1652,11 @@ int cnss_pci_call_driver_probe(struct cnss_pci_data *pci_priv)
 			complete_all(&plat_priv->power_up_complete);
 			goto out;
 		}
+		clear_bit(CNSS_DRIVER_RECOVERY, &plat_priv->driver_state);
 		clear_bit(CNSS_DRIVER_IDLE_RESTART, &plat_priv->driver_state);
 		complete_all(&plat_priv->power_up_complete);
 	} else {
 		complete(&plat_priv->power_up_complete);
-	}
-
-	if (test_bit(CNSS_DRIVER_RECOVERY, &plat_priv->driver_state)) {
-		clear_bit(CNSS_DRIVER_RECOVERY, &plat_priv->driver_state);
-		__pm_relax(plat_priv->recovery_ws);
 	}
 
 	cnss_pci_start_time_sync_update(pci_priv);
@@ -4257,15 +4253,15 @@ int cnss_pci_force_fw_assert_hdlr(struct cnss_pci_data *pci_priv)
 		return -EINVAL;
 
 	cnss_auto_resume(&pci_priv->pci_dev->dev);
-	cnss_pci_dump_misc_reg(pci_priv);
-	cnss_pci_dump_shadow_reg(pci_priv);
-
 	/* If link is still down here, directly trigger link down recovery */
 	ret = cnss_pci_check_link_status(pci_priv);
 	if (ret) {
 		cnss_pci_link_down(&pci_priv->pci_dev->dev);
 		return 0;
 	}
+
+	cnss_pci_dump_misc_reg(pci_priv);
+	cnss_pci_dump_shadow_reg(pci_priv);
 
 	ret = cnss_pci_set_mhi_state(pci_priv, CNSS_MHI_TRIGGER_RDDM);
 	if (ret) {
@@ -5006,11 +5002,9 @@ static int cnss_pci_probe(struct pci_dev *pci_dev,
 	if (ret)
 		goto reset_ctx;
 
-#ifdef CONFIG_QCOM_MEMORY_DUMP_V2
 	ret = cnss_register_ramdump(plat_priv);
 	if (ret)
 		goto unregister_subsys;
-#endif
 
 	ret = cnss_pci_init_smmu(pci_priv);
 	if (ret)

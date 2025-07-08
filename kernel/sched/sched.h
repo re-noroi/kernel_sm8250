@@ -1790,22 +1790,14 @@ static inline int task_on_rq_migrating(struct task_struct *p)
 	return READ_ONCE(p->on_rq) == TASK_ON_RQ_MIGRATING;
 }
 
-/* Wake flags. The first three directly map to some SD flag value */
-#define WF_EXEC     0x02 /* Wakeup after exec; maps to SD_BALANCE_EXEC */
-#define WF_FORK     0x04 /* Wakeup after fork; maps to SD_BALANCE_FORK */
-#define WF_TTWU     0x08 /* Wakeup;            maps to SD_BALANCE_WAKE */
+/*
+ * wake flags
+ */
+#define WF_SYNC			0x01		/* Waker goes to sleep after wakeup */
+#define WF_FORK			0x02		/* Child wakeup after fork */
+#define WF_MIGRATED	0x04		/* internal use, task got migrated */
+#define WF_ON_RQ	0x08		/* wakee is on_rq */
 
-#define WF_SYNC     0x10 /* Waker goes to sleep after wakeup */
-#define WF_MIGRATED 0x20 /* Internal use, task got migrated */
-#define WF_ON_CPU   0x40 /* Wakee is on_cpu */
-
-#ifdef CONFIG_SMP
-enum {
-    __wf_exec_mismatch = BUILD_BUG_ON_ZERO(WF_EXEC  != SD_BALANCE_EXEC),
-    __wf_fork_mismatch = BUILD_BUG_ON_ZERO(WF_FORK  != SD_BALANCE_FORK),
-    __wf_ttwu_mismatch = BUILD_BUG_ON_ZERO(WF_TTWU  != SD_BALANCE_WAKE),
-};
-#endif
 /*
  * To aid in avoiding the subversion of "niceness" due to uneven distribution
  * of tasks with abnormal "nice" values across CPUs the contribution that
@@ -1887,7 +1879,7 @@ struct sched_class {
 
 #ifdef CONFIG_SMP
 	int (*balance)(struct rq *rq, struct task_struct *prev, struct rq_flags *rf);
-	int  (*select_task_rq)(struct task_struct *p, int task_cpu, int flags);
+	int  (*select_task_rq)(struct task_struct *p, int task_cpu, int sd_flag, int flags);
 	struct task_struct * (*pick_task)(struct rq *rq);
 
 	void (*migrate_task_rq)(struct task_struct *p, int new_cpu);

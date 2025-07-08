@@ -738,9 +738,6 @@ void drop_slab_node(int nid)
 	do {
 		struct mem_cgroup *memcg = NULL;
 
-		if (fatal_signal_pending(current))
-			return;
-
 		freed = 0;
 		memcg = mem_cgroup_iter(NULL, NULL, NULL);
 		do {
@@ -1163,6 +1160,11 @@ static unsigned long shrink_page_list(struct list_head *page_list,
 
 		if (!sc->may_unmap && page_mapped(page))
 			goto keep_locked;
+
+		/* Double the slab pressure for mapped and swapcache pages */
+		if ((page_mapped(page) || PageSwapCache(page)) &&
+		    !(PageAnon(page) && !PageSwapBacked(page)))
+			sc->nr_scanned++;
 
 		may_enter_fs = (sc->gfp_mask & __GFP_FS) ||
 			(PageSwapCache(page) && (sc->gfp_mask & __GFP_IO));
@@ -2589,8 +2591,8 @@ static void shrink_node_memcg(struct pglist_data *pgdat, struct mem_cgroup *memc
 	enum lru_list lru;
 	unsigned long nr_reclaimed = 0;
 	unsigned long nr_to_reclaim = sc->nr_to_reclaim;
-	bool proportional_reclaim;
 	struct blk_plug plug;
+	bool scan_adjusted;
 
 	get_scan_count(lruvec, memcg, sc, nr, lru_pages);
 
@@ -2608,8 +2610,8 @@ static void shrink_node_memcg(struct pglist_data *pgdat, struct mem_cgroup *memc
 	 * abort proportional reclaim if either the file or anon lru has already
 	 * dropped to zero at the first pass.
 	 */
-	proportional_reclaim = (global_reclaim(sc) && !current_is_kswapd() &&
-				sc->priority == DEF_PRIORITY);
+	scan_adjusted = (global_reclaim(sc) && !current_is_kswapd() &&
+			 sc->priority == DEF_PRIORITY);
 
 	blk_start_plug(&plug);
 	while (nr[LRU_INACTIVE_ANON] || nr[LRU_ACTIVE_FILE] ||
@@ -2629,7 +2631,7 @@ static void shrink_node_memcg(struct pglist_data *pgdat, struct mem_cgroup *memc
 
 		cond_resched();
 
-		if (nr_reclaimed < nr_to_reclaim || proportional_reclaim)
+		if (nr_reclaimed < nr_to_reclaim || scan_adjusted)
 			continue;
 
 		/*
@@ -2680,6 +2682,8 @@ static void shrink_node_memcg(struct pglist_data *pgdat, struct mem_cgroup *memc
 		nr_scanned = targets[lru] - nr[lru];
 		nr[lru] = targets[lru] * (100 - percentage) / 100;
 		nr[lru] -= min(nr[lru], nr_scanned);
+
+		scan_adjusted = true;
 	}
 	blk_finish_plug(&plug);
 	sc->nr_reclaimed += nr_reclaimed;

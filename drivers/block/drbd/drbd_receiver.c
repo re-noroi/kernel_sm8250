@@ -5891,7 +5891,9 @@ int drbd_ack_receiver(struct drbd_thread *thi)
 	int expect   = header_size;
 	bool ping_timeout_active = false;
 
-	sched_set_fifo_low(current);
+	rv = sched_set_fifo_low(current);
+	if (rv < 0)
+		drbd_err(connection, "drbd_ack_receiver: ERROR set priority, ret=%d\n", rv);
 
 	while (get_t_state(thi) == RUNNING) {
 		drbd_thread_current_set_cpu(thi);
