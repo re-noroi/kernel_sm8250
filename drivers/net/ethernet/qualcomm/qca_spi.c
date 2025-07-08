@@ -649,7 +649,8 @@ qcaspi_intr_handler(int irq, void *data)
 	struct qcaspi *qca = data;
 
 	qca->intr_req++;
-	if (qca->spi_thread)
+	if (qca->spi_thread &&
+	    qca->spi_thread->state != TASK_RUNNING)
 		wake_up_process(qca->spi_thread);
 
 	return IRQ_HANDLED;
@@ -772,7 +773,8 @@ qcaspi_netdev_xmit(struct sk_buff *skb, struct net_device *dev)
 
 	netif_trans_update(dev);
 
-	if (qca->spi_thread)
+	if (qca->spi_thread &&
+	    qca->spi_thread->state != TASK_RUNNING)
 		wake_up_process(qca->spi_thread);
 
 	return NETDEV_TX_OK;
