@@ -93,8 +93,8 @@ void init_rt_rq(struct rt_rq *rt_rq)
 	__set_bit(MAX_RT_PRIO, array->bitmap);
 
 #if defined CONFIG_SMP
-	rt_rq->highest_prio.curr = MAX_RT_PRIO-1;
-	rt_rq->highest_prio.next = MAX_RT_PRIO-1;
+	rt_rq->highest_prio.curr = MAX_RT_PRIO;
+	rt_rq->highest_prio.next = MAX_RT_PRIO;
 	rt_rq->rt_nr_migratory = 0;
 	rt_rq->overloaded = 0;
 	plist_head_init(&rt_rq->pushable_tasks);
@@ -167,7 +167,7 @@ void init_tg_rt_entry(struct task_group *tg, struct rt_rq *rt_rq,
 {
 	struct rq *rq = cpu_rq(cpu);
 
-	rt_rq->highest_prio.curr = MAX_RT_PRIO-1;
+	rt_rq->highest_prio.curr = MAX_RT_PRIO;
 	rt_rq->rt_nr_boosted = 0;
 	rt_rq->rq = rq;
 	rt_rq->tg = tg;
@@ -399,9 +399,8 @@ static void dequeue_pushable_task(struct rq *rq, struct task_struct *p)
 		p = plist_first_entry(&rq->rt.pushable_tasks,
 				      struct task_struct, pushable_tasks);
 		rq->rt.highest_prio.next = p->prio;
-	} else {
-		rq->rt.highest_prio.next = MAX_RT_PRIO-1;
-	}
+	} else
+		rq->rt.highest_prio.next = MAX_RT_PRIO;
 }
 
 #else
@@ -1149,9 +1148,8 @@ dec_rt_prio(struct rt_rq *rt_rq, int prio)
 				sched_find_first_bit(array->bitmap);
 		}
 
-	} else {
-		rt_rq->highest_prio.curr = MAX_RT_PRIO-1;
-	}
+	} else
+		rt_rq->highest_prio.curr = MAX_RT_PRIO;
 
 	dec_rt_prio_smp(rt_rq, prio, prev_prio);
 }
@@ -1485,7 +1483,7 @@ static bool rt_task_fits_cpu(struct task_struct *p, int cpu)
 }
 
 static int
-select_task_rq_rt(struct task_struct *p, int cpu, int flags)
+select_task_rq_rt(struct task_struct *p, int cpu, int sd_flag, int flags)
 {
 	struct task_struct *curr;
 	struct rq *rq;
@@ -1495,7 +1493,7 @@ select_task_rq_rt(struct task_struct *p, int cpu, int flags)
 	int this_cpu;
 
 	/* For anything but wake ups, just return the task_cpu */
-	if (!(flags & (WF_TTWU | WF_FORK)))
+	if (sd_flag != SD_BALANCE_WAKE && sd_flag != SD_BALANCE_FORK)
 		goto out;
 
 	rq = cpu_rq(cpu);
