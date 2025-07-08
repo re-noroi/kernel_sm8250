@@ -964,7 +964,6 @@ static void cnss_unregister_esoc(struct cnss_plat_data *plat_priv)
 static int cnss_subsys_powerup(const struct subsys_desc *subsys_desc)
 {
 	struct cnss_plat_data *plat_priv;
-	int ret = 0;
 
 	if (!subsys_desc->dev) {
 		cnss_pr_err("dev from subsys_desc is NULL\n");
@@ -982,10 +981,7 @@ static int cnss_subsys_powerup(const struct subsys_desc *subsys_desc)
 		return 0;
 	}
 
-	ret = cnss_bus_dev_powerup(plat_priv);
-	if (ret)
-		__pm_relax(plat_priv->recovery_ws);
-	return ret;
+	return cnss_bus_dev_powerup(plat_priv);
 }
 
 static int cnss_subsys_shutdown(const struct subsys_desc *subsys_desc,
@@ -1075,11 +1071,7 @@ static void cnss_recovery_work_handler(struct work_struct *work)
 	cnss_bus_dev_shutdown(plat_priv);
 	cnss_bus_dev_ramdump(plat_priv);
 	msleep(RECOVERY_DELAY_MS);
-
-	ret = cnss_bus_dev_powerup(plat_priv);
-	if (ret)
-		__pm_relax(plat_priv->recovery_ws);
-	return;
+	cnss_bus_dev_powerup(plat_priv);
 }
 
 void cnss_device_crashed(struct device *dev)
@@ -1139,14 +1131,6 @@ static int cnss_do_recovery(struct cnss_plat_data *plat_priv,
 		return 0;
 	}
 
-	/* FW recovery sequence has multiple steps and firmware load requires
-	 * linux PM in awake state. Thus hold the cnss wake source until
-	 * WLAN MISSION enabled.
-	 */
-	pm_wakeup_ws_event(plat_priv->recovery_ws, RECOVERY_TIMEOUT +
-			   cnss_get_boot_timeout(NULL),
-			   true);
-
 	switch (reason) {
 	case CNSS_REASON_LINK_DOWN:
 		if (!cnss_bus_check_link_status(plat_priv)) {
@@ -1176,6 +1160,7 @@ static int cnss_do_recovery(struct cnss_plat_data *plat_priv,
 			    cnss_recovery_reason_to_str(reason), reason);
 		break;
 	}
+
 	cnss_bus_device_crashed(plat_priv);
 
 	return 0;
@@ -1268,6 +1253,7 @@ void cnss_schedule_recovery(struct device *dev,
 {
 	struct cnss_plat_data *plat_priv = cnss_bus_dev_to_plat_priv(dev);
 	struct cnss_recovery_data *data;
+	int gfp = GFP_KERNEL;
 
 	if (!test_bit(CNSS_DEV_ERR_NOTIFY, &plat_priv->driver_state) &&
 	    test_bit(CNSS_QMI_WLFW_CONNECTED, &plat_priv->driver_state))
@@ -1279,11 +1265,10 @@ void cnss_schedule_recovery(struct device *dev,
 		return;
 	}
 
-	/* Allocating memory always with GFP_ATOMIC flag inside
-	 * cnss_schedule_recovery(). Because there is a chance for
-	 * this api to be invoked in atomic context on some platforms.
-	 */
-	data = kzalloc(sizeof(*data), GFP_ATOMIC);
+	if (in_interrupt() || irqs_disabled())
+		gfp = GFP_ATOMIC;
+
+	data = kzalloc(sizeof(*data), gfp);
 	if (!data)
 		return;
 
@@ -2604,11 +2589,6 @@ static int cnss_misc_init(struct cnss_plat_data *plat_priv)
 	init_completion(&plat_priv->recovery_complete);
 	mutex_init(&plat_priv->dev_lock);
 	mutex_init(&plat_priv->driver_ops_lock);
-	plat_priv->recovery_ws =
-		wakeup_source_register(&plat_priv->plat_dev->dev,
-				       "CNSS_FW_RECOVERY");
-	if (!plat_priv->recovery_ws)
-		cnss_pr_err("Failed to setup FW recovery wake source\n");
 
 	return 0;
 }
@@ -2623,7 +2603,6 @@ static void cnss_misc_deinit(struct cnss_plat_data *plat_priv)
 	unregister_reboot_notifier(&plat_priv->reboot_nb);
 	unregister_pm_notifier(&cnss_pm_notifier);
 	del_timer(&plat_priv->fw_boot_timer);
-	wakeup_source_unregister(plat_priv->recovery_ws);
 }
 
 static void cnss_init_control_params(struct cnss_plat_data *plat_priv)
