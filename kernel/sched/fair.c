@@ -6989,7 +6989,7 @@ static int select_idle_cpu(struct task_struct *p, struct sched_domain *sd, bool 
 	}
 
 	if (has_idle_core)
-		set_idle_cores(target, false);
+		set_idle_cores(this, false);
 
 	if (sched_feat(SIS_PROP) && this_sd && !has_idle_core) {
 		time = cpu_clock(this) - time;
@@ -8142,7 +8142,7 @@ eas_not_ready:
 
 /*
  * select_task_rq_fair: Select target runqueue for the waking task in domains
- * that have the relevant SD flag set. In practice, this is SD_BALANCE_WAKE,
+ * that have the 'sd_flag' flag set. In practice, this is SD_BALANCE_WAKE,
  * SD_BALANCE_FORK, or SD_BALANCE_EXEC.
  *
  * Balances load by selecting the idlest CPU in the idlest group, or under
@@ -8153,17 +8153,15 @@ eas_not_ready:
  * preempt must be disabled.
  */
 static int
-select_task_rq_fair(struct task_struct *p, int prev_cpu, int wake_flags)
+select_task_rq_fair(struct task_struct *p, int prev_cpu, int sd_flag, int wake_flags)
 {
-	int sync = (wake_flags & WF_SYNC) && !(current->flags & PF_EXITING);
 	struct sched_domain *tmp, *sd = NULL;
 	int cpu = smp_processor_id();
 	int new_cpu = prev_cpu;
 	int want_affine = 0;
-	/* SD_flags and WF_flags share the first nibble */
-	int sd_flag = wake_flags & 0xF;
+	int sync = (wake_flags & WF_SYNC) && !(current->flags & PF_EXITING);
 
-	if (wake_flags & WF_TTWU) {
+	if (sd_flag & SD_BALANCE_WAKE) {
 		record_wakee(p);
 
                 if (sched_energy_enabled()) {
@@ -8201,7 +8199,7 @@ select_task_rq_fair(struct task_struct *p, int prev_cpu, int wake_flags)
 	if (unlikely(sd)) {
 		/* Slow path */
 		new_cpu = find_idlest_cpu(sd, p, cpu, prev_cpu, sd_flag);
-	} else if (wake_flags & WF_TTWU) { /* XXX always ? */
+	} else if (sd_flag & SD_BALANCE_WAKE) { /* XXX always ? */
 		/* Fast path */
 
 		new_cpu = select_idle_sibling(p, prev_cpu, new_cpu);
@@ -8960,7 +8958,6 @@ int can_migrate_task(struct task_struct *p, struct lb_env *env)
 
 	if (!cpumask_test_cpu(env->dst_cpu, &p->cpus_allowed)) {
 		int cpu;
-		cpumask_t tmpmask;
 
 		schedstat_inc(p->se.statistics.nr_failed_migrations_affine);
 
@@ -8981,13 +8978,12 @@ int can_migrate_task(struct task_struct *p, struct lb_env *env)
 			return 0;
 
 		/* Prevent to re-select dst_cpu via env's CPUs: */
-		cpumask_and(&tmpmask, env->dst_grpmask, env->cpus);
-		cpumask_and(&tmpmask, &tmpmask, &p->cpus_allowed);
-
-		cpu = cpumask_first(&tmpmask);
-		if (cpu < nr_cpu_ids) {
-			env->flags |= LBF_DST_PINNED;
-			env->new_dst_cpu = cpu;
+		for_each_cpu_and(cpu, env->dst_grpmask, env->cpus) {
+			if (cpumask_test_cpu(cpu, &p->cpus_allowed)) {
+				env->flags |= LBF_DST_PINNED;
+				env->new_dst_cpu = cpu;
+				break;
+			}
 		}
 
 		return 0;
@@ -11584,7 +11580,7 @@ static inline int find_new_ilb(void)
 			return ilb;
 	}
 
-	return -1;
+	return nr_cpu_ids;
 }
 
 /*
@@ -11603,7 +11599,8 @@ static void kick_ilb(unsigned int flags)
 		nohz.next_balance = jiffies+1;
 
 	ilb_cpu = find_new_ilb();
-	if (ilb_cpu < 0)
+
+	if (ilb_cpu >= nr_cpu_ids)
 		return;
 
 	flags = atomic_fetch_or(flags, nohz_flags(ilb_cpu));

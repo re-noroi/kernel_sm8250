@@ -292,7 +292,8 @@ static int suspend_test_thread(void *arg)
 	wait_for_completion(&suspend_threads_started);
 
 	/* Set maximum priority to preempt all other threads on this CPU. */
-	sched_set_fifo(current);
+	if (sched_set_fifo(current))
+		pr_warn("Failed to set suspend thread scheduler on CPU %d\n", cpu);
 
 	dev = this_cpu_read(cpuidle_devices);
 	drv = cpuidle_get_cpu_driver(dev);
