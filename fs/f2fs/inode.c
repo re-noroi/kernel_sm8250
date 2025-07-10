@@ -33,11 +33,6 @@ void f2fs_mark_inode_dirty_sync(struct inode *inode, bool sync)
 	if (f2fs_inode_dirtied(inode, sync))
 		return;
 
-	if (f2fs_is_atomic_file(inode)) {
-		set_inode_flag(inode, FI_ATOMIC_DIRTIED);
-		return;
-	}
-
 	mark_inode_dirty_sync(inode);
 }
 
@@ -270,7 +265,23 @@ static bool sanity_check_inode(struct inode *inode, struct page *node_page)
 		return false;
 	}
 
-	if (f2fs_sanity_check_inline_data(inode, node_page)) {
+	if (fi->extent_tree[EX_READ]) {
+		struct extent_info *ei = &fi->extent_tree[EX_READ]->largest;
+
+		if (ei->len &&
+			(!f2fs_is_valid_blkaddr(sbi, ei->blk,
+						DATA_GENERIC_ENHANCE) ||
+			!f2fs_is_valid_blkaddr(sbi, ei->blk + ei->len - 1,
+						DATA_GENERIC_ENHANCE))) {
+			set_sbi_flag(sbi, SBI_NEED_FSCK);
+			f2fs_warn(sbi, "%s: inode (ino=%lx) extent info [%u, %u, %u] is incorrect, run fsck to fix",
+				  __func__, inode->i_ino,
+				  ei->blk, ei->fofs, ei->len);
+			return false;
+		}
+	}
+
+	if (f2fs_sanity_check_inline_data(inode)) {
 		set_sbi_flag(sbi, SBI_NEED_FSCK);
 		f2fs_warn(sbi, "%s: inode (ino=%lx, mode=%u) should not have inline_data, run fsck to fix",
 			  __func__, inode->i_ino, inode->i_mode);
@@ -324,12 +335,6 @@ static bool sanity_check_inode(struct inode *inode, struct page *node_page)
 		}
 	}
 
-	if (fi->i_xattr_nid && f2fs_check_nid_range(sbi, fi->i_xattr_nid)) {
-		f2fs_warn(sbi, "%s: inode (ino=%lx) has corrupted i_xattr_nid: %u, run fsck to fix.",
-			  __func__, inode->i_ino, fi->i_xattr_nid);
-		return false;
-	}
-
 	return true;
 }
 
@@ -340,6 +345,7 @@ static void init_idisk_time(struct inode *inode)
 	fi->i_disk_time[0] = inode->i_atime;
 	fi->i_disk_time[1] = inode->i_ctime;
 	fi->i_disk_time[2] = inode->i_mtime;
+	fi->i_disk_time[3] = fi->i_crtime;
 }
 
 static int do_read_inode(struct inode *inode)
@@ -478,12 +484,6 @@ static int do_read_inode(struct inode *inode)
 	/* Need all the flag bits */
 	f2fs_init_read_extent_tree(inode, node_page);
 	f2fs_init_age_extent_tree(inode);
-
-	if (!sanity_check_extent_cache(inode)) {
-		f2fs_put_page(node_page, 1);
-		f2fs_handle_error(sbi, ERROR_CORRUPTED_INODE);
-		return -EFSCORRUPTED;
-	}
 
 	f2fs_put_page(node_page, 1);
 
@@ -717,23 +717,18 @@ void f2fs_update_inode_page(struct inode *inode)
 {
 	struct f2fs_sb_info *sbi = F2FS_I_SB(inode);
 	struct page *node_page;
-	int count = 0;
 retry:
 	node_page = f2fs_get_node_page(sbi, inode->i_ino);
 	if (IS_ERR(node_page)) {
 		int err = PTR_ERR(node_page);
 
-		/* The node block was truncated. */
-		if (err == -ENOENT)
-			return;
-
-		if (err == -EFSCORRUPTED)
-			goto stop_checkpoint;
-
-		if (err == -ENOMEM || ++count <= DEFAULT_RETRY_IO_COUNT)
+		if (err == -ENOMEM) {
+			cond_resched();
 			goto retry;
-stop_checkpoint:
-		f2fs_stop_checkpoint(sbi, false, STOP_CP_REASON_UPDATE_INODE);
+		} else if (err != -ENOENT) {
+			f2fs_stop_checkpoint(sbi, false,
+					STOP_CP_REASON_UPDATE_INODE);
+		}
 		return;
 	}
 	f2fs_update_inode(inode, node_page);
@@ -776,7 +771,6 @@ void f2fs_evict_inode(struct inode *inode)
 	struct f2fs_sb_info *sbi = F2FS_I_SB(inode);
 	nid_t xnid = F2FS_I(inode)->i_xattr_nid;
 	int err = 0;
-	bool freeze_protected = false;
 
 	f2fs_abort_atomic_write(inode, true);
 
@@ -810,10 +804,8 @@ void f2fs_evict_inode(struct inode *inode)
 	f2fs_remove_ino_entry(sbi, inode->i_ino, UPDATE_INO);
 	f2fs_remove_ino_entry(sbi, inode->i_ino, FLUSH_INO);
 
-	if (!is_sbi_flag_set(sbi, SBI_IS_FREEZING)) {
+	if (!is_sbi_flag_set(sbi, SBI_IS_FREEZING))
 		sb_start_intwrite(inode->i_sb);
-		freeze_protected = true;
-	}
 	set_inode_flag(inode, FI_NO_ALLOC);
 	i_size_write(inode, 0);
 retry:
@@ -858,7 +850,7 @@ retry:
 		if (dquot_initialize_needed(inode))
 			set_sbi_flag(sbi, SBI_QUOTA_NEED_REPAIR);
 	}
-	if (freeze_protected)
+	if (!is_sbi_flag_set(sbi, SBI_IS_FREEZING))
 		sb_end_intwrite(inode->i_sb);
 no_delete:
 	dquot_drop(inode);
