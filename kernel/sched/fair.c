@@ -67,9 +67,9 @@ DEFINE_PER_CPU_READ_MOSTLY(int, sched_load_boost);
 /*
  * Headroom manual boost value += boost * util / 100
  */
-unsigned int sysctl_boost_lpmask __read_mostly = 30;
-unsigned int sysctl_boost_bpmask __read_mostly = 15;
-unsigned int sysctl_boost_prime __read_mostly = 0;
+unsigned int sysctl_boost_lpmask __read_mostly = 8;
+unsigned int sysctl_boost_bpmask __read_mostly = 10;
+unsigned int sysctl_boost_prime __read_mostly = 3;
 unsigned int sysctl_manual_boost __read_mostly = 1;
 unsigned int sysctl_suppress_boost __read_mostly = 10;
 static int zero		= 0;
