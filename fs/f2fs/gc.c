@@ -1597,14 +1597,14 @@ next_step:
 			int err;
 
 			if (S_ISREG(inode->i_mode)) {
-				if (!f2fs_down_write_trylock(&fi->i_gc_rwsem[WRITE])) {
+				if (!f2fs_down_write_trylock(&fi->i_gc_rwsem[READ])) {
 					sbi->skipped_gc_rwsem++;
 					continue;
 				}
 				if (!f2fs_down_write_trylock(
-						&fi->i_gc_rwsem[READ])) {
+						&fi->i_gc_rwsem[WRITE])) {
 					sbi->skipped_gc_rwsem++;
-					f2fs_up_write(&fi->i_gc_rwsem[WRITE]);
+					f2fs_up_write(&fi->i_gc_rwsem[READ]);
 					continue;
 				}
 				locked = true;
@@ -1627,8 +1627,8 @@ next_step:
 				submitted++;
 
 			if (locked) {
-				f2fs_up_write(&fi->i_gc_rwsem[READ]);
 				f2fs_up_write(&fi->i_gc_rwsem[WRITE]);
+				f2fs_up_write(&fi->i_gc_rwsem[READ]);
 			}
 
 			stat_inc_data_blk_count(sbi, 1, gc_type);
@@ -1787,7 +1787,6 @@ int f2fs_gc(struct f2fs_sb_info *sbi, struct f2fs_gc_control *gc_control)
 		.iroot = RADIX_TREE_INIT(gc_list.iroot, GFP_NOFS),
 	};
 	unsigned int skipped_round = 0, round = 0;
-	unsigned int upper_secs;
 
 	trace_f2fs_gc_begin(sbi->sb, gc_type, gc_control->no_bg_gc,
 				gc_control->nr_free_secs,
@@ -1873,13 +1872,8 @@ retry:
 		}
 	}
 
-	__get_secs_required(sbi, NULL, &upper_secs, NULL);
-
-	/*
-	 * Write checkpoint to reclaim prefree segments.
-	 * We need more three extra sections for writer's data/node/dentry.
-	 */
-	if (free_sections(sbi) <= upper_secs + NR_GC_CHECKPOINT_SECS &&
+	/* Write checkpoint to reclaim prefree segments */
+	if (free_sections(sbi) < NR_CURSEG_PERSIST_TYPE &&
 				prefree_segments(sbi)) {
 		ret = f2fs_write_checkpoint(sbi, &cpc);
 		if (ret)
