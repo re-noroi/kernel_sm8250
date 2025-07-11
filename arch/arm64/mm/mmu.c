@@ -128,7 +128,7 @@ static phys_addr_t __init early_pgtable_alloc(void)
 	 */
 	ptr = pte_set_fixmap(phys);
 
-	clear_page(ptr);
+	memset(ptr, 0, PAGE_SIZE);
 
 	/*
 	 * Implicit barriers also ensure the zeroed page is visible to the page
