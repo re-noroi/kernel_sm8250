@@ -292,7 +292,7 @@ void tracing_map_array_clear(struct tracing_map_array *a)
 		return;
 
 	for (i = 0; i < a->n_pages; i++)
-		clear_page(a->pages[i]);
+		memset(a->pages[i], 0, PAGE_SIZE);
 }
 
 void tracing_map_array_free(struct tracing_map_array *a)

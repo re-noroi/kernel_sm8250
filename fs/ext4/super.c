@@ -3645,7 +3645,7 @@ int ext4_calculate_overhead(struct super_block *sb)
 		blks = count_overhead(sb, i, buf);
 		overhead += blks;
 		if (blks)
-			clear_page(buf);
+			memset(buf, 0, PAGE_SIZE);
 		cond_resched();
 	}
 
