@@ -130,10 +130,10 @@ static u32 generate_hint(struct devfreq_msm_adreno_tz_data *priv, int level,
 		return BUSMON_FLAG_FAST_HINT;
 	}
 
-	if (minfreq == freq && wait_active_percent > 95)
+	if (minfreq == freq && wait_active_percent > 40)
 		return BUSMON_FLAG_SUPER_FAST_HINT;
 
-	if (minfreq == freq && wait_active_percent > 80)
+	if (minfreq == freq && wait_active_percent > 20)
 		return BUSMON_FLAG_FAST_HINT;
 
 	/* GPU votes for IB not AB so don't under vote the system */
