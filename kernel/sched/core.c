@@ -8184,11 +8184,11 @@ static void uclamp_set(struct cgroup_subsys_state *css)
 	int i;
 
 	static struct uclamp_param tgts[] = {
-			{"top-app",             "0", "max",  1},
+			{"top-app",             "3", "max",  1},
 			{"foreground",          "0",  "80",  0},
 			{"system",              "0", "max",  0},
-			{"dex2oat",             "0",  "30",  0},
-			{"background",          "0",  "30",  0},
+			{"dex2oat",             "0",  "40",  0},
+			{"background",          "0",  "40",  0},
 			{"system-background",   "0",  "50",  0},
 	};
 
