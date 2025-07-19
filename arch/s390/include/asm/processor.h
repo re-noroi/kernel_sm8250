@@ -36,6 +36,7 @@
 
 #ifndef __ASSEMBLY__
 
+#include <linux/cpumask.h>
 #include <linux/linkage.h>
 #include <linux/irqflags.h>
 #include <asm/cpu.h>
@@ -249,12 +250,6 @@ static inline unsigned short stap(void)
 	asm volatile("stap %0" : "=Q" (cpu_address));
 	return cpu_address;
 }
-
-/*
- * Give up the time slice of the virtual PU.
- */
-#define cpu_relax_yield cpu_relax_yield
-void cpu_relax_yield(void);
 
 #define cpu_relax() barrier()
 
