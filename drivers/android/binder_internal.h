@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _LINUX_BINDER_INTERNAL_H
 #define _LINUX_BINDER_INTERNAL_H
-
+#include <linux/export.h>
 #include <linux/fs.h>
 #include <linux/list.h>
 #include <linux/miscdevice.h>
@@ -21,7 +21,8 @@ struct binder_context {
 };
 /**
  * struct binder_device - information about a binder device node
- * @hlist:          list of binder devices
+ * @hlist:          list of binder devices (only used for devices requested via
+ *                  CONFIG_ANDROID_BINDER_DEVICES)
  * @miscdev:        information about a binder character device node
  * @context:        binder context information
  * @binderfs_inode: This is the inode of the root dentry of the super block
@@ -107,7 +108,6 @@ enum binder_stat_types {
 	BINDER_STAT_DEATH,
 	BINDER_STAT_TRANSACTION,
 	BINDER_STAT_TRANSACTION_COMPLETE,
-	BINDER_STAT_FREEZE,
 	BINDER_STAT_COUNT
 };
 
@@ -143,8 +143,8 @@ struct binder_transaction_log {
 	struct binder_transaction_log_entry entry[32];
 };
 struct binder_stats {
-	atomic_t br[_IOC_NR(BR_CLEAR_FREEZE_NOTIFICATION_DONE) + 1];
-	atomic_t bc[_IOC_NR(BC_FREEZE_NOTIFICATION_DONE) + 1];
+	atomic_t br[_IOC_NR(BR_ONEWAY_SPAM_SUSPECT) + 1];
+	atomic_t bc[_IOC_NR(BC_REPLY_SG) + 1];
 	atomic_t obj_created[BINDER_STAT_COUNT];
 	atomic_t obj_deleted[BINDER_STAT_COUNT];
 };
@@ -162,15 +162,12 @@ struct binder_work {
 	enum binder_work_type {
 		BINDER_WORK_TRANSACTION = 1,
 		BINDER_WORK_TRANSACTION_COMPLETE,
-		BINDER_WORK_TRANSACTION_PENDING,
 		BINDER_WORK_TRANSACTION_ONEWAY_SPAM_SUSPECT,
 		BINDER_WORK_RETURN_ERROR,
 		BINDER_WORK_NODE,
 		BINDER_WORK_DEAD_BINDER,
 		BINDER_WORK_DEAD_BINDER_AND_CLEAR,
 		BINDER_WORK_CLEAR_DEATH_NOTIFICATION,
-		BINDER_WORK_FROZEN_BINDER,
-		BINDER_WORK_CLEAR_FREEZE_NOTIFICATION,
 	} type;
 };
 struct binder_error {
@@ -288,15 +285,6 @@ struct binder_ref_death {
 	struct binder_work work;
 	binder_uintptr_t cookie;
 };
-
-struct binder_ref_freeze {
-	struct binder_work work;
-	binder_uintptr_t cookie;
-	bool is_frozen:1;
-	bool sent:1;
-	bool resend:1;
-};
-
 /**
  * struct binder_ref_data - binder_ref counts and id
  * @debug_id:        unique ID for the ref
@@ -328,8 +316,6 @@ struct binder_ref_data {
  *               @node indicates the node must be freed
  * @death:       pointer to death notification (ref_death) if requested
  *               (protected by @node->lock)
- * @freeze:      pointer to freeze notification (ref_freeze) if requested
- *               (protected by @node->lock)
  *
  * Structure to track references from procA to target node (on procB). This
  * structure is unsafe to access without holding @proc->outer_lock.
@@ -346,7 +332,6 @@ struct binder_ref {
 	struct binder_proc *proc;
 	struct binder_node *node;
 	struct binder_ref_death *death;
-	struct binder_ref_freeze *freeze;
 };
 /**
  * struct binder_priority - scheduler policy and priority
@@ -418,8 +403,6 @@ enum binder_prio_state {
  *                        (atomics, no lock needed)
  * @delivered_death:      list of delivered death notification
  *                        (protected by @inner_lock)
- * @delivered_freeze:     list of delivered freeze notification
- *                        (protected by @inner_lock)
  * @max_threads:          cap on number of binder threads
  *                        (protected by @inner_lock)
  * @requested_threads:    number of binder threads requested but not
@@ -468,8 +451,7 @@ struct binder_proc {
 	struct binder_stats stats;
 #endif
 	struct list_head delivered_death;
-	struct list_head delivered_freeze;
-	u32 max_threads;
+	int max_threads;
 	int requested_threads;
 	int requested_threads_started;
 	int tmp_ref;
@@ -632,22 +614,8 @@ struct binder_object {
 	};
 };
 
-/**
- * Add a binder device to binder_devices
- * @device: the new binder device to add to the global list
- *
- */
-void binder_add_device(struct binder_device *device);
-
-/**
- * Remove a binder device to binder_devices
- * @device: the binder device to remove from the global list
- */
-void binder_remove_device(struct binder_device *device);
-
 #ifdef CONFIG_ANDROID_BINDER_LOGS
 extern struct binder_transaction_log binder_transaction_log;
 extern struct binder_transaction_log binder_transaction_log_failed;
 #endif
-
 #endif /* _LINUX_BINDER_INTERNAL_H */
