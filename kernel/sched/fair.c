@@ -5564,7 +5564,6 @@ void unthrottle_cfs_rq(struct cfs_rq *cfs_rq)
 			dequeue_entity(qcfs_rq, se, flags);
 		} else if (se->on_rq)
                         break;
-                }
 
 		cfs_rq = cfs_rq_of(se);
 		enqueue_entity(cfs_rq, se, ENQUEUE_WAKEUP);
