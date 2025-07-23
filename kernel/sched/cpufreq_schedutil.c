@@ -365,11 +365,8 @@ static inline unsigned long apply_dvfs_headroom(unsigned long util, int cpu)
 	delta = capacity - util;
 	headroom = (delta * delta) / (5 * capacity);
 
-	/* Cap the quadratic boost to x% of capacity */
-	if (cpumask_test_cpu(cpu, cpu_prime_mask))
-		max_boost = capacity / 10;  // 10% for prime
-	else
-		max_boost = capacity >> 3;  // 12.5% for little & big
+	/* Cap the quadratic boost to 12.5% of capacity */
+	max_boost = capacity >> 3;
 
 	if (headroom > max_boost)
 		headroom = max_boost;
