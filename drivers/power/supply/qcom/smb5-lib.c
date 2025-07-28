@@ -10962,7 +10962,7 @@ static void smblib_six_pin_batt_step_chg_work(struct work_struct *work)
 			fcc_ua = get_effective_result(chg->fcc_votable)
 								- TAPER_DECREASE_FCC_UA;
 		}
-		pr_err("taper from main charger, reducing FCC to %duA\n",
+		pr_debug("taper from main charger, reducing FCC to %duA\n",
 				fcc_ua);
 
 		if (fcc_ua < MIN_TAPER_FCC_THR_UA)
