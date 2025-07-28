@@ -10256,7 +10256,7 @@ static void smblib_six_pin_batt_step_chg_work(struct work_struct *work)
 	if (rc < 0)
 		return;
 
-	pr_err("input_present: %d\n", input_present);
+	pr_debug("input_present: %d\n", input_present);
 	if (input_present == INPUT_NOT_PRESENT) {
 		chg->init_start_vbat_checked = false;
 		chg->trigger_taper_count = 0;
@@ -10292,7 +10292,7 @@ static void smblib_six_pin_batt_step_chg_work(struct work_struct *work)
 		return;
 	}
 	main_charge_type = pval.intval;
-	pr_err("main_charge_type: %d\n", main_charge_type);
+	pr_debug("main_charge_type: %d\n", main_charge_type);
 
 	/*
 	 * Add capacity compare to optimize cool charge  switch to
@@ -10306,7 +10306,7 @@ static void smblib_six_pin_batt_step_chg_work(struct work_struct *work)
 	}
 	capacity = pval.intval;
 	step_soc_th = chg->step_soc_threshold;
-	pr_err("step_soc_threshold: %d\n", step_soc_th);
+	pr_debug("step_soc_threshold: %d\n", step_soc_th);
 
 	rc = smblib_get_prop_batt_health(chg, &pval);
 	if (rc < 0)
@@ -10327,7 +10327,7 @@ static void smblib_six_pin_batt_step_chg_work(struct work_struct *work)
 			&& capacity > step_soc_th) {
 		fcc_ua = get_effective_result(chg->fcc_votable)
 							- TAPER_DECREASE_FCC_UA;
-		pr_err("taper from main charger, reducing FCC to %duA\n",
+		pr_debug("taper from main charger, reducing FCC to %duA\n",
 				fcc_ua);
 
 		if (fcc_ua < MIN_TAPER_FCC_THR_UA)
