@@ -1385,7 +1385,7 @@ static int uclamp_validate(struct task_struct *p,
 	 * blocking operation which obviously cannot be done while holding
 	 * scheduler locks.
 	 */
-	static_branch_enable(&sched_uclamp_used);
+	sched_uclamp_enable();
 
 	return 0;
 }
@@ -8022,7 +8022,7 @@ static void cpu_uclamp_write_wrapper(struct cgroup_subsys_state *css, char *buf,
 	if (req.ret)
 		return;
 
-	static_branch_enable(&sched_uclamp_used);
+	sched_uclamp_enable();
 
 	mutex_lock(&uclamp_mutex);
 	rcu_read_lock();
