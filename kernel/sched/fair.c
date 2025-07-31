@@ -9026,7 +9026,6 @@ int can_migrate_task(struct task_struct *p, struct lb_env *env)
 
 	if (!cpumask_test_cpu(env->dst_cpu, &p->cpus_allowed)) {
 		int cpu;
-		cpumask_t tmpmask;
 
 		schedstat_inc(p->se.statistics.nr_failed_migrations_affine);
 
@@ -9047,13 +9046,12 @@ int can_migrate_task(struct task_struct *p, struct lb_env *env)
 			return 0;
 
 		/* Prevent to re-select dst_cpu via env's CPUs: */
-		cpumask_and(&tmpmask, env->dst_grpmask, env->cpus);
-		cpumask_and(&tmpmask, &tmpmask, &p->cpus_allowed);
-
-		cpu = cpumask_first(&tmpmask);
-		if (cpu < nr_cpu_ids) {
-			env->flags |= LBF_DST_PINNED;
-			env->new_dst_cpu = cpu;
+		for_each_cpu_and(cpu, env->dst_grpmask, env->cpus) {
+			if (cpumask_test_cpu(cpu, &p->cpus_allowed)) {
+				env->flags |= LBF_DST_PINNED;
+				env->new_dst_cpu = cpu;
+				break;
+			}
 		}
 
 		return 0;
