@@ -28,7 +28,7 @@ static void cnss_print_hex_dump(const void *buf, int len)
 		hex_dump_to_buffer(ptr + i, linelen, rowsize, 1,
 				   linebuf, sizeof(linebuf), false);
 
-		cnss_pr_dbg("%.8x: %s\n", i, linebuf);
+		pr_debug("%.8x: %s\n", i, linebuf);
 	}
 }
 
@@ -341,7 +341,7 @@ static ssize_t cnss_reg_read_debug_write(struct file *fp,
 		ret = cnss_bus_debug_reg_read(plat_priv, reg_offset, &reg_val);
 		if (ret)
 			return ret;
-		cnss_pr_dbg("Read 0x%x from register offset 0x%x\n", reg_val,
+		pr_debug("Read 0x%x from register offset 0x%x\n", reg_val,
 			    reg_offset);
 		return count;
 	}
@@ -452,7 +452,7 @@ static ssize_t cnss_reg_write_debug_write(struct file *fp,
 		ret = cnss_bus_debug_reg_write(plat_priv, reg_offset, reg_val);
 		if (ret)
 			return ret;
-		cnss_pr_dbg("Wrote 0x%x to register offset 0x%x\n", reg_val,
+		pr_debug("Wrote 0x%x to register offset 0x%x\n", reg_val,
 			    reg_offset);
 		return count;
 	}
@@ -844,7 +844,7 @@ static ssize_t cnss_wfc_call_status_debug_write(struct file *fp,
 	if (kstrtou32(token, 0, &data_len))
 		return -EINVAL;
 
-	cnss_pr_dbg("Parsing 0x%x bytes data for WFC call status\n", data_len);
+	pr_debug("Parsing 0x%x bytes data for WFC call status\n", data_len);
 
 	if (data_len > QMI_WLFW_MAX_WFC_CALL_STATUS_DATA_SIZE_V01 ||
 	    data_len == 0) {
