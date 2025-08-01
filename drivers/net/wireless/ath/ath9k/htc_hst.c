@@ -114,13 +114,7 @@ static void htc_process_conn_rsp(struct htc_target *target,
 
 	if (svc_rspmsg->status == HTC_SERVICE_SUCCESS) {
 		epid = svc_rspmsg->endpoint_id;
-
-		/* Check that the received epid for the endpoint to attach
-		 * a new service is valid. ENDPOINT0 can't be used here as it
-		 * is already reserved for HTC_CTRL_RSVD_SVC service and thus
-		 * should not be modified.
-		 */
-		if (epid <= ENDPOINT0 || epid >= ENDPOINT_MAX)
+		if (epid < 0 || epid >= ENDPOINT_MAX)
 			return;
 
 		service_id = be16_to_cpu(svc_rspmsg->service_id);
@@ -297,9 +291,6 @@ int htc_connect_service(struct htc_target *target,
 		return -ETIMEDOUT;
 	}
 
-	if (target->conn_rsp_epid < 0 || target->conn_rsp_epid >= ENDPOINT_MAX)
-		return -EINVAL;
-
 	*conn_rsp_epid = target->conn_rsp_epid;
 	return 0;
 err:
@@ -376,34 +367,40 @@ ret:
 }
 
 static void ath9k_htc_fw_panic_report(struct htc_target *htc_handle,
-				      struct sk_buff *skb, u32 len)
+				      struct sk_buff *skb)
 {
 	uint32_t *pattern = (uint32_t *)skb->data;
 
-	if (*pattern == 0x33221199 && len >= sizeof(struct htc_panic_bad_vaddr)) {
+	switch (*pattern) {
+	case 0x33221199:
+		{
 		struct htc_panic_bad_vaddr *htc_panic;
 		htc_panic = (struct htc_panic_bad_vaddr *) skb->data;
 		dev_err(htc_handle->dev, "ath: firmware panic! "
 			"exccause: 0x%08x; pc: 0x%08x; badvaddr: 0x%08x.\n",
 			htc_panic->exccause, htc_panic->pc,
 			htc_panic->badvaddr);
-		return;
-	}
-	if (*pattern == 0x33221299) {
+		break;
+		}
+	case 0x33221299:
+		{
 		struct htc_panic_bad_epid *htc_panic;
 		htc_panic = (struct htc_panic_bad_epid *) skb->data;
 		dev_err(htc_handle->dev, "ath: firmware panic! "
 			"bad epid: 0x%08x\n", htc_panic->epid);
-		return;
+		break;
+		}
+	default:
+		dev_err(htc_handle->dev, "ath: unknown panic pattern!\n");
+		break;
 	}
-	dev_err(htc_handle->dev, "ath: unknown panic pattern!\n");
 }
 
 /*
  * HTC Messages are handled directly here and the obtained SKB
  * is freed.
  *
- * Service messages (Data, WMI) are passed to the corresponding
+ * Service messages (Data, WMI) passed to the corresponding
  * endpoint RX handlers, which have to free the SKB.
  */
 void ath9k_htc_rx_msg(struct htc_target *htc_handle,
@@ -417,26 +414,16 @@ void ath9k_htc_rx_msg(struct htc_target *htc_handle,
 	if (!htc_handle || !skb)
 		return;
 
-	/* A valid message requires len >= 8.
-	 *
-	 *   sizeof(struct htc_frame_hdr) == 8
-	 *   sizeof(struct htc_ready_msg) == 8
-	 *   sizeof(struct htc_panic_bad_vaddr) == 16
-	 *   sizeof(struct htc_panic_bad_epid) == 8
-	 */
-	if (unlikely(len < sizeof(struct htc_frame_hdr)))
-		goto invalid;
 	htc_hdr = (struct htc_frame_hdr *) skb->data;
 	epid = htc_hdr->endpoint_id;
 
 	if (epid == 0x99) {
-		ath9k_htc_fw_panic_report(htc_handle, skb, len);
+		ath9k_htc_fw_panic_report(htc_handle, skb);
 		kfree_skb(skb);
 		return;
 	}
 
 	if (epid < 0 || epid >= ENDPOINT_MAX) {
-invalid:
 		if (pipe_id != USB_REG_IN_PIPE)
 			dev_kfree_skb_any(skb);
 		else
@@ -448,30 +435,21 @@ invalid:
 
 		/* Handle trailer */
 		if (htc_hdr->flags & HTC_FLAGS_RECV_TRAILER) {
-			if (be32_to_cpu(*(__be32 *) skb->data) == 0x00C60000) {
+			if (be32_to_cpu(*(__be32 *) skb->data) == 0x00C60000)
 				/* Move past the Watchdog pattern */
 				htc_hdr = (struct htc_frame_hdr *)(skb->data + 4);
-				len -= 4;
-			}
 		}
 
 		/* Get the message ID */
-		if (unlikely(len < sizeof(struct htc_frame_hdr) + sizeof(__be16)))
-			goto invalid;
 		msg_id = (__be16 *) ((void *) htc_hdr +
 				     sizeof(struct htc_frame_hdr));
 
 		/* Now process HTC messages */
 		switch (be16_to_cpu(*msg_id)) {
 		case HTC_MSG_READY_ID:
-			if (unlikely(len < sizeof(struct htc_ready_msg)))
-				goto invalid;
 			htc_process_target_rdy(htc_handle, htc_hdr);
 			break;
 		case HTC_MSG_CONNECT_SERVICE_RESPONSE_ID:
-			if (unlikely(len < sizeof(struct htc_frame_hdr) +
-				     sizeof(struct htc_conn_svc_rspmsg)))
-				goto invalid;
 			htc_process_conn_rsp(htc_handle, htc_hdr);
 			break;
 		default:
@@ -490,8 +468,6 @@ invalid:
 		if (endpoint->ep_callbacks.rx)
 			endpoint->ep_callbacks.rx(endpoint->ep_callbacks.priv,
 						  skb, epid);
-		else
-			goto invalid;
 	}
 }
 
