@@ -90,7 +90,7 @@ static int cnss_get_vreg_single(struct cnss_plat_data *plat_priv,
 
 	prop = of_get_property(dev->of_node, prop_name, &len);
 	if (!prop || len != (5 * sizeof(__be32))) {
-		cnss_pr_dbg("Property %s %s, use default\n", prop_name,
+		pr_debug("Property %s %s, use default\n", prop_name,
 			    prop ? "invalid format" : "doesn't exist");
 	} else {
 		vreg->cfg.min_uv = be32_to_cpup(&prop[0]);
@@ -100,7 +100,7 @@ static int cnss_get_vreg_single(struct cnss_plat_data *plat_priv,
 		vreg->cfg.need_unvote = be32_to_cpup(&prop[4]);
 	}
 
-	cnss_pr_dbg("Got regulator: %s, min_uv: %u, max_uv: %u, load_ua: %u, delay_us: %u, need_unvote: %u\n",
+	pr_debug("Got regulator: %s, min_uv: %u, max_uv: %u, load_ua: %u, delay_us: %u, need_unvote: %u\n",
 		    vreg->cfg.name, vreg->cfg.min_uv,
 		    vreg->cfg.max_uv, vreg->cfg.load_ua,
 		    vreg->cfg.delay_us, vreg->cfg.need_unvote);
@@ -113,7 +113,7 @@ static void cnss_put_vreg_single(struct cnss_plat_data *plat_priv,
 {
 	struct device *dev = &plat_priv->plat_dev->dev;
 
-	cnss_pr_dbg("Put regulator: %s\n", vreg->cfg.name);
+	pr_debug("Put regulator: %s\n", vreg->cfg.name);
 	devm_regulator_put(vreg->reg);
 	devm_kfree(dev, vreg);
 }
@@ -123,12 +123,12 @@ static int cnss_vreg_on_single(struct cnss_vreg_info *vreg)
 	int ret = 0;
 
 	if (vreg->enabled) {
-		cnss_pr_dbg("Regulator %s is already enabled\n",
+		pr_debug("Regulator %s is already enabled\n",
 			    vreg->cfg.name);
 		return 0;
 	}
 
-	cnss_pr_dbg("Regulator %s is being enabled\n", vreg->cfg.name);
+	pr_debug("Regulator %s is being enabled\n", vreg->cfg.name);
 
 	if (vreg->cfg.min_uv != 0 && vreg->cfg.max_uv != 0) {
 		ret = regulator_set_voltage(vreg->reg,
@@ -175,12 +175,12 @@ static int cnss_vreg_unvote_single(struct cnss_vreg_info *vreg)
 	int ret = 0;
 
 	if (!vreg->enabled) {
-		cnss_pr_dbg("Regulator %s is already disabled\n",
+		pr_debug("Regulator %s is already disabled\n",
 			    vreg->cfg.name);
 		return 0;
 	}
 
-	cnss_pr_dbg("Removing vote for Regulator %s\n", vreg->cfg.name);
+	pr_debug("Removing vote for Regulator %s\n", vreg->cfg.name);
 
 	if (vreg->cfg.load_ua) {
 		ret = regulator_set_load(vreg->reg, 0);
@@ -205,12 +205,12 @@ static int cnss_vreg_off_single(struct cnss_vreg_info *vreg)
 	int ret = 0;
 
 	if (!vreg->enabled) {
-		cnss_pr_dbg("Regulator %s is already disabled\n",
+		pr_debug("Regulator %s is already disabled\n",
 			    vreg->cfg.name);
 		return 0;
 	}
 
-	cnss_pr_dbg("Regulator %s is being disabled\n",
+	pr_debug("Regulator %s is being disabled\n",
 		    vreg->cfg.name);
 
 	ret = regulator_disable(vreg->reg);
@@ -263,7 +263,7 @@ static int cnss_get_vreg(struct cnss_plat_data *plat_priv,
 	struct device *dev = &plat_priv->plat_dev->dev;
 
 	if (!list_empty(vreg_list)) {
-		cnss_pr_dbg("Vregs have already been updated\n");
+		pr_debug("Vregs have already been updated\n");
 		return 0;
 	}
 
@@ -463,13 +463,13 @@ static int cnss_get_clk_single(struct cnss_plat_data *plat_priv,
 			cnss_pr_err("Failed to get clock %s, err = %d\n",
 				    clk_info->cfg.name, ret);
 		else
-			cnss_pr_dbg("Failed to get optional clock %s, err = %d\n",
+			pr_debug("Failed to get optional clock %s, err = %d\n",
 				    clk_info->cfg.name, ret);
 		return ret;
 	}
 
 	clk_info->clk = clk;
-	cnss_pr_dbg("Got clock: %s, freq: %u\n",
+	pr_debug("Got clock: %s, freq: %u\n",
 		    clk_info->cfg.name, clk_info->cfg.freq);
 
 	return 0;
@@ -480,7 +480,7 @@ static void cnss_put_clk_single(struct cnss_plat_data *plat_priv,
 {
 	struct device *dev = &plat_priv->plat_dev->dev;
 
-	cnss_pr_dbg("Put clock: %s\n", clk_info->cfg.name);
+	pr_debug("Put clock: %s\n", clk_info->cfg.name);
 	devm_clk_put(dev, clk_info->clk);
 }
 
@@ -489,12 +489,12 @@ static int cnss_clk_on_single(struct cnss_clk_info *clk_info)
 	int ret;
 
 	if (clk_info->enabled) {
-		cnss_pr_dbg("Clock %s is already enabled\n",
+		pr_debug("Clock %s is already enabled\n",
 			    clk_info->cfg.name);
 		return 0;
 	}
 
-	cnss_pr_dbg("Clock %s is being enabled\n", clk_info->cfg.name);
+	pr_debug("Clock %s is being enabled\n", clk_info->cfg.name);
 
 	if (clk_info->cfg.freq) {
 		ret = clk_set_rate(clk_info->clk, clk_info->cfg.freq);
@@ -521,12 +521,12 @@ static int cnss_clk_on_single(struct cnss_clk_info *clk_info)
 static int cnss_clk_off_single(struct cnss_clk_info *clk_info)
 {
 	if (!clk_info->enabled) {
-		cnss_pr_dbg("Clock %s is already disabled\n",
+		pr_debug("Clock %s is already disabled\n",
 			    clk_info->cfg.name);
 		return 0;
 	}
 
-	cnss_pr_dbg("Clock %s is being disabled\n", clk_info->cfg.name);
+	pr_debug("Clock %s is being disabled\n", clk_info->cfg.name);
 
 	clk_disable_unprepare(clk_info->clk);
 	clk_info->enabled = false;
@@ -548,7 +548,7 @@ int cnss_get_clk(struct cnss_plat_data *plat_priv)
 	clk_list = &plat_priv->clk_list;
 
 	if (!list_empty(clk_list)) {
-		cnss_pr_dbg("Clocks have already been updated\n");
+		pr_debug("Clocks have already been updated\n");
 		return 0;
 	}
 
@@ -709,7 +709,7 @@ int cnss_get_pinctrl(struct cnss_plat_data *plat_priv)
 	if (of_find_property(dev->of_node, BT_EN_GPIO, NULL)) {
 		pinctrl_info->bt_en_gpio = of_get_named_gpio(dev->of_node,
 							     BT_EN_GPIO, 0);
-		cnss_pr_dbg("BT GPIO: %d\n", pinctrl_info->bt_en_gpio);
+		pr_debug("BT GPIO: %d\n", pinctrl_info->bt_en_gpio);
 	} else {
 		pinctrl_info->bt_en_gpio = -EINVAL;
 	}
@@ -718,7 +718,7 @@ int cnss_get_pinctrl(struct cnss_plat_data *plat_priv)
 		pinctrl_info->sw_ctrl_gpio = of_get_named_gpio(dev->of_node,
 							       SW_CTRL_GPIO,
 							       0);
-		cnss_pr_dbg("Switch control GPIO: %d\n",
+		pr_debug("Switch control GPIO: %d\n",
 			    pinctrl_info->sw_ctrl_gpio);
 	} else {
 		pinctrl_info->sw_ctrl_gpio = -EINVAL;
@@ -779,7 +779,7 @@ static int cnss_select_pinctrl_state(struct cnss_plat_data *plat_priv,
 		}
 	}
 
-	cnss_pr_dbg("%s WLAN_EN GPIO successfully\n",
+	pr_debug("%s WLAN_EN GPIO successfully\n",
 		    state ? "Assert" : "De-assert");
 
 	return 0;
@@ -813,17 +813,17 @@ static int cnss_select_pinctrl_enable(struct cnss_plat_data *plat_priv)
 	}
 
 	if (gpio_get_value(bt_en_gpio)) {
-		cnss_pr_dbg("BT_EN_GPIO State: On\n");
+		pr_debug("BT_EN_GPIO State: On\n");
 		ret = cnss_select_pinctrl_state(plat_priv, true);
 		if (!ret)
 			return ret;
 		wlan_en_state = 1;
 	}
 	if (!gpio_get_value(bt_en_gpio)) {
-		cnss_pr_dbg("BT_EN_GPIO State: Off. Delay WLAN_GPIO enable\n");
+		pr_debug("BT_EN_GPIO State: Off. Delay WLAN_GPIO enable\n");
 		/* check for BT_EN_GPIO down race during above operation */
 		if (wlan_en_state) {
-			cnss_pr_dbg("Reset WLAN_EN as BT got turned off during enable\n");
+			pr_debug("Reset WLAN_EN as BT got turned off during enable\n");
 			cnss_select_pinctrl_state(plat_priv, false);
 			wlan_en_state = 0;
 		}
@@ -860,7 +860,7 @@ int cnss_power_on_device(struct cnss_plat_data *plat_priv)
 	int ret = 0;
 
 	if (plat_priv->powered_on) {
-		cnss_pr_dbg("Already powered up");
+		pr_debug("Already powered up");
 		return 0;
 	}
 
@@ -897,7 +897,7 @@ out:
 void cnss_power_off_device(struct cnss_plat_data *plat_priv)
 {
 	if (!plat_priv->powered_on) {
-		cnss_pr_dbg("Already powered down");
+		pr_debug("Already powered down");
 		return;
 	}
 
@@ -941,14 +941,14 @@ int cnss_get_cpr_info(struct cnss_plat_data *plat_priv)
 
 	res = platform_get_resource_byname(plat_dev, IORESOURCE_MEM, "tcs_cmd");
 	if (!res) {
-		cnss_pr_dbg("TCS CMD address is not present for CPR\n");
+		pr_debug("TCS CMD address is not present for CPR\n");
 		goto out;
 	}
 
 	ret = of_property_read_string(plat_dev->dev.of_node,
 				      "qcom,cmd_db_name", &cmd_db_name);
 	if (ret) {
-		cnss_pr_dbg("CommandDB name is not present for CPR\n");
+		pr_debug("CommandDB name is not present for CPR\n");
 		goto out;
 	}
 
@@ -961,7 +961,7 @@ int cnss_get_cpr_info(struct cnss_plat_data *plat_priv)
 	cpr_pmic_addr = cmd_db_read_addr(cmd_db_name);
 	if (cpr_pmic_addr > 0) {
 		cpr_info->cpr_pmic_addr = cpr_pmic_addr;
-		cnss_pr_dbg("Get CPR PMIC address 0x%x from %s\n",
+		pr_debug("Get CPR PMIC address 0x%x from %s\n",
 			    cpr_info->cpr_pmic_addr, cmd_db_name);
 	} else {
 		cnss_pr_err("CPR PMIC address is not available for %s\n",
@@ -972,7 +972,7 @@ int cnss_get_cpr_info(struct cnss_plat_data *plat_priv)
 
 	cpr_info->tcs_cmd_base_addr = res->start;
 	addr_len = resource_size(res);
-	cnss_pr_dbg("TCS CMD base address is %pa with length %pa\n",
+	pr_debug("TCS CMD base address is %pa with length %pa\n",
 		    &cpr_info->tcs_cmd_base_addr, &addr_len);
 
 	tcs_cmd_base_addr = devm_ioremap_resource(&plat_dev->dev, res);
@@ -999,7 +999,7 @@ int cnss_update_cpr_info(struct cnss_plat_data *plat_priv)
 	int i, j;
 
 	if (cpr_info->tcs_cmd_base_addr == 0) {
-		cnss_pr_dbg("CPR is not enabled\n");
+		pr_debug("CPR is not enabled\n");
 		return 0;
 	}
 
@@ -1021,7 +1021,7 @@ int cnss_update_cpr_info(struct cnss_plat_data *plat_priv)
 				tcs_cmd_data_addr = tcs_cmd_addr +
 					TCS_CMD_DATA_ADDR_OFFSET;
 				voltage_tmp = readl_relaxed(tcs_cmd_data_addr);
-				cnss_pr_dbg("Got voltage %dmV from i: %d, j: %d\n",
+				pr_debug("Got voltage %dmV from i: %d, j: %d\n",
 					    voltage_tmp, i, j);
 
 				if (voltage_tmp > voltage) {
@@ -1045,7 +1045,7 @@ int cnss_update_cpr_info(struct cnss_plat_data *plat_priv)
 update_cpr:
 	cpr_info->voltage = cpr_info->voltage > BT_CXMX_VOLTAGE_MV ?
 		cpr_info->voltage : BT_CXMX_VOLTAGE_MV;
-	cnss_pr_dbg("Update TCS CMD data address %pa with voltage %dmV\n",
+	pr_debug("Update TCS CMD data address %pa with voltage %dmV\n",
 		    &cpr_info->tcs_cmd_data_addr, cpr_info->voltage);
 	writel_relaxed(cpr_info->voltage, cpr_info->tcs_cmd_data_addr_io);
 
