@@ -461,7 +461,7 @@ int cnss_bus_is_device_down(struct cnss_plat_data *plat_priv)
 	case CNSS_BUS_PCI:
 		return cnss_pcie_is_device_down(plat_priv->bus_priv);
 	default:
-		cnss_pr_dbg("Unsupported bus type: %d\n",
+		pr_debug("Unsupported bus type: %d\n",
 			    plat_priv->bus_type);
 		return 0;
 	}
@@ -476,7 +476,7 @@ int cnss_bus_check_link_status(struct cnss_plat_data *plat_priv)
 	case CNSS_BUS_PCI:
 		return cnss_pci_check_link_status(plat_priv->bus_priv);
 	default:
-		cnss_pr_dbg("Unsupported bus type: %d\n",
+		pr_debug("Unsupported bus type: %d\n",
 			    plat_priv->bus_type);
 		return 0;
 	}
@@ -491,7 +491,7 @@ int cnss_bus_recover_link_down(struct cnss_plat_data *plat_priv)
 	case CNSS_BUS_PCI:
 		return cnss_pci_recover_link_down(plat_priv->bus_priv);
 	default:
-		cnss_pr_dbg("Unsupported bus type: %d\n",
+		pr_debug("Unsupported bus type: %d\n",
 			    plat_priv->bus_type);
 		return -EINVAL;
 	}
@@ -508,7 +508,7 @@ int cnss_bus_debug_reg_read(struct cnss_plat_data *plat_priv, u32 offset,
 		return cnss_pci_debug_reg_read(plat_priv->bus_priv, offset,
 					       val);
 	default:
-		cnss_pr_dbg("Unsupported bus type: %d\n",
+		pr_debug("Unsupported bus type: %d\n",
 			    plat_priv->bus_type);
 		return 0;
 	}
@@ -525,7 +525,7 @@ int cnss_bus_debug_reg_write(struct cnss_plat_data *plat_priv, u32 offset,
 		return cnss_pci_debug_reg_write(plat_priv->bus_priv, offset,
 						val);
 	default:
-		cnss_pr_dbg("Unsupported bus type: %d\n",
+		pr_debug("Unsupported bus type: %d\n",
 			    plat_priv->bus_type);
 		return 0;
 	}
