@@ -202,7 +202,7 @@ struct msm_cvp_inst *cvp_get_inst_validate(struct msm_cvp_core *core,
 		return NULL;
 	}
 
-	hdev = s->core->device;
+	hdev = core->device;
 	rc = call_hfi_op(hdev, validate_session, s->session, __func__);
 	if (rc) {
 		cvp_put_inst(s);
