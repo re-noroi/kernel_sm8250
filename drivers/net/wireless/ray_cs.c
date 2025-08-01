@@ -282,14 +282,13 @@ static int ray_probe(struct pcmcia_device *p_dev)
 {
 	ray_dev_t *local;
 	struct net_device *dev;
-	int ret;
 
 	dev_dbg(&p_dev->dev, "ray_attach()\n");
 
 	/* Allocate space for private device-specific data */
 	dev = alloc_etherdev(sizeof(ray_dev_t));
 	if (!dev)
-		return -ENOMEM;
+		goto fail_alloc_dev;
 
 	local = netdev_priv(dev);
 	local->finder = p_dev;
@@ -326,16 +325,11 @@ static int ray_probe(struct pcmcia_device *p_dev)
 	timer_setup(&local->timer, NULL, 0);
 
 	this_device = p_dev;
-	ret = ray_config(p_dev);
-	if (ret)
-		goto err_free_dev;
+	return ray_config(p_dev);
 
-	return 0;
-
-err_free_dev:
-	free_netdev(dev);
-	return ret;
-}
+fail_alloc_dev:
+	return -ENOMEM;
+} /* ray_attach */
 
 static void ray_detach(struct pcmcia_device *link)
 {
@@ -1657,34 +1651,38 @@ static void authenticate_timeout(struct timer_list *t)
 /*===========================================================================*/
 static int parse_addr(char *in_str, UCHAR *out)
 {
-	int i, k;
 	int len;
+	int i, j, k;
+	int status;
 
 	if (in_str == NULL)
 		return 0;
-	len = strnlen(in_str, ADDRLEN * 2 + 1) - 1;
-	if (len < 1)
+	if ((len = strlen(in_str)) < 2)
 		return 0;
 	memset(out, 0, ADDRLEN);
 
+	status = 1;
+	j = len - 1;
+	if (j > 12)
+		j = 12;
 	i = 5;
 
-	while (len > 0) {
-		if ((k = hex_to_bin(in_str[len--])) != -1)
+	while (j > 0) {
+		if ((k = hex_to_bin(in_str[j--])) != -1)
 			out[i] = k;
 		else
 			return 0;
 
-		if (len == 0)
+		if (j == 0)
 			break;
-		if ((k = hex_to_bin(in_str[len--])) != -1)
+		if ((k = hex_to_bin(in_str[j--])) != -1)
 			out[i] += k << 4;
 		else
 			return 0;
 		if (!i--)
 			break;
 	}
-	return 1;
+	return status;
 }
 
 /*===========================================================================*/

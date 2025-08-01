@@ -612,7 +612,7 @@ static int brcmf_pcie_exit_download_state(struct brcmf_pciedev_info *devinfo,
 	}
 
 	if (!brcmf_chip_set_active(devinfo->ci, resetintr))
-		return -EIO;
+		return -EINVAL;
 	return 0;
 }
 

@@ -339,11 +339,8 @@ brcmf_msgbuf_alloc_pktid(struct device *dev,
 		count++;
 	} while (count < pktids->array_size);
 
-	if (count == pktids->array_size) {
-		dma_unmap_single(dev, *physaddr, skb->len - data_offset,
-				 pktids->direction);
+	if (count == pktids->array_size)
 		return -ENOMEM;
-	}
 
 	array[*idx].data_offset = data_offset;
 	array[*idx].physaddr = *physaddr;
