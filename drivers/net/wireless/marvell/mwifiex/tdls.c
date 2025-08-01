@@ -737,7 +737,6 @@ mwifiex_construct_tdls_action_frame(struct mwifiex_private *priv,
 	int ret;
 	u16 capab;
 	struct ieee80211_ht_cap *ht_cap;
-	unsigned int extra;
 	u8 radio, *pos;
 
 	capab = priv->curr_bss_params.bss_descriptor.cap_info_bitmap;
@@ -756,10 +755,7 @@ mwifiex_construct_tdls_action_frame(struct mwifiex_private *priv,
 
 	switch (action_code) {
 	case WLAN_PUB_ACTION_TDLS_DISCOVER_RES:
-		/* See the layout of 'struct ieee80211_mgmt'. */
-		extra = sizeof(mgmt->u.action.u.tdls_discover_resp) +
-			sizeof(mgmt->u.action.category);
-		skb_put(skb, extra);
+		skb_put(skb, sizeof(mgmt->u.action.u.tdls_discover_resp) + 1);
 		mgmt->u.action.category = WLAN_CATEGORY_PUBLIC;
 		mgmt->u.action.u.tdls_discover_resp.action_code =
 					      WLAN_PUB_ACTION_TDLS_DISCOVER_RES;
@@ -768,7 +764,8 @@ mwifiex_construct_tdls_action_frame(struct mwifiex_private *priv,
 		mgmt->u.action.u.tdls_discover_resp.capability =
 							     cpu_to_le16(capab);
 		/* move back for addr4 */
-		memmove(pos + ETH_ALEN, &mgmt->u.action, extra);
+		memmove(pos + ETH_ALEN, &mgmt->u.action.category,
+			sizeof(mgmt->u.action.u.tdls_discover_resp));
 		/* init address 4 */
 		memcpy(pos, bc_addr, ETH_ALEN);
 

@@ -684,10 +684,6 @@ ath10k_wmi_tlv_op_pull_mgmt_tx_compl_ev(struct ath10k *ar, struct sk_buff *skb,
 	}
 
 	ev = tb[WMI_TLV_TAG_STRUCT_MGMT_TX_COMPL_EVENT];
-	if (!ev) {
-		kfree(tb);
-		return -EPROTO;
-	}
 
 	arg->desc_id = ev->desc_id;
 	arg->status = ev->status;
@@ -2655,14 +2651,9 @@ ath10k_wmi_tlv_op_cleanup_mgmt_tx_send(struct ath10k *ar,
 				       struct sk_buff *msdu)
 {
 	struct ath10k_skb_cb *cb = ATH10K_SKB_CB(msdu);
-	struct ath10k_mgmt_tx_pkt_addr *pkt_addr;
 	struct ath10k_wmi *wmi = &ar->wmi;
 
-	spin_lock_bh(&ar->data_lock);
-	pkt_addr = idr_remove(&wmi->mgmt_pending_tx, cb->msdu_id);
-	spin_unlock_bh(&ar->data_lock);
-
-	kfree(pkt_addr);
+	idr_remove(&wmi->mgmt_pending_tx, cb->msdu_id);
 
 	return 0;
 }
