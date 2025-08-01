@@ -3400,12 +3400,10 @@ static DEVICE_ATTR(dump_errors, 0200, NULL, il3945_dump_error_log);
  *
  *****************************************************************************/
 
-static int
+static void
 il3945_setup_deferred_work(struct il_priv *il)
 {
 	il->workqueue = create_singlethread_workqueue(DRV_NAME);
-	if (!il->workqueue)
-		return -ENOMEM;
 
 	init_waitqueue_head(&il->wait_command_queue);
 
@@ -3424,8 +3422,6 @@ il3945_setup_deferred_work(struct il_priv *il)
 	tasklet_init(&il->irq_tasklet,
 		     il3945_irq_tasklet,
 		     (unsigned long)il);
-
-	return 0;
 }
 
 static void
@@ -3747,10 +3743,7 @@ il3945_pci_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 	}
 
 	il_set_rxon_channel(il, &il->bands[NL80211_BAND_2GHZ].channels[5]);
-	err = il3945_setup_deferred_work(il);
-	if (err)
-		goto out_remove_sysfs;
-
+	il3945_setup_deferred_work(il);
 	il3945_setup_handlers(il);
 	il_power_initialize(il);
 
@@ -3762,7 +3755,7 @@ il3945_pci_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 
 	err = il3945_setup_mac(il);
 	if (err)
-		goto out_destroy_workqueue;
+		goto out_remove_sysfs;
 
 	err = il_dbgfs_register(il, DRV_NAME);
 	if (err)
@@ -3774,10 +3767,9 @@ il3945_pci_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 
 	return 0;
 
-out_destroy_workqueue:
+out_remove_sysfs:
 	destroy_workqueue(il->workqueue);
 	il->workqueue = NULL;
-out_remove_sysfs:
 	sysfs_remove_group(&pdev->dev.kobj, &il3945_attribute_group);
 out_release_irq:
 	free_irq(il->pci_dev->irq, il);
