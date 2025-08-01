@@ -712,8 +712,8 @@ static int rndis_query_oid(struct usbnet *dev, u32 oid, void *data, int *len)
 		struct rndis_query	*get;
 		struct rndis_query_c	*get_c;
 	} u;
-	int ret;
-	size_t buflen, resplen, respoffs, copylen;
+	int ret, buflen;
+	int resplen, respoffs, copylen;
 
 	buflen = *len + sizeof(*u.get);
 	if (buflen < CONTROL_BUFFER_SIZE)
@@ -748,15 +748,22 @@ static int rndis_query_oid(struct usbnet *dev, u32 oid, void *data, int *len)
 
 		if (respoffs > buflen) {
 			/* Device returned data offset outside buffer, error. */
-			netdev_dbg(dev->net,
-				   "%s(%s): received invalid data offset: %zu > %zu\n",
-				   __func__, oid_to_string(oid), respoffs, buflen);
+			netdev_dbg(dev->net, "%s(%s): received invalid "
+				"data offset: %d > %d\n", __func__,
+				oid_to_string(oid), respoffs, buflen);
 
 			ret = -EINVAL;
 			goto exit_unlock;
 		}
 
-		copylen = min(resplen, buflen - respoffs);
+		if ((resplen + respoffs) > buflen) {
+			/* Device would have returned more data if buffer would
+			 * have been big enough. Copy just the bits that we got.
+			 */
+			copylen = buflen - respoffs;
+		} else {
+			copylen = resplen;
+		}
 
 		if (copylen > *len)
 			copylen = *len;
