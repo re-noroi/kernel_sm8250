@@ -1530,7 +1530,7 @@ select_task_rq_rt(struct task_struct *p, int cpu, int flags)
 	 * Respect the sync flag as long as the task can run on this CPU.
 	 */
 	if (should_honor_rt_sync(this_cpu_rq, p, sync) &&
-	    cpumask_test_cpu(this_cpu, &p->cpus_allowed)) {
+	    cpumask_test_cpu(this_cpu, p->cpus_ptr)) {
 		cpu = this_cpu;
 		goto out_unlock;
 	}
