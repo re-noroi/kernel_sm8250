@@ -1785,7 +1785,7 @@ static void migrate_disable_switch(struct rq *rq, struct task_struct *p)
 	if (likely(!p->migration_disabled))
 		return;
 
-	if (&p->cpus_allowed != &p->cpus_mask)
+	if (p->cpus_ptr != &p->cpus_mask)
 		return;
 
 	/*
@@ -2028,7 +2028,7 @@ static int migration_cpu_stop(void *data)
 		 * ->pi_lock, so the allowed mask is stable - if it got
 		 * somewhere allowed, we're done.
 		 */
-		if (cpumask_test_cpu(task_cpu(p), &p->cpus_allowed)) {
+		if (cpumask_test_cpu(task_cpu(p), p->cpus_ptr)) {
 			if (p->migration_pending == pending)
 				p->migration_pending = NULL;
 			complete = true;
@@ -2109,7 +2109,7 @@ out_unlock:
 void set_cpus_allowed_common(struct task_struct *p, const struct cpumask *new_mask, u32 flags)
 {
 	if (flags & (SCA_MIGRATE_ENABLE | SCA_MIGRATE_DISABLE)) {
-		cpumask_copy(&p->cpus_allowed, new_mask);
+		p->cpus_ptr, new_mask;
 		return;
 	}
 
@@ -2337,7 +2337,7 @@ static int __set_cpus_allowed_ptr(struct task_struct *p,
 		 * Specifically, migration_disabled() tasks must not fail the
 		 * cpumask_any_and_distribute() pick below, esp. so on
 		 * SCA_MIGRATE_ENABLE, otherwise we'll not call
-		 * set_cpus_allowed_common() and actually reset &p->cpus_allowed.
+		 * set_cpus_allowed_common() and actually reset p->cpus_ptr.
 		 */
 		cpu_valid_mask = cpu_online_mask;
 	}
@@ -2558,7 +2558,7 @@ void sched_migrate_to_cpumask_start(struct cpumask *old_mask,
 	struct task_struct *p = current;
 
 	raw_spin_lock_irq(&p->pi_lock);
-	*cpumask_bits(old_mask) = *cpumask_bits(&p->cpus_allowed);
+	*cpumask_bits(old_mask) = *cpumask_bits(p->cpus_ptr);
 	raw_spin_unlock_irq(&p->pi_lock);
 
 	/*
@@ -2574,12 +2574,12 @@ void sched_migrate_to_cpumask_end(const struct cpumask *old_mask,
 	struct task_struct *p = current;
 
 	/*
-	 * Check that cpus_allowed didn't change from what it was temporarily
+	 * Check that cpus_mask didn't change from what it was temporarily
 	 * set to earlier. If so, we can go ahead and lazily restore the old
 	 * cpumask. There's no need to immediately migrate right now.
 	 */
 	raw_spin_lock_irq(&p->pi_lock);
-	if (*cpumask_bits(&p->cpus_allowed) == *cpumask_bits(dest)) {
+	if (*cpumask_bits(p->cpus_ptr) == *cpumask_bits(dest)) {
 		struct rq *rq = this_rq();
 
 		raw_spin_lock(&rq->lock);
@@ -2770,7 +2770,7 @@ static int select_fallback_rq(int cpu, struct task_struct *p)
 		for_each_cpu(dest_cpu, nodemask) {
 			if (!cpu_active(dest_cpu))
 				continue;
-			if (cpumask_test_cpu(dest_cpu, &p->cpus_allowed))
+			if (cpumask_test_cpu(dest_cpu, p->cpus_ptr))
 				return dest_cpu;
 		}
 	}
