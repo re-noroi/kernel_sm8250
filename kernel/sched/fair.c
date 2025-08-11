@@ -3648,8 +3648,6 @@ static inline void update_tg_load_avg(struct cfs_rq *cfs_rq)
 		atomic_long_add(delta, &cfs_rq->tg->load_avg);
 		cfs_rq->tg_load_avg_contrib = cfs_rq->avg.load_avg;
 		cfs_rq->last_update_tg_load_avg = now;
-
-		trace_sched_load_tg(cfs_rq);
 	}
 }
 
