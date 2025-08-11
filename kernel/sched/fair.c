@@ -95,7 +95,7 @@ __setup("sched_thermal_decay_shift=", setup_sched_thermal_decay_shift);
  */
 int __weak arch_asym_cpu_priority(int cpu)
 {
-	return -arch_scale_cpu_capacity(cpu);
+	return -cpu;
 }
 
 /*
