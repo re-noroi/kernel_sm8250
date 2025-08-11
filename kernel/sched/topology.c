@@ -499,8 +499,6 @@ static int init_rootdomain(struct root_domain *rd)
 	if (cpupri_init(&rd->cpupri) != 0)
 		goto free_cpudl;
 
-	init_max_cpu_capacity(&rd->max_cpu_capacity);
-
 	return 0;
 
 free_cpudl:
