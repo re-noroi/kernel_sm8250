@@ -4451,17 +4451,6 @@ done:
 	trace_sched_util_est_task(p, &p->se.avg);
 }
 
-static inline bool
-bias_to_this_cpu(struct task_struct *p, int cpu, int start_cpu)
-{
-	bool base_test = cpumask_test_cpu(cpu, p->cpus_ptr) &&
-						   cpu_active(cpu);
-	bool start_cap_test = (capacity_orig_of(cpu) >=
-					capacity_orig_of(start_cpu));
-
-	return base_test && start_cap_test;
-}
-
 static inline int util_fits_cpu(unsigned long util,
 				unsigned long uclamp_min,
 				unsigned long uclamp_max,
@@ -8054,8 +8043,7 @@ static int find_energy_efficient_cpu(struct task_struct *p, int prev_cpu,
 	if (sync && (need_idle || (is_rtg && curr_is_rtg)))
 		sync = 0;
 
-	if (sysctl_sched_sync_hint_enable && sync &&
-				bias_to_this_cpu(p, cpu, start_cpu)) {
+	if (sysctl_sched_sync_hint_enable && sync) {
 		best_energy_cpu = cpu;
 		fbt_env.fastpath = SYNC_WAKEUP;
 		goto done;
