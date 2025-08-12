@@ -70,7 +70,7 @@ DEFINE_PER_CPU_READ_MOSTLY(int, sched_load_boost);
 unsigned int sysctl_boost_lpmask __read_mostly = 8;
 unsigned int sysctl_boost_bpmask __read_mostly = 6;
 unsigned int sysctl_boost_prime __read_mostly = 3;
-unsigned int sysctl_manual_boost __read_mostly = 1;
+unsigned int sysctl_manual_boost __read_mostly = 0;
 static int zero		= 0;
 static int n_one	= 1;
 static int thirty	= 30;
