@@ -338,21 +338,22 @@ static inline unsigned long apply_dvfs_headroom(unsigned long util, int cpu)
 {
 	unsigned long capacity = capacity_orig_of(cpu);
 	unsigned long delta, headroom;
-	unsigned long base_boost = 0 , max_boost, final_hr;
+	unsigned long base_boost = 0, final_hr;
+	unsigned int pct;
 
 	if (util >= capacity)
 		return util;
 
 	/* Apply manual headroom boost using sched_headroom_sysctls */
 	if (sysctl_manual_boost) {
-		if (cpumask_test_cpu(cpu, cpu_lp_mask))
-			base_boost = util * sysctl_boost_lpmask / 100;
-		else if (cpumask_test_cpu(cpu, cpu_prime_mask))
-			base_boost = util * sysctl_boost_prime / 100;
-		else
-			base_boost = util * sysctl_boost_bpmask / 100;
-	} else {
-		base_boost = 0;
+		if (cpumask_test_cpu(cpu, cpu_lp_mask)) {
+			pct = sysctl_boost_lpmask;
+		} else if (cpumask_test_cpu(cpu, cpu_prime_mask)) {
+			pct = sysctl_boost_prime;
+		} else {
+			pct = sysctl_boost_bpmask;
+		}
+		base_boost = util * pct / 100;
 	}
 
 	/*
@@ -361,16 +362,13 @@ static inline unsigned long apply_dvfs_headroom(unsigned long util, int cpu)
 	 * capacity
 	 */
 	delta = capacity - util;
-	headroom = (delta * delta) / (5 * capacity);
+	if (!cpumask_test_cpu(cpu, cpu_prime_mask))
+		delta += capacity;
 
-	/* Cap the quadratic boost to 12.5% of capacity */
-	max_boost = capacity >> 3;
-
-	if (headroom > max_boost)
-		headroom = max_boost;
+	headroom = (delta * delta) / (6 * capacity);
 
 	final_hr = util + headroom + base_boost;
-	return min(final_hr, capacity);
+	return final_hr;
 }
 
 unsigned long sugov_effective_cpu_perf(int cpu, unsigned long actual,
