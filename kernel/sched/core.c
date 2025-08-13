@@ -2005,7 +2005,7 @@ static int migration_cpu_stop(void *data)
 			rq = __migrate_task(rq, &rf, p, arg->dest_cpu);
 		} else {
 			p->wake_cpu = arg->dest_cpu;
-
+		}
 		/*
 		 * XXX __migrate_task() can fail, at which point we might end
 		 * up running on a dodgy CPU, AFAICT this can only happen
@@ -2047,7 +2047,6 @@ static int migration_cpu_stop(void *data)
 				    &pending->arg, &pending->stop_work);
 		preempt_enable();
 		return 0;
-		}
 	}
 out:
 	if (pending)
@@ -2110,7 +2109,7 @@ out_unlock:
 void set_cpus_allowed_common(struct task_struct *p, const struct cpumask *new_mask, u32 flags)
 {
 	if (flags & (SCA_MIGRATE_ENABLE | SCA_MIGRATE_DISABLE)) {
-		p->cpus_ptr = new_mask;
+		cpumask_copy(&p->cpus_allowed, new_mask);
 		return;
 	}
 

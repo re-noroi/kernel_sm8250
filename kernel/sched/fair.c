@@ -8347,9 +8347,9 @@ static void set_task_max_allowed_capacity(struct task_struct *p)
 	rcu_read_unlock();
 }
 
-static void set_cpus_allowed_fair(struct task_struct *p, const struct cpumask *new_mask)
+static void set_cpus_allowed_fair(struct task_struct *p, const struct cpumask *new_mask, u32 flags)
 {
-	set_cpus_allowed_common(p, new_mask);
+	set_cpus_allowed_common(p, new_mask, flags);
 	set_task_max_allowed_capacity(p);
 }
 
