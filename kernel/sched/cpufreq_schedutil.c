@@ -337,7 +337,7 @@ unsigned long schedutil_cpu_util(int cpu, unsigned long util_cfs,
 static inline unsigned long apply_dvfs_headroom(unsigned long util, int cpu)
 {
 	unsigned long capacity = capacity_orig_of(cpu);
-	unsigned long delta, headroom;
+	unsigned long delta, headroom, max_limit;
 	unsigned long base_boost = 0, final_hr;
 	unsigned int pct;
 
@@ -363,9 +363,18 @@ static inline unsigned long apply_dvfs_headroom(unsigned long util, int cpu)
 	 */
 	delta = capacity - util;
 	if (!cpumask_test_cpu(cpu, cpu_prime_mask))
-		delta += capacity;
+		delta += delta / 2;
 
 	headroom = (delta * delta) / (6 * capacity);
+
+	/* We don't want headroom over utilization */
+	if (headroom > util)
+		headroom = util;
+
+	/* Limit headroom to 20% of capacity */
+	max_limit = capacity / 5;
+	if (headroom > max_limit)
+		headroom = max_limit;
 
 	final_hr = util + headroom + base_boost;
 	return final_hr;
