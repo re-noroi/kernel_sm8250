@@ -337,47 +337,54 @@ unsigned long schedutil_cpu_util(int cpu, unsigned long util_cfs,
 static inline unsigned long apply_dvfs_headroom(unsigned long util, int cpu)
 {
 	unsigned long capacity = capacity_orig_of(cpu);
-	unsigned long delta, headroom, max_limit;
-	unsigned long base_boost = 0, final_hr;
+	unsigned long delta, headroom, min_util;
+	unsigned long base_boost = 0, max_boost, final_hr;
 	unsigned int pct;
 
 	if (util >= capacity)
-		return util;
+		return capacity;
 
-	/* Apply manual headroom boost using sched_headroom_sysctls */
+	/* Manual boost (optional) */
 	if (sysctl_manual_boost) {
-		if (cpumask_test_cpu(cpu, cpu_lp_mask)) {
+		if (cpumask_test_cpu(cpu, cpu_lp_mask))
 			pct = sysctl_boost_lpmask;
-		} else if (cpumask_test_cpu(cpu, cpu_prime_mask)) {
+		else if (cpumask_test_cpu(cpu, cpu_prime_mask))
 			pct = sysctl_boost_prime;
-		} else {
+		else
 			pct = sysctl_boost_bpmask;
-		}
+
 		base_boost = util * pct / 100;
+		/* Hard cap: avoid crazy jumps */
+		if (base_boost > capacity / 10)
+			base_boost = capacity / 10;
 	}
 
-	/*
-	 * Quadratic taper the boosting at the top end as these are expensive
-	 * and we don't need that much of a big headroom as we approach max
-	 * capacity
-	 */
+	/* Quadratic taper */
 	delta = capacity - util;
-	if (!cpumask_test_cpu(cpu, cpu_prime_mask))
-		delta += delta / 2;
-
 	headroom = (delta * delta) / (6 * capacity);
+	if (!cpumask_test_cpu(cpu, cpu_prime_mask))
+		headroom *= 2;
 
-	/* We don't want headroom over utilization */
-	if (headroom > util)
-		headroom = util;
+	/* Headroom absolute cap: 17% */
+	max_boost = capacity * 17 / 100;
+	if (headroom > max_boost)
+		headroom = max_boost;
 
-	/* Limit headroom to 20% of capacity */
-	max_limit = capacity / 5;
-	if (headroom > max_limit)
-		headroom = max_limit;
+	/* Cap relative to util: headroom ≤ util / 1.5 (so final ≤ ~1.66 × util) */
+	if (headroom > util / 2)
+		headroom = util / 2;
+
+	/* x% of capacity threshold */
+	min_util = capacity / 10;
+
+	/* Suppress boosting below the threshold */
+	if (util < min_util) {
+		headroom = (headroom * util * util) / (min_util * min_util);
+		base_boost = (base_boost * 30 / 100);
+	}
 
 	final_hr = util + headroom + base_boost;
-	return final_hr;
+	return min(final_hr, capacity);
 }
 
 unsigned long sugov_effective_cpu_perf(int cpu, unsigned long actual,
