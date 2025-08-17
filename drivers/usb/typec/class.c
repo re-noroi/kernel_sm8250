@@ -3,7 +3,6 @@
  * USB Type-C Connector Class
  *
  * Copyright (C) 2017, Intel Corporation
- * Copyright (C) 2021 XiaoMi, Inc.
  * Author: Heikki Krogerus <heikki.krogerus@linux.intel.com>
  */
 
@@ -1391,7 +1390,6 @@ void typec_set_pwr_opmode(struct typec_port *port,
 						(opmode > TYPEC_PWR_MODE_MAX))
 		return;
 
-	pr_err("%s pwr opmode:%d\n", __func__, opmode);
 	if (opmode > TYPEC_PWR_MODE_PD)
 		return;
 
