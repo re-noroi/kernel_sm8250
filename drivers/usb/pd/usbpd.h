@@ -11,7 +11,7 @@
 
 struct usbpd;
 
-#if IS_ENABLED(CONFIG_USB_PD_POLICY)
+#if IS_ENABLED(CONFIG_USB_PD_POLICY) || IS_ENABLED(CONFIG_USB_PD_POLICY_MUNCH)
 struct usbpd *usbpd_create(struct device *parent);
 void usbpd_destroy(struct usbpd *pd);
 #else
@@ -171,7 +171,7 @@ enum quick_charge_type {
 #define USBPD_LOW_PPS_POWER		45000000
 #define USBPD_SUPER_PPS_POWER		50000000
 #define USBPD_SUPER_PPS_POWER_MAX	120000000
-#define USBPD_WAKK_PPS_CURR_LIMIT       2000000
+#define USBPD_WAKK_PPS_CURR_LIMIT       1800000
 #define PD_UNVERIFY_PASSTHROUGH_CURR	3000
 
 #endif /* _USBPD_H */
