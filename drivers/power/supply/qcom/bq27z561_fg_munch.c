@@ -39,7 +39,7 @@ enum print_reason {
 	PR_DEBUG	= BIT(3),
 };
 
-static int debug_mask = PR_INTERRUPT;
+static int debug_mask = PR_OEM;
 module_param_named(
 	debug_mask, debug_mask, int, 0600
 );
@@ -1662,7 +1662,6 @@ static int fg_get_property(struct power_supply *psy, enum power_supply_property 
 			val->intval = bq->batt_ttf;
 			break;
                 }
-
 		ret = fg_read_ttf(bq);
 		if (ret >= 0)
 			bq->batt_ttf = ret;
