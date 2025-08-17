@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2020 The Linux Foundation. All rights reserved.
- * Copyright (C) 2021 XiaoMi, Inc.
  */
 
 #define pr_fmt(fmt) "QCOM-BATT: %s: " fmt, __func__
@@ -1284,7 +1283,6 @@ static int pl_fv_vote_callback(struct votable *votable, void *data,
 				POWER_SUPPLY_PROP_WIRELESS_POWER_GOOD_EN,
 				&pval);
 				if (pval.intval) {
-					pr_err("wireless re-triggering charging\n");
 					rc = power_supply_set_property(chip->batt_psy,
 						POWER_SUPPLY_PROP_FORCE_RECHARGE,
 						&pval);
@@ -1994,10 +1992,8 @@ static void qcom_batt_create_debugfs(struct pl_data *chip)
 
 	chip->dfs_root = debugfs_create_dir("battery", NULL);
 	if (IS_ERR_OR_NULL(chip->dfs_root)) {
-#ifdef CONFIG_DEBUG_FS
 		pr_err("Couldn't create battery debugfs rc=%ld\n",
 			(long)chip->dfs_root);
-#endif
 		return;
 	}
 
