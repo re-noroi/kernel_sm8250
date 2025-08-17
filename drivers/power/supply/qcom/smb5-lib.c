@@ -10848,11 +10848,14 @@ static void smblib_six_pin_batt_step_chg_work(struct work_struct *work)
 			if (!chg->cp_psy)
 				pr_err("cp_psy not found\n");
 		}
-		rc = power_supply_get_property(chg->cp_psy,
-				POWER_SUPPLY_PROP_TI_BATTERY_VOLTAGE, &pval);
-		if (rc < 0)
-			pr_err("Error in getting TI_BATTERY_VOLTAGE, rc=%d\n", rc);
-		ti_battery_voltage = pval.intval;
+
+		if (chg->cp_psy) {
+			rc = power_supply_get_property(chg->cp_psy,
+					POWER_SUPPLY_PROP_TI_BATTERY_VOLTAGE, &pval);
+			if (rc < 0)
+				pr_err("Error in getting TI_BATTERY_VOLTAGE, rc=%d\n", rc);
+			ti_battery_voltage = pval.intval;
+		}
 
 		rc = power_supply_get_property(chg->bms_psy,
 					POWER_SUPPLY_PROP_TEMP, &pval);
