@@ -365,8 +365,8 @@ static inline unsigned long apply_dvfs_headroom(unsigned long util, int cpu)
 	if (!cpumask_test_cpu(cpu, cpu_prime_mask))
 		headroom *= 2;
 
-	/* Headroom absolute cap: 17% */
-	max_boost = capacity * 17 / 100;
+	/* Headroom absolute cap: 15% */
+	max_boost = capacity * 15 / 100;
 	if (headroom > max_boost)
 		headroom = max_boost;
 
