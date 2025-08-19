@@ -117,7 +117,7 @@ static void set_sched_affinity_to_all(void)
 	cpumask_setall(&dstp);
 	ret = sched_setaffinity(CURRENT_DS28E16_TASK, &dstp);
 	if (ret) {
-		ppr_debug("Setting cpu affinity to all valid cpus failed(%ld) in %s.\n",
+		pr_debug("Setting cpu affinity to all valid cpus failed(%ld) in %s.\n",
 			ret, __func__);
 	} else {
 		pr_debug("Setting cpu affinity to all valid cpus in %s.\n",
