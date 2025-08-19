@@ -525,7 +525,7 @@ static int bq2597x_enable_wdt(struct bq2597x *bq, bool enable)
 }
 EXPORT_SYMBOL_GPL(bq2597x_enable_wdt);
 
-static int bq2597x_set_wdt(struct bq2597x *bq, int ms)
+static __maybe_unused int bq2597x_set_wdt(struct bq2597x *bq, int ms)
 {
 	int ret;
 	u8 val;
@@ -1173,7 +1173,7 @@ static int bq2597x_set_alarm_int_mask(struct bq2597x *bq, u8 mask)
 }
 EXPORT_SYMBOL_GPL(bq2597x_set_alarm_int_mask);
 
-static int bq2597x_clear_alarm_int_mask(struct bq2597x *bq, u8 mask)
+static __maybe_unused int bq2597x_clear_alarm_int_mask(struct bq2597x *bq, u8 mask)
 {
 	int ret;
 	u8 val;
@@ -1207,7 +1207,7 @@ static int bq2597x_set_fault_int_mask(struct bq2597x *bq, u8 mask)
 }
 EXPORT_SYMBOL_GPL(bq2597x_set_fault_int_mask);
 
-static int bq2597x_clear_fault_int_mask(struct bq2597x *bq, u8 mask)
+static __maybe_unused int bq2597x_clear_fault_int_mask(struct bq2597x *bq, u8 mask)
 {
 	int ret;
 	u8 val;
@@ -2158,7 +2158,7 @@ static int bq2597x_charger_is_writeable(struct power_supply *psy,
 
 static int bq2597x_psy_register(struct bq2597x *bq)
 {
-	int ret;
+	int ret = 0;
 
 	bq->psy_cfg.drv_data = bq;
 	bq->psy_cfg.of_node = bq->dev->of_node;
@@ -2189,7 +2189,7 @@ static int bq2597x_psy_register(struct bq2597x *bq)
 	return 0;
 }
 
-static void bq2597x_dump_reg(struct bq2597x *bq)
+static __maybe_unused void bq2597x_dump_reg(struct bq2597x *bq)
 {
 	int ret;
 	u8 val;
@@ -2462,7 +2462,7 @@ static int bq2597x_get_dev_role(struct i2c_client *client)
 	dev_info(&client->dev, "%s: matched to %s\n", __func__,
 		 of_id->compatible);
 
-	return (int)of_id->data;
+	return (uintptr_t)of_id->data;
 }
 
 static int bq2597x_charger_probe(struct i2c_client *client,
