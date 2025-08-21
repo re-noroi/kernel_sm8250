@@ -355,8 +355,8 @@ static inline unsigned long apply_dvfs_headroom(unsigned long util, int cpu)
 
 		base_boost = util * pct / 100;
 		/* Hard cap: avoid crazy jumps */
-		if (base_boost > capacity / 10)
-			base_boost = capacity / 10;
+		if (base_boost > capacity / 4)
+			base_boost = capacity / 4;
 	}
 
 	/* Quadratic taper */
@@ -370,7 +370,7 @@ static inline unsigned long apply_dvfs_headroom(unsigned long util, int cpu)
 	if (headroom > max_boost)
 		headroom = max_boost;
 
-	/* Cap relative to util: headroom ≤ util / 1.5 (so final ≤ ~1.66 × util) */
+	/* Cap it to 50% of util */
 	if (headroom > util / 2)
 		headroom = util / 2;
 
