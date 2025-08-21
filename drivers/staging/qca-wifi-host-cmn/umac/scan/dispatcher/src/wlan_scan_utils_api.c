@@ -1236,7 +1236,7 @@ static void util_scan_scm_update_bss_with_esp_data(
 		struct scan_cache_entry *scan_entry)
 {
 	uint8_t air_time_fraction = 0;
-	struct wlan_esp_ie esp_information = {0};
+	struct wlan_esp_ie esp_information;
 
 	if (!scan_entry->ie_list.esp)
 		return;
@@ -1731,9 +1731,6 @@ static uint32_t util_gen_new_ie(uint8_t *ie, uint32_t ielen,
 	/* copy subelement as we need to change its content to
 	 * mark an ie after it is processed.
 	 */
-	if (subie_len == 0 || !subelement)
-		return 0;
-
 	sub_copy = qdf_mem_malloc(subie_len);
 	if (!sub_copy)
 		return 0;
