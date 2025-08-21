@@ -828,25 +828,32 @@ static inline void rmv_page_order(struct page *page)
  *
  * For recording page's order, we use page_private(page).
  */
-static inline bool page_is_buddy(struct page *page, struct page *buddy,
+static inline int page_is_buddy(struct page *page, struct page *buddy,
 							unsigned int order)
 {
-	if (!page_is_guard(buddy) && !PageBuddy(buddy))
-		return false;
+	if (page_is_guard(buddy) && page_order(buddy) == order) {
+		if (page_zone_id(page) != page_zone_id(buddy))
+			return 0;
 
-	if (page_order(buddy) != order)
-		return false;
+		VM_BUG_ON_PAGE(page_count(buddy) != 0, buddy);
 
-	/*
-	 * zone check is done late to avoid uselessly calculating
-	 * zone/node ids for pages that could never merge.
-	 */
-	if (page_zone_id(page) != page_zone_id(buddy))
-		return false;
+		return 1;
+	}
 
-	VM_BUG_ON_PAGE(page_count(buddy) != 0, buddy);
+	if (PageBuddy(buddy) && page_order(buddy) == order) {
+		/*
+		 * zone check is done late to avoid uselessly
+		 * calculating zone/node ids for pages that could
+		 * never merge.
+		 */
+		if (page_zone_id(page) != page_zone_id(buddy))
+			return 0;
 
-	return true;
+		VM_BUG_ON_PAGE(page_count(buddy) != 0, buddy);
+
+		return 1;
+	}
+	return 0;
 }
 
 #ifdef CONFIG_COMPACTION
@@ -1244,7 +1251,7 @@ static inline void prefetch_buddy(struct page *page)
 }
 
 /*
- * Frees a number of pages which have been collected from the pcp lists.
+ * Frees a number of pages from the PCP lists
  * Assumes all pages on list are in same zone, and of same order.
  * count is the number of pages to free.
  *
@@ -1254,57 +1261,15 @@ static inline void prefetch_buddy(struct page *page)
  * And clear the zone's pages_scanned counter, to hold off the "all pages are
  * pinned" detection logic.
  */
-static void free_pcppages_bulk(struct zone *zone, struct list_head *head,
-			       bool zone_retry)
-{
-	bool isolated_pageblocks;
-	struct page *page, *tmp;
-	unsigned long flags;
-
-	spin_lock_irqsave(&zone->lock, flags);
-	isolated_pageblocks = has_isolate_pageblock(zone);
-
-	/*
-	 * Use safe version since after __free_one_page(),
-	 * page->lru.next will not point to original list.
-	 */
-	list_for_each_entry_safe(page, tmp, head, lru) {
-		int mt = get_pcppage_migratetype(page);
-
-		if (page_zone(page) != zone) {
-			/*
-			 * free_unref_page_list() sorts pages by zone. If we end
-			 * up with pages from a different NUMA nodes belonging
-			 * to the same ZONE index then we need to redo with the
-			 * correct ZONE pointer. Skip the page for now, redo it
-			 * on the next iteration.
-			 */
-			WARN_ON_ONCE(zone_retry == false);
-			if (zone_retry)
-				continue;
-		}
-
-		/* MIGRATE_ISOLATE page should not go to pcplists */
-		VM_BUG_ON_PAGE(is_migrate_isolate(mt), page);
-		/* Pageblock could have been isolated meanwhile */
-		if (unlikely(isolated_pageblocks))
-			mt = get_pageblock_migratetype(page);
-
-		list_del(&page->lru);
-		__free_one_page(page, page_to_pfn(page), zone, 0, mt);
-		trace_mm_page_pcpu_drain(page, 0, mt);
-	}
-	spin_unlock_irqrestore(&zone->lock, flags);
-}
-
-static void isolate_pcp_pages(int count, struct per_cpu_pages *pcp,
-			      struct list_head *dst)
-
+static void free_pcppages_bulk(struct zone *zone, int count,
+					struct per_cpu_pages *pcp)
 {
 	int migratetype = 0;
 	int batch_free = 0;
 	int prefetch_nr = 0;
-	struct page *page;
+	bool isolated_pageblocks;
+	struct page *page, *tmp;
+	LIST_HEAD(head);
 
 	/*
 	 * Ensure proper count is passed which otherwise would stuck in the
@@ -1341,7 +1306,7 @@ static void isolate_pcp_pages(int count, struct per_cpu_pages *pcp,
 			if (bulkfree_pcp_prepare(page))
 				continue;
 
-			list_add_tail(&page->lru, dst);
+			list_add_tail(&page->lru, &head);
 
 			/*
 			 * We are going to put the page back to the global
@@ -1356,6 +1321,26 @@ static void isolate_pcp_pages(int count, struct per_cpu_pages *pcp,
 				prefetch_buddy(page);
 		} while (--count && --batch_free && !list_empty(list));
 	}
+
+	spin_lock(&zone->lock);
+	isolated_pageblocks = has_isolate_pageblock(zone);
+
+	/*
+	 * Use safe version since after __free_one_page(),
+	 * page->lru.next will not point to original list.
+	 */
+	list_for_each_entry_safe(page, tmp, &head, lru) {
+		int mt = get_pcppage_migratetype(page);
+		/* MIGRATE_ISOLATE page should not go to pcplists */
+		VM_BUG_ON_PAGE(is_migrate_isolate(mt), page);
+		/* Pageblock could have been isolated meanwhile */
+		if (unlikely(isolated_pageblocks))
+			mt = get_pageblock_migratetype(page);
+
+		__free_one_page(page, page_to_pfn(page), zone, 0, mt);
+		trace_mm_page_pcpu_drain(page, 0, mt);
+	}
+	spin_unlock(&zone->lock);
 }
 
 static void free_one_page(struct zone *zone,
@@ -2861,18 +2846,13 @@ void drain_zone_pages(struct zone *zone, struct per_cpu_pages *pcp)
 {
 	unsigned long flags;
 	int to_drain, batch;
-	LIST_HEAD(dst);
 
 	local_irq_save(flags);
 	batch = READ_ONCE(pcp->batch);
 	to_drain = min(pcp->count, batch);
 	if (to_drain > 0)
-		isolate_pcp_pages(to_drain, pcp, &dst);
-
+		free_pcppages_bulk(zone, to_drain, pcp);
 	local_irq_restore(flags);
-
-	if (to_drain > 0)
-		free_pcppages_bulk(zone, &dst, false);
 }
 #endif
 
@@ -2888,21 +2868,14 @@ static void drain_pages_zone(unsigned int cpu, struct zone *zone)
 	unsigned long flags;
 	struct per_cpu_pageset *pset;
 	struct per_cpu_pages *pcp;
-	LIST_HEAD(dst);
-	int count;
 
 	local_irq_save(flags);
 	pset = per_cpu_ptr(zone->pageset, cpu);
 
 	pcp = &pset->pcp;
-	count = pcp->count;
-	if (count)
-		isolate_pcp_pages(count, pcp, &dst);
-
+	if (pcp->count)
+		free_pcppages_bulk(zone, pcp->count, pcp);
 	local_irq_restore(flags);
-
-	if (count)
-		free_pcppages_bulk(zone, &dst, false);
 }
 
 /*
@@ -3095,8 +3068,7 @@ static bool free_unref_page_prepare(struct page *page, unsigned long pfn)
 	return true;
 }
 
-static void free_unref_page_commit(struct page *page, unsigned long pfn,
-				   struct list_head *dst)
+static void free_unref_page_commit(struct page *page, unsigned long pfn)
 {
 	struct zone *zone = page_zone(page);
 	struct per_cpu_pages *pcp;
@@ -3126,8 +3098,7 @@ static void free_unref_page_commit(struct page *page, unsigned long pfn,
 	pcp->count++;
 	if (pcp->count >= pcp->high) {
 		unsigned long batch = READ_ONCE(pcp->batch);
-
-		isolate_pcp_pages(batch, pcp, dst);
+		free_pcppages_bulk(zone, batch, pcp);
 	}
 }
 
@@ -3138,17 +3109,13 @@ void free_unref_page(struct page *page)
 {
 	unsigned long flags;
 	unsigned long pfn = page_to_pfn(page);
-	struct zone *zone = page_zone(page);
-	LIST_HEAD(dst);
 
 	if (!free_unref_page_prepare(page, pfn))
 		return;
 
 	local_irq_save(flags);
-	free_unref_page_commit(page, pfn, &dst);
+	free_unref_page_commit(page, pfn);
 	local_irq_restore(flags);
-	if (!list_empty(&dst))
-		free_pcppages_bulk(zone, &dst, false);
 }
 
 /*
@@ -3159,11 +3126,6 @@ void free_unref_page_list(struct list_head *list)
 	struct page *page, *next;
 	unsigned long flags, pfn;
 	int batch_count = 0;
-	struct list_head dsts[__MAX_NR_ZONES];
-	int i;
-
-	for (i = 0; i < __MAX_NR_ZONES; i++)
-		INIT_LIST_HEAD(&dsts[i]);
 
 	/* Prepare pages for freeing */
 	list_for_each_entry_safe(page, next, list, lru) {
@@ -3176,12 +3138,10 @@ void free_unref_page_list(struct list_head *list)
 	local_irq_save(flags);
 	list_for_each_entry_safe(page, next, list, lru) {
 		unsigned long pfn = page_private(page);
-		enum zone_type type;
 
 		set_page_private(page, 0);
 		trace_mm_page_free_batched(page);
-		type = page_zonenum(page);
-		free_unref_page_commit(page, pfn, &dsts[type]);
+		free_unref_page_commit(page, pfn);
 
 		/*
 		 * Guard against excessive IRQ disabled times when we get
@@ -3194,21 +3154,6 @@ void free_unref_page_list(struct list_head *list)
 		}
 	}
 	local_irq_restore(flags);
-
-	for (i = 0; i < __MAX_NR_ZONES; ) {
-		struct page *page;
-		struct zone *zone;
-
-		if (list_empty(&dsts[i])) {
-			i++;
-			continue;
-		}
-
-		page = list_first_entry(&dsts[i], struct page, lru);
-		zone = page_zone(page);
-
-		free_pcppages_bulk(zone, &dsts[i], true);
-	}
 }
 
 /*
@@ -4320,11 +4265,13 @@ __perform_reclaim(gfp_t gfp_mask, unsigned int order,
 	struct reclaim_state reclaim_state;
 	int progress;
 	unsigned int noreclaim_flag;
+	unsigned long pflags;
 
 	cond_resched();
 
 	/* We now go into synchronous reclaim */
 	cpuset_memory_pressure_bump();
+	psi_memstall_enter(&pflags);
 	fs_reclaim_acquire(gfp_mask);
 	noreclaim_flag = memalloc_noreclaim_save();
 	reclaim_state.reclaimed_slab = 0;
@@ -4336,6 +4283,7 @@ __perform_reclaim(gfp_t gfp_mask, unsigned int order,
 	current->reclaim_state = NULL;
 	memalloc_noreclaim_restore(noreclaim_flag);
 	fs_reclaim_release(gfp_mask);
+	psi_memstall_leave(&pflags);
 
 	cond_resched();
 
@@ -4349,13 +4297,11 @@ __alloc_pages_direct_reclaim(gfp_t gfp_mask, unsigned int order,
 		unsigned long *did_some_progress)
 {
 	struct page *page = NULL;
-	unsigned long pflags;
 	bool drained = false;
 
-	psi_memstall_enter(&pflags);
 	*did_some_progress = __perform_reclaim(gfp_mask, order, ac);
 	if (unlikely(!(*did_some_progress)))
-		goto out;
+		return NULL;
 
 retry:
 	page = get_page_from_freelist(gfp_mask, order, alloc_flags, ac);
@@ -4371,8 +4317,6 @@ retry:
 		drained = true;
 		goto retry;
 	}
-out:
-	psi_memstall_leave(&pflags);
 
 	return page;
 }
@@ -5010,7 +4954,8 @@ __alloc_pages_nodemask(gfp_t gfp_mask, unsigned int order, int preferred_nid,
 	 * Restore the original nodemask if it was potentially replaced with
 	 * &cpuset_current_mems_allowed to optimize the fast-path attempt.
 	 */
-	ac.nodemask = nodemask;
+	if (unlikely(ac.nodemask != nodemask))
+		ac.nodemask = nodemask;
 
 	page = __alloc_pages_slowpath(alloc_mask, order, &ac);
 
@@ -6316,6 +6261,7 @@ static void pageset_init(struct per_cpu_pageset *p)
 	memset(p, 0, sizeof(*p));
 
 	pcp = &p->pcp;
+	pcp->count = 0;
 	for (migratetype = 0; migratetype < MIGRATE_PCPTYPES; migratetype++)
 		INIT_LIST_HEAD(&pcp->lists[migratetype]);
 }
@@ -8516,11 +8462,7 @@ static int __alloc_contig_migrate_range(struct compact_control *cc,
 	unsigned long nr_reclaimed;
 	unsigned long pfn = start;
 	unsigned int tries = 0;
-	unsigned int max_tries = 5;
 	int ret = 0;
-
-	if (cc->gfp_mask & __GFP_NORETRY)
-		max_tries = 1;
 
 	migrate_prep();
 
@@ -8538,8 +8480,8 @@ static int __alloc_contig_migrate_range(struct compact_control *cc,
 				break;
 			}
 			tries = 0;
-		} else if (++tries == max_tries) {
-			ret = -EBUSY;
+		} else if (++tries == 5) {
+			ret = ret < 0 ? ret : -EBUSY;
 			break;
 		}
 
@@ -8549,13 +8491,6 @@ static int __alloc_contig_migrate_range(struct compact_control *cc,
 
 		ret = migrate_pages(&cc->migratepages, alloc_migrate_target,
 				    NULL, 0, cc->mode, MR_CONTIG_RANGE);
-
-		/*
-		 * On -ENOMEM, migrate_pages() bails out right away. It is pointless
-		 * to retry again over this error, so do the same here.
-		 */
-		if (ret == -ENOMEM)
-			break;
 	}
 	if (ret < 0) {
 		putback_movable_pages(&cc->migratepages);
@@ -8596,11 +8531,7 @@ int alloc_contig_range(unsigned long start, unsigned long end,
 		.nr_migratepages = 0,
 		.order = -1,
 		.zone = page_zone(pfn_to_page(start)),
-		/*
-		 * Use MIGRATE_ASYNC for __GFP_NORETRY requests as it never
-		 * blocks.
-		 */
-		.mode = gfp_mask & __GFP_NORETRY ? MIGRATE_ASYNC : MIGRATE_SYNC,
+		.mode = MIGRATE_SYNC,
 		.ignore_skip_hint = true,
 		.no_set_skip_hint = true,
 		.gfp_mask = current_gfp_context(gfp_mask),
@@ -8651,7 +8582,7 @@ int alloc_contig_range(unsigned long start, unsigned long end,
 	 * -EBUSY is not accidentally used or returned to caller.
 	 */
 	ret = __alloc_contig_migrate_range(&cc, start, end);
-	if (ret && (ret != -EBUSY || (gfp_mask & __GFP_NORETRY)))
+	if (ret && ret != -EBUSY)
 		goto done;
 	ret =0;
 
@@ -8728,9 +8659,9 @@ done:
 	return ret;
 }
 
-void free_contig_range(unsigned long pfn, unsigned long nr_pages)
+void free_contig_range(unsigned long pfn, unsigned nr_pages)
 {
-	unsigned long count = 0;
+	unsigned int count = 0;
 
 	for (; nr_pages--; pfn++) {
 		struct page *page = pfn_to_page(pfn);
@@ -8738,7 +8669,7 @@ void free_contig_range(unsigned long pfn, unsigned long nr_pages)
 		count += page_count(page) != 1;
 		__free_page(page);
 	}
-	WARN(count != 0, "%lu pages are still in use!\n", count);
+	WARN(count != 0, "%d pages are still in use!\n", count);
 }
 #endif
 
