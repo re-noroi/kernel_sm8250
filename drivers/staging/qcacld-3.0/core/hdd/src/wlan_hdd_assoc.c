@@ -2384,11 +2384,9 @@ QDF_STATUS hdd_roam_register_sta(struct hdd_adapter *adapter,
 		hdd_conn_set_authenticated(adapter, true);
 		hdd_objmgr_set_peer_mlme_auth_state(adapter->vdev, true);
 	} else {
-#ifdef WLAN_DEBUG
 		hdd_debug("ULA auth Sta: " QDF_MAC_ADDR_FMT
 			  " Changing TL state to CONNECTED at Join time",
 			  QDF_MAC_ADDR_REF(txrx_desc.peer_addr.bytes));
-#endif
 
 		qdf_status = hdd_conn_change_peer_state(
 						adapter, roam_info,
@@ -4838,11 +4836,7 @@ static void hdd_roam_channel_switch_handler(struct hdd_adapter *adapter,
 	struct wiphy *wiphy = wdev->wiphy;
 	QDF_STATUS status;
 	struct hdd_context *hdd_ctx = WLAN_HDD_GET_CTX(adapter);
-	mac_handle_t mac_handle;
-
-	mac_handle = hdd_adapter_get_mac_handle(adapter);
-	if (!mac_handle)
-		return;
+	mac_handle_t mac_handle = hdd_adapter_get_mac_handle(adapter);
 
 	/* Enable Roaming on STA interface which was disabled before CSA */
 	if (adapter->device_mode == QDF_STA_MODE)
