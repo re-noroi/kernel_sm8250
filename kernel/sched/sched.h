@@ -2844,7 +2844,7 @@ static inline unsigned long cpu_util_cfs(struct rq *rq)
 
 #ifdef CONFIG_CPU_FREQ_GOV_SCHEDUTIL
 
-unsigned long schedutil_cpu_util(int cpu, unsigned long util_cfs,
+unsigned long effective_cpu_util(int cpu, unsigned long util_cfs,
 				 unsigned long *min,
 				 unsigned long *max);
 
@@ -2883,9 +2883,9 @@ static inline unsigned long cpu_util_rt(struct rq *rq)
 }
 
 #else /* CONFIG_CPU_FREQ_GOV_SCHEDUTIL */
-static inline unsigned long schedutil_cpu_util(int cpu, unsigned long util_cfs,
-				 unsigned long max, enum schedutil_type type,
-				 struct task_struct *p)
+unsigned long effective_cpu_util(int cpu, unsigned long util_cfs,
+                                 unsigned long *min,
+                                 unsigned long *max)
 {
 	return 0;
 }
