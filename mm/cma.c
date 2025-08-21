@@ -86,7 +86,7 @@ static unsigned long cma_bitmap_pages_to_bits(const struct cma *cma,
 }
 
 static void cma_clear_bitmap(struct cma *cma, unsigned long pfn,
-			     unsigned long count)
+			     unsigned int count)
 {
 	unsigned long bitmap_no, bitmap_count;
 
@@ -441,37 +441,32 @@ static inline void cma_debug_show_areas(struct cma *cma) { }
 #endif
 
 /**
- * __cma_alloc() - allocate pages from contiguous area
+ * cma_alloc() - allocate pages from contiguous area
  * @cma:   Contiguous memory region for which the allocation is performed.
  * @count: Requested number of pages.
  * @align: Requested alignment of pages (in PAGE_SIZE order).
- * @gfp_mask: GFP mask to use during the cma allocation.
+ * @no_warn: Avoid printing message about failed allocation
  *
- * This function is same with cma_alloc but supports gfp_mask.
- * Currently, the gfp_mask supports only __GFP_NOWARN and __GFP_NORETRY.
- * If user passes other flags, it fails the allocation.
+ * This function allocates part of contiguous memory on specific
+ * contiguous memory area.
  */
-struct page *__cma_alloc(struct cma *cma, unsigned long count,
-		       unsigned int align, gfp_t gfp_mask)
+struct page *cma_alloc(struct cma *cma, size_t count, unsigned int align,
+		       bool no_warn)
 {
 	unsigned long mask, offset;
 	unsigned long pfn = -1;
 	unsigned long start = 0;
 	unsigned long bitmap_maxno, bitmap_no, bitmap_count;
-	unsigned long i;
+	size_t i;
 	struct page *page = NULL;
 	int ret = -ENOMEM;
 	int num_attempts = 0;
 	int max_retries = 5;
 
-	if (WARN_ON_ONCE((gfp_mask & GFP_KERNEL) == 0 ||
-		(gfp_mask & ~(GFP_KERNEL|__GFP_NOWARN|__GFP_NORETRY)) != 0))
+	if (!cma || !cma->count)
 		return NULL;
 
-	if (!cma || !cma->count || !cma->bitmap)
-		return NULL;
-
-	pr_debug("%s(cma %p, count %lu, align %d)\n", __func__, (void *)cma,
+	pr_debug("%s(cma %p, count %zu, align %d)\n", __func__, (void *)cma,
 		 count, align);
 
 	if (!count)
@@ -496,8 +491,7 @@ struct page *__cma_alloc(struct cma *cma, unsigned long count,
 			if ((num_attempts < max_retries) && (ret == -EBUSY)) {
 				mutex_unlock(&cma->lock);
 
-				if (fatal_signal_pending(current) ||
-				    (gfp_mask & __GFP_NORETRY))
+				if (fatal_signal_pending(current))
 					break;
 
 				/*
@@ -527,7 +521,8 @@ struct page *__cma_alloc(struct cma *cma, unsigned long count,
 
 		pfn = cma->base_pfn + (bitmap_no << cma->order_per_bit);
 		mutex_lock(&cma_mutex);
-		ret = alloc_contig_range(pfn, pfn + count, MIGRATE_CMA, gfp_mask);
+		ret = alloc_contig_range(pfn, pfn + count, MIGRATE_CMA,
+				     GFP_KERNEL | (no_warn ? __GFP_NOWARN : 0));
 		mutex_unlock(&cma_mutex);
 		if (ret == 0) {
 			page = pfn_to_page(pfn);
@@ -555,35 +550,17 @@ struct page *__cma_alloc(struct cma *cma, unsigned long count,
 	 */
 	if (page) {
 		for (i = 0; i < count; i++)
-			page_kasan_tag_reset(nth_page(page, i));
+			page_kasan_tag_reset(page + i);
 	}
 
-	if (ret && !(gfp_mask & __GFP_NOWARN)) {
-		pr_err("%s: %s: alloc failed, req-size: %lu pages, ret: %d\n",
+	if (ret && !no_warn) {
+		pr_err("%s: %s: alloc failed, req-size: %zu pages, ret: %d\n",
 			__func__, cma->name, count, ret);
 		cma_debug_show_areas(cma);
 	}
 
 	pr_debug("%s(): returned %p\n", __func__, page);
 	return page;
-}
-EXPORT_SYMBOL_GPL(__cma_alloc);
-
-/**
- * cma_alloc() - allocate pages from contiguous area
- * @cma:   Contiguous memory region for which the allocation is performed.
- * @count: Requested number of pages.
- * @align: Requested alignment of pages (in PAGE_SIZE order).
- * @no_warn: Avoid printing message about failed allocation
- *
- * This function allocates part of contiguous memory on specific
- * contiguous memory area.
- */
-struct page *cma_alloc(struct cma *cma, unsigned long count,
-		       unsigned int align, bool no_warn)
-{
-	return __cma_alloc(cma, count, align, GFP_KERNEL |
-				(no_warn ? __GFP_NOWARN : 0));
 }
 EXPORT_SYMBOL_GPL(cma_alloc);
 
@@ -597,8 +574,7 @@ EXPORT_SYMBOL_GPL(cma_alloc);
  * It returns false when provided pages do not belong to contiguous area and
  * true otherwise.
  */
-bool cma_release(struct cma *cma, const struct page *pages,
-		 unsigned long count)
+bool cma_release(struct cma *cma, const struct page *pages, unsigned int count)
 {
 	unsigned long pfn;
 
