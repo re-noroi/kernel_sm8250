@@ -1965,8 +1965,8 @@ static QDF_STATUS find_ie_data_after_fils_session_ie(struct mac_context *mac_ctx
 		if (elem_len > left)
 			return QDF_STATUS_E_FAILURE;
 
-		if ((elem_id == WLAN_REQUEST_IE_MAX_LEN) &&
-		    (left >= 3 && ptr[2] == SIR_FILS_SESSION_EXT_EID)) {
+		if (elem_id == WLAN_REQUEST_IE_MAX_LEN &&
+			ptr[2] == SIR_FILS_SESSION_EXT_EID) {
 			(*ie) = ((&ptr[1]) + ptr[1] + 1);
 			(*ie_len) = (left - elem_len);
 			return QDF_STATUS_SUCCESS;
@@ -2167,7 +2167,7 @@ static int fils_aead_decrypt(const uint8_t *kek, unsigned int kek_len,
 	}
 
 	if (!own_mac || !bssid || !snonce ||
-	    !anonce || data_len == 0 || ciphered_text_len < AES_BLOCK_SIZE ||
+	    !anonce || data_len == 0 || ciphered_text_len == 0 ||
 	    !plain_text) {
 		QDF_TRACE(QDF_MODULE_ID_QDF, QDF_TRACE_LEVEL_ERROR,
 			  FL("Error missing params mac:%pK bssid:%pK snonce:%pK anonce:%pK data_len:%zu ciphered_text_len:%zu plain_text:%pK"),

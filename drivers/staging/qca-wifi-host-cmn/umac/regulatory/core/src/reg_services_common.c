@@ -1,6 +1,5 @@
 /*
- * Copyright (c) 2014-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022,2024-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2014-2020 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -1865,7 +1864,6 @@ QDF_STATUS reg_program_default_cc(struct wlan_objmgr_pdev *pdev,
 
 	reg_info->psoc = psoc;
 	reg_info->phy_id = wlan_objmgr_pdev_get_pdev_id(pdev);
-	reg_info->num_phy = 1;
 
 	if (regdmn == 0) {
 		reg_get_default_country(&regdmn);
@@ -2701,13 +2699,21 @@ QDF_STATUS reg_modify_pdev_chan_range(struct wlan_objmgr_pdev *pdev)
 	}
 
 	reg_cap_ptr = psoc_priv_obj->reg_cap;
+
 	for (cnt = 0; cnt < PSOC_MAX_PHY_REG_CAP; cnt++) {
+		if (!reg_cap_ptr) {
+			qdf_mem_free(pdev_priv_obj);
+			reg_err("reg cap ptr is NULL");
+			return QDF_STATUS_E_FAULT;
+		}
+
 		if (reg_cap_ptr->phy_id == phy_id)
 			break;
 		reg_cap_ptr++;
 	}
 
 	if (cnt == PSOC_MAX_PHY_REG_CAP) {
+		qdf_mem_free(pdev_priv_obj);
 		reg_err("extended capabilities not found for pdev");
 		return QDF_STATUS_E_FAULT;
 	}
