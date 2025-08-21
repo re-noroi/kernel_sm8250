@@ -355,7 +355,6 @@ static os_timer_func(dfs_remove_from_nol)
 #endif
 #endif
 
-#ifdef DFS_DEBUG
 void dfs_print_nol(struct wlan_dfs *dfs)
 {
 	struct dfs_nolelem *nol;
@@ -383,7 +382,6 @@ void dfs_print_nol(struct wlan_dfs *dfs)
 		nol = nol->nol_next;
 	}
 }
-#endif
 
 void dfs_print_nolhistory(struct wlan_dfs *dfs)
 {
