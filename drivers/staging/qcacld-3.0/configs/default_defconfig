@@ -110,7 +110,6 @@ ifeq ($(CONFIG_ICNSS), y)
 	endif
 endif
 
-DEVELOPER_DISABLE_BUILD_TIMESTAMP := y
 ifneq ($(DEVELOPER_DISABLE_BUILD_TIMESTAMP), y)
 ifneq ($(WLAN_DISABLE_BUILD_TAG), y)
 CONFIG_BUILD_TAG := y
@@ -168,7 +167,7 @@ CONFIG_QCOM_TDLS := y
 CONFIG_WLAN_SYSFS := n
 CONFIG_WLAN_POWER_DEBUG := n
 #Enable Beacon Reception Stats
-CONFIG_FEATURE_BECN_STATS := n
+CONFIG_FEATURE_BECN_STATS := y
 endif
 
 #Disable the Export Symbol config
@@ -278,7 +277,7 @@ ifeq ($(CONFIG_ROME_IF),usb)
 endif
 
 
-CONFIG_FEATURE_EPPING := n
+CONFIG_FEATURE_EPPING := y
 
 #Flag to enable offload packets feature
 CONFIG_WLAN_OFFLOAD_PACKETS := y
@@ -367,7 +366,7 @@ CONFIG_QMI_SUPPORT := y
 ifeq ($(CONFIG_ICNSS), y)
 CONFIG_WIFI_3_0_ADRASTEA := y
 CONFIG_ADRASTEA_RRI_ON_DDR := y
-# Disable athdiag procfs debug support for adrastea
+# Enable athdiag procfs debug support for adrastea
 CONFIG_ATH_PROCFS_DIAG_SUPPORT := n
 # Enable 11AC TX compact feature for adrastea
 CONFIG_ATH_11AC_TXCOMPACT := y
@@ -438,7 +437,7 @@ CONFIG_QCA_WIFI_QCA8074 := y
 CONFIG_QCA_WIFI_QCA8074_VP := y
 CONFIG_DP_INTR_POLL_BASED := y
 CONFIG_TX_PER_PDEV_DESC_POOL := y
-CONFIG_DP_TRACE := n
+CONFIG_DP_TRACE := y
 CONFIG_FEATURE_TSO := y
 CONFIG_FEATURE_FORCE_WAKE := y
 CONFIG_DP_LFR := y
@@ -490,16 +489,25 @@ ifneq ($(TARGET_BUILD_VARIANT),user)
 endif
 
 #Enable WLAN/Power debugfs feature only if debug_fs is enabled
-# ifeq ($(CONFIG_DEBUG_FS), y)
+ifeq ($(CONFIG_DEBUG_FS), y)
        # Flag to enable debugfs. Depends on CONFIG_DEBUG_FS in kernel
        # configuration.
-       # CONFIG_WLAN_DEBUGFS := y
+       CONFIG_WLAN_DEBUGFS := y
 
-       # CONFIG_WLAN_POWER_DEBUGFS := y
-# endif
+       # Flag to enable streamfs. Depends on CONFIG_DEBUG_FS and
+       # CONFIG_RELAY in kernel configuration.
+ifeq ($(CONFIG_RELAY), y)
+       CONFIG_WLAN_STREAMFS := y
+endif
+endif
 
-#Disable WLAN/Power debugging
-CONFIG_WLAN_POWER_DEBUG := n
+ifeq ($(CONFIG_WLAN_DEBUGFS), y)
+       CONFIG_WLAN_MWS_INFO_DEBUGFS := y
+       CONFIG_WLAN_FEATURE_MIB_STATS := y
+else
+       CONFIG_WLAN_MWS_INFO_DEBUGFS := n
+       CONFIG_WLAN_FEATURE_MIB_STATS := n
+endif
 
 # Feature flags which are not (currently) configurable via Kconfig
 
@@ -521,13 +529,10 @@ else
 endif
 
 # Compile all log levels by default
-CONFIG_WLAN_LOG_FATAL := n
+CONFIG_WLAN_LOG_FATAL := y
 CONFIG_WLAN_LOG_ERROR := n
 CONFIG_WLAN_LOG_WARN := n
 CONFIG_WLAN_LOG_INFO := n
-CONFIG_WLAN_LOG_DEBUG := n
-CONFIG_WLAN_LOG_ENTER := n
-CONFIG_WLAN_LOG_EXIT := n
 
 #Enable OL debug and wmi unified functions
 CONFIG_ATH_PERF_PWR_OFFLOAD := y
@@ -770,7 +775,7 @@ CONFIG_QCA_SIGNED_SPLIT_BINARY_SUPPORT := n
 #Enable single firmware binary format
 CONFIG_QCA_SINGLE_BINARY_SUPPORT := n
 
-#Disable collecting target RAM dump after kernel panic
+#Enable collecting target RAM dump after kernel panic
 CONFIG_TARGET_RAMDUMP_AFTER_KERNEL_PANIC := n
 
 #Flag to enable/disable secure firmware feature
@@ -789,23 +794,14 @@ CONFIG_FEATURE_HTC_CREDIT_HISTORY := n
 #Flag to enable MTRACE feature
 CONFIG_TRACE_RECORD_FEATURE := n
 
-#Flag to enable p2p debug feature
-CONFIG_WLAN_FEATURE_P2P_DEBUG := n
-
-#Flag to enable roam debug log
-CONFIG_FEATURE_ROAM_DEBUG := n
-
 #Flag to enable DFS Master feature
 CONFIG_WLAN_DFS_MASTER_ENABLE := y
 
 #Flag to enable WEXT support for STA/AP/P2P interfaces
 CONFIG_WLAN_WEXT_SUPPORT_ENABLE := y
 
-#Flag to enable/disable MTRACE feature
-CONFIG_ENABLE_MTRACE_LOG := n
-
 #Flag to enable nud tracking feature
-CONFIG_WLAN_NUD_TRACKING := n
+CONFIG_WLAN_NUD_TRACKING := y
 
 #Flag to enable/Disable Function call trace
 CONFIG_FUNC_CALL_MAP := n
@@ -848,9 +844,6 @@ CONFIG_FEATURE_INTEROP_ISSUES_AP := y
 CONFIG_FEATURE_WLAN_WAPI := y
 
 CONFIG_AGEIE_ON_SCAN_RESULTS := y
-
-#Flag to enable FW log parsing support feature
-CONFIG_FEATURE_FW_LOG_PARSING := n
 
 CONFIG_PTT_SOCK_SVC_ENABLE := y
 CONFIG_SOFTAP_CHANNEL_RANGE := y
@@ -911,7 +904,7 @@ CONFIG_DP_TRACE := n
 
 ifeq ($(CONFIG_HELIUMPLUS), y)
 ifneq ($(CONFIG_FORCE_ALLOC_FROM_DMA_ZONE), y)
-CONFIG_ENABLE_DEBUG_ADDRESS_MARKING := n
+CONFIG_ENABLE_DEBUG_ADDRESS_MARKING := y
 endif
 CONFIG_RX_OL := y
 endif
@@ -954,9 +947,6 @@ ifeq ($(CONFIG_LITHIUM), y)
 	CONFIG_WLAN_DP_PENDING_MEM_FLUSH := y
 endif
 
-#Flag to enable hdd memory dump feature
-CONFIG_FEATURE_MEMDUMP_ENABLE := n
-
 #Flag to enable/disable WLAN D0-WOW
 ifeq ($(CONFIG_PCI_MSM), y)
 ifeq ($(CONFIG_HIF_PCI), y)
@@ -981,7 +971,11 @@ ifeq ($(CONFIG_ARCH_SDXPRAIRIE), y)
 	CONFIG_WMI_DBR_SUPPORT := n
 endif
 
-CONFIG_WLAN_LOGGING_SOCK_SVC := n
+ifneq ($(CONFIG_HIF_USB), y)
+ifeq ($(BUILD_DEBUG_VERSION), 1)
+CONFIG_WLAN_LOGGING_SOCK_SVC := y
+endif
+endif
 
 ifneq ($(TARGET_BUILD_VARIANT),user)
 CONFIG_DESC_DUP_DETECT_DEBUG := n
@@ -1035,9 +1029,9 @@ CONFIG_WLAN_FEATURE_DP_BUS_BANDWIDTH := y
 ifeq ($(CONFIG_CNSS_QCA6490), y)
 
 #Enable 6 GHz Band
-CONFIG_BAND_6GHZ := n
-CONFIG_RX_FISA := n
-CONFIG_MORE_TX_DESC := n
+CONFIG_BAND_6GHZ := y
+CONFIG_RX_FISA := y
+CONFIG_MORE_TX_DESC := y
 
 endif
 
@@ -1064,9 +1058,3 @@ CONFIG_FEATURE_GPIO_CFG := y
 
 #Enable VDEV Response wakelock feature
 CONFIG_FEATURE_VDEV_RSP_WAKELOCK := y
-
-# Disable DFS channels on AP mode to avoid DFS CAC
-CONFIG_FEATURE_WLAN_STA_AP_MODE_DFS_DISABLE := y
-
-CONFIG_ENABLE_SIZE_OPTIMIZE := y
-CONFIG_DISABLE_DEBUG_INFO := y
