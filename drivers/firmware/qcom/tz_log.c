@@ -466,7 +466,7 @@ static uint64_t qseelog_shmbridge_handle;
 static struct encrypted_log_info enc_qseelog_info;
 static struct encrypted_log_info enc_tzlog_info;
 
-static int tzdbg_request_encrypted_log(dma_addr_t buf_paddr,
+static __maybe_unused int tzdbg_request_encrypted_log(dma_addr_t buf_paddr,
 				       size_t len, uint32_t log_id);
 /*
  * Debugfs data structure and functions
