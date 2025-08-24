@@ -231,7 +231,7 @@ static unsigned int get_next_freq(struct sugov_policy *sg_policy,
 static inline unsigned long apply_dvfs_headroom(unsigned long util, int cpu)
 {
 	unsigned long capacity = capacity_orig_of(cpu);
-	unsigned long delta, headroom, min_util;
+	unsigned long delta, headroom;
 	unsigned long base_boost = 0, max_boost, final_hr;
 	unsigned int pct;
 
@@ -249,8 +249,9 @@ static inline unsigned long apply_dvfs_headroom(unsigned long util, int cpu)
 
 		base_boost = util * pct / 100;
 		/* Hard cap: avoid crazy jumps */
-		if (base_boost > capacity / 10)
-			base_boost = capacity / 10;
+		if (base_boost > capacity * 15 / 100)
+			base_boost = capacity * 15 / 100;
+
 	}
 
 	/* Quadratic taper */
@@ -264,18 +265,9 @@ static inline unsigned long apply_dvfs_headroom(unsigned long util, int cpu)
 	if (headroom > max_boost)
 		headroom = max_boost;
 
-	/* Cap relative to util: headroom ≤ util / 1.5 (so final ≤ ~1.66 × util) */
+	/* Cap it to 50% of util */
 	if (headroom > util / 2)
 		headroom = util / 2;
-
-	/* x% of capacity threshold */
-	min_util = capacity / 10;
-
-	/* Suppress boosting below the threshold */
-	if (util < min_util) {
-		headroom = (headroom * util * util) / (min_util * min_util);
-		base_boost = (base_boost * 30 / 100);
-	}
 
 	final_hr = util + headroom + base_boost;
 	return min(final_hr, capacity);
