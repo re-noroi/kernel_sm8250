@@ -1489,18 +1489,7 @@ unsigned int uclamp_task(struct task_struct *p)
 
 bool uclamp_boosted(struct task_struct *p)
 {
-	struct cgroup_subsys_state *css = task_css(p, cpu_cgrp_id);
-	struct task_group *tg;
-
-	if (!css)
-		return false;
-
-	if (!strlen(css->cgroup->kn->name))
-		return 0;
-
-	tg = container_of(css, struct task_group, css);
-
-	return tg->boosted;
+	return uclamp_eff_value(p, UCLAMP_MIN) > 0;
 }
 
 bool uclamp_latency_sensitive(struct task_struct *p)
@@ -8226,34 +8215,12 @@ static u64 cpu_uclamp_ls_read_u64(struct cgroup_subsys_state *css,
 	return (u64) tg->latency_sensitive;
 }
 
-static int cpu_uclamp_boost_write_u64(struct cgroup_subsys_state *css,
-				   struct cftype *cftype, u64 boosted)
-{
-	struct task_group *tg;
-
-	if (boosted > 1)
-		return -EINVAL;
-	tg = css_tg(css);
-	tg->boosted = (unsigned int) boosted;
-
-	return 0;
-}
-
-static u64 cpu_uclamp_boost_read_u64(struct cgroup_subsys_state *css,
-				  struct cftype *cft)
-{
-	struct task_group *tg = css_tg(css);
-
-	return (u64) tg->boosted;
-}
-
 #ifdef CONFIG_UCLAMP_ASSIST
 struct uclamp_param {
 	char *name;
 	char uclamp_min[3];
 	char uclamp_max[3];
 	u64  uclamp_latency_sensitive;
-	u64  uclamp_boosted;
 };
 
 static void uclamp_set(struct cgroup_subsys_state *css)
@@ -8261,12 +8228,11 @@ static void uclamp_set(struct cgroup_subsys_state *css)
 	int i;
 
 	static struct uclamp_param tgts[] = {
-			{"top-app",             "3", "max",  1,  1},
-			{"foreground",          "0",  "80",  0,  0},
-			{"system",              "0", "max",  0,  0},
-			{"dex2oat",             "0",  "40",  0,  0},
-			{"background",          "0",  "40",  0,  0},
-			{"system-background",   "0",  "50",  0,  0},
+		{"top-app",             "0", "max",  1},
+       		{"foreground",          "0",  "80",  0},
+                {"dex2oat",             "0",  "30",  0},
+        	{"background",          "0",  "30",  0},
+        	{"system-background",   "0",  "50",  0},
 	};
 
         if(!css->cgroup->kn)
@@ -8282,17 +8248,9 @@ static void uclamp_set(struct cgroup_subsys_state *css)
 						UCLAMP_MAX);
 			cpu_uclamp_ls_write_u64(css, NULL,
 						tgt.uclamp_latency_sensitive);
-			cpu_uclamp_boost_write_u64(css, NULL,
-						tgt.uclamp_boosted);
 
-		pr_info("uclamp_assist: setting values for %s: "
-				"uclamp_min=%s uclamp_max=%s "
-				"uclamp_latency_sensitive=%d uclamp_boosted=%d\n",
-				tgt.name,
-				tgt.uclamp_min,
-				tgt.uclamp_max,
-				tgt.uclamp_latency_sensitive,
-				tgt.uclamp_boosted);
+			pr_info("uclamp_assist: setting values for %s: uclamp_min=%s uclamp_max=%s uclamp_latency_sensitive=%d\n",
+				tgt.name, tgt.uclamp_min, tgt.uclamp_max,tgt.uclamp_latency_sensitive);
 			return;
 		}
 	}
@@ -8665,12 +8623,6 @@ static struct cftype cpu_legacy_files[] = {
 		.flags = CFTYPE_NOT_ON_ROOT,
 		.read_u64 = cpu_uclamp_ls_read_u64,
 		.write_u64 = cpu_uclamp_ls_write_u64,
-	},
-	{
-		.name = "uclamp.boosted",
-		.flags = CFTYPE_NOT_ON_ROOT,
-		.read_u64 = cpu_uclamp_boost_read_u64,
-		.write_u64 = cpu_uclamp_boost_write_u64,
 	},
 #endif
 	{ }	/* Terminate */
