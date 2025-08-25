@@ -270,10 +270,10 @@ static int bolero_cdc_register_notifier(void *handle,
 		return -EINVAL;
 	}
 	if (enable)
-		return atomic_notifier_chain_register(&priv->notifier,
+		return blocking_notifier_chain_register(&priv->notifier,
 							nblock);
 
-	return atomic_notifier_chain_unregister(&priv->notifier,
+	return blocking_notifier_chain_unregister(&priv->notifier,
 						  nblock);
 }
 
@@ -281,7 +281,7 @@ static void bolero_cdc_notifier_call(struct bolero_priv *priv,
 				     u32 data)
 {
 	dev_dbg(priv->dev, "%s: notifier call, data:%d\n", __func__, data);
-	atomic_notifier_call_chain(&priv->notifier,
+	blocking_notifier_call_chain(&priv->notifier,
 				     data, (void *)priv->wcd_dev);
 }
 
