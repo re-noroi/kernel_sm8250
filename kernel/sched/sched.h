@@ -422,8 +422,6 @@ struct task_group {
 	struct uclamp_se	uclamp[UCLAMP_CNT];
 	/* Latency-sensitive flag used for a task group */
 	unsigned int		latency_sensitive;
-	/* Boosted flag for a task group */
-	unsigned int 		boosted;
 #endif
 
 };
