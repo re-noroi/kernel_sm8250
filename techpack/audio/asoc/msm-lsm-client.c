@@ -34,6 +34,8 @@
 #define CAPTURE_MIN_PERIOD_SIZE     320
 #define LISTEN_MAX_STATUS_PAYLOAD_SIZE 256
 
+#define WAKELOCK_TIMEOUT	2000
+
 #define LAB_BUFFER_ALLOC 1
 #define LAB_BUFFER_DEALLOC 0
 
@@ -2138,13 +2140,7 @@ static int msm_lsm_ioctl_compat(struct snd_pcm_substream *substream,
 			goto done;
 		}
 
-		if (__builtin_uadd_overflow(sizeof(p_info_32), p_info_32.param_size, &size)) {
-			pr_err("%s: param size exceeds limit of %u bytes.\n",
-				__func__, UINT_MAX);
-			err = -EINVAL;
-			goto done;
-		}
-
+		size = sizeof(p_info_32) + p_info_32.param_size;
 		param_info_rsp = kzalloc(size, GFP_KERNEL);
 
 		if (!param_info_rsp) {
