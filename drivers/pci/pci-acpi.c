@@ -378,11 +378,13 @@ EXPORT_SYMBOL_GPL(pci_get_hp_params);
 bool pciehp_is_native(struct pci_dev *bridge)
 {
 	const struct pci_host_bridge *host;
+	u32 slot_cap;
 
 	if (!IS_ENABLED(CONFIG_HOTPLUG_PCI_PCIE))
 		return false;
 
-	if (!bridge->is_pciehp)
+	pcie_capability_read_dword(bridge, PCI_EXP_SLTCAP, &slot_cap);
+	if (!(slot_cap & PCI_EXP_SLTCAP_HPC))
 		return false;
 
 	if (pcie_ports_native)
