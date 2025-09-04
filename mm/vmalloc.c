@@ -1838,7 +1838,6 @@ void vm_unmap_aliases(void)
 
 	_vm_unmap_aliases(start, end, flush);
 }
-EXPORT_SYMBOL_GPL(vm_unmap_aliases);
 
 /**
  * vm_unmap_ram - unmap linear kernel address space set up by vm_map_ram
@@ -2802,6 +2801,26 @@ void *vzalloc_node(unsigned long size, int node)
 			 GFP_KERNEL | __GFP_ZERO);
 }
 EXPORT_SYMBOL(vzalloc_node);
+
+/**
+ * vmalloc_user_node_flags - allocate memory for userspace on a specific node
+ * @size: allocation size
+ * @node: numa node
+ * @flags: flags for the page level allocator
+ *
+ * The resulting memory area is zeroed so it can be mapped to userspace
+ * without leaking data.
+ *
+ * Return: pointer to the allocated memory or %NULL on error
+ */
+void *vmalloc_user_node_flags(unsigned long size, int node, gfp_t flags)
+{
+	return __vmalloc_node_range(size, SHMLBA,  VMALLOC_START, VMALLOC_END,
+				    flags | __GFP_ZERO, PAGE_KERNEL,
+				    VM_USERMAP, node,
+				    __builtin_return_address(0));
+}
+EXPORT_SYMBOL(vmalloc_user_node_flags);
 
 /**
  * vmalloc_exec - allocate virtually contiguous, executable memory
