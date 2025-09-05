@@ -423,22 +423,7 @@ fail_get_client:
 
 static int vs_block_client_get_blkdev_id(struct block_client *client)
 {
-	int id = 0;
-	int ret;
-
-retry:
-	ret = ida_pre_get(&vs_block_ida, GFP_KERNEL);
-	if (ret == 0)
-		return -ENOMEM;
-
-	mutex_lock(&vs_block_ida_lock);
-	ret = ida_alloc_range(&vs_block_ida, 0, id, GFP_KERNEL);
-	mutex_unlock(&vs_block_ida_lock);
-
-	if (ret == -EAGAIN)
-		goto retry;
-
-	return id;
+        return ida_alloc(&vs_block_ida, GFP_KERNEL);
 }
 
 static int vs_block_client_disk_add(struct block_client *client)
