@@ -573,9 +573,7 @@ void ida_free(struct ida *ida, unsigned int id)
 {
 	unsigned long flags;
 
-	if ((int)id < 0)
-		return;
-
+	BUG_ON((int)id < 0);
 	xa_lock_irqsave(&ida->ida_rt, flags);
 	ida_remove(ida, id);
 	xa_unlock_irqrestore(&ida->ida_rt, flags);
