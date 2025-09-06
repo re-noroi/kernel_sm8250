@@ -161,17 +161,6 @@ static void ops_pre_exit_list(const struct pernet_operations *ops,
 	}
 }
 
-static void ops_pre_exit_list(const struct pernet_operations *ops,
-			      struct list_head *net_exit_list)
-{
-	struct net *net;
-
-	if (ops->pre_exit) {
-		list_for_each_entry(net, net_exit_list, exit_list)
-			ops->pre_exit(net);
-	}
-}
-
 static void ops_exit_list(const struct pernet_operations *ops,
 			  struct list_head *net_exit_list)
 {
