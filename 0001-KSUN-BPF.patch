@@ -1,0 +1,29 @@
+From 2c8a2c7459081536d502569208661b5abc33957a Mon Sep 17 00:00:00 2001
+From: Muhammad Guntur <mochtur@gmail.com>
+Date: Sun, 7 Sep 2025 17:39:20 +0700
+Subject: [PATCH] sucompat: Remove kernel requirement for handling devpts inode
+
+---
+ kernel/sucompat.c | 5 -----
+ 1 file changed, 5 deletions(-)
+
+diff --git a/kernel/sucompat.c b/kernel/sucompat.c
+index 11b2a551..aafecc1c 100644
+--- a/kernel/sucompat.c
++++ b/kernel/sucompat.c
+@@ -233,12 +233,7 @@ int ksu_handle_devpts(struct inode *inode)
+ 		return 0;
+ 
+ 	if (ksu_devpts_sid) {
+-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 1, 0)
+ 		struct inode_security_struct *sec = selinux_inode(inode);
+-#else
+-		struct inode_security_struct *sec =
+-			(struct inode_security_struct *)inode->i_security;
+-#endif
+ 		if (sec) {
+ 			sec->sid = ksu_devpts_sid;
+ 		}
+-- 
+2.47.1.windows.1
+
