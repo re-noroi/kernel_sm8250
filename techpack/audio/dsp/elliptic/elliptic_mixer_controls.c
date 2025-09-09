@@ -704,14 +704,14 @@ int elliptic_system_configuration_param_get(
 	struct soc_mixer_control *mc =
 		(struct soc_mixer_control *)kcontrol->private_value;
 
-	pr_err("%s: reg: %d shift: %d\n", __func__, mc->reg, mc->shift);
+	pr_debug("%s: reg: %d shift: %d\n", __func__, mc->reg, mc->shift);
 
 	if (mc->reg != ELLIPTIC_SYSTEM_CONFIGURATION)
 		return -EINVAL;
 
 	if (mc->shift >= ELLIPTIC_SYSTEM_CONFIGURATION_CUSTOM_SETTING_0 &&
 		mc->shift <= ELLIPTIC_SYSTEM_CONFIGURATION_CUSTOM_SETTING_15){
-		EL_PRINT_E("get ELLIPTIC_SYSTEM_CONFIGURATION_CUSTOM_SETTING_%02d",
+		EL_PRINT_D("get ELLIPTIC_SYSTEM_CONFIGURATION_CUSTOM_SETTING_%02d",
 			mc->shift - ELLIPTIC_SYSTEM_CONFIGURATION_CUSTOM_SETTING_0);
 		ucontrol->value.integer.value[0] = 0;
 		return 1;

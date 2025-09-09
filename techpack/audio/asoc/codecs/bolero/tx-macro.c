@@ -580,7 +580,7 @@ static void tx_macro_hs_unmute_dwork(struct work_struct *work)
 	snd_soc_component_update_bits(component, BOLERO_CDC_TX0_TX_VOL_CTL,
 			0xff, tx_priv->reg_before_mute);
 	reg_val = snd_soc_component_read32(component, BOLERO_CDC_TX0_TX_VOL_CTL);
-	dev_info(tx_priv->dev, "%s: the reg value after unmute is: %#x \n", __func__, reg_val);
+	dev_dbg(tx_priv->dev, "%s: the reg value after unmute is: %#x \n", __func__, reg_val);
 }
 
 static int tx_macro_put_dec_enum(struct snd_kcontrol *kcontrol,
@@ -711,7 +711,7 @@ static int tx_macro_tx_mixer_put(struct snd_kcontrol *kcontrol,
 	if (!tx_macro_get_data(component, &tx_dev, &tx_priv, __func__))
 		return -EINVAL;
 
-	dev_err(tx_dev, "%s: id:%d(%s) enable:%d active_ch_cnt:%d\n", __func__,
+	dev_dbg(tx_dev, "%s: id:%d(%s) enable:%d active_ch_cnt:%d\n", __func__,
 		dai_id, widget->name, enable, tx_priv->active_ch_cnt[dai_id]);
 
 	if (enable) {
@@ -957,11 +957,11 @@ void bolero_tx_macro_mute_hs(void)
 	}
 
 	g_tx_priv->reg_before_mute = snd_soc_component_read32(component, BOLERO_CDC_TX0_TX_VOL_CTL);
-	dev_info(component->dev, "%s: the reg value before mute is: %#x \n",
+	dev_dbg(component->dev, "%s: the reg value before mute is: %#x \n",
 			__func__, g_tx_priv->reg_before_mute);
 	snd_soc_component_update_bits(component, BOLERO_CDC_TX0_TX_VOL_CTL, 0xff, 0xac);
 	reg_val = snd_soc_component_read32(component, BOLERO_CDC_TX0_TX_VOL_CTL);
-	dev_info(component->dev, "%s: the reg value after mute is: %#x \n",
+	dev_dbg(component->dev, "%s: the reg value after mute is: %#x \n",
 			__func__, reg_val);
 	schedule_delayed_work(&g_tx_priv->tx_hs_unmute_dwork,
 			msecs_to_jiffies(tx_unmute_delay));
@@ -1251,7 +1251,7 @@ static int tx_macro_get_channel_map(struct snd_soc_dai *dai,
 		dev_err(tx_dev, "%s: Invalid AIF\n", __func__);
 		break;
 	}
-	dev_err(tx_dev, "%s: id:%d(%s) ch_mask:0x%x active_ch_cnt:%d active_mask: 0x%lx\n",
+	dev_dbg(tx_dev, "%s: id:%d(%s) ch_mask:0x%x active_ch_cnt:%d active_mask: 0x%lx\n",
 		__func__, dai->id, dai->name, *tx_slot, *tx_num, tx_priv->active_ch_mask[dai->id]);
 	return 0;
 }
