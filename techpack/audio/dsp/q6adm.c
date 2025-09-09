@@ -884,7 +884,7 @@ int crus_adm_set_params(int port_id, int copp_idx, uint32_t module_id,
 	int port_idx = 0;
 	int rc  = 0;
 
-	pr_info("[CSPL] %s: config: port_idx %d copp_idx  %d module 0x%d, len=%d\n",
+	pr_debug("[CSPL] %s: config: port_idx %d copp_idx  %d module 0x%d, len=%d\n",
 			__func__, port_idx, copp_idx,module_id, params_length);
 
 	port_id = q6audio_convert_virtual_to_portid(port_id);
@@ -909,7 +909,7 @@ int crus_adm_set_params(int port_id, int copp_idx, uint32_t module_id,
 
 	atomic_set(&this_adm.copp.stat[port_idx][copp_idx], -1);
 
-	pr_info("[CSPL] %s: config: port_idx %d copp_idx  %d copp SR %d, len=%d\n",
+	pr_debug("[CSPL] %s: config: port_idx %d copp_idx  %d copp SR %d, len=%d\n",
 			__func__, port_idx, copp_idx,
 			atomic_read(&this_adm.copp.rate[port_idx][copp_idx]),
 			params_length);
@@ -932,7 +932,7 @@ int crus_adm_get_params(int port_id, int copp_idx, uint32_t module_id,
 	int ret = 0;
 	struct param_hdr_v3 param_hdr;
 
-	pr_info("[CSPL] %s: Enter, port_id %d, copp_idx %d, len= %d\n",
+	pr_debug("[CSPL] %s: Enter, port_id %d, copp_idx %d, len= %d\n",
 		__func__, port_id, copp_idx, params_length);
 
 	memset(&param_hdr, 0, sizeof(param_hdr));
@@ -944,7 +944,7 @@ int crus_adm_get_params(int port_id, int copp_idx, uint32_t module_id,
 				client_id, NULL, &param_hdr,
 				params);
 	if (ret) {
-		pr_err("%s: get parameters failed ret:%d\n", __func__, ret);
+		pr_debug("%s: get parameters failed ret:%d\n", __func__, ret);
 		ret = -EINVAL;
 		goto done;
 	}
@@ -2404,8 +2404,6 @@ static void send_adm_cal_type(int cal_index, int path, int port_id,
 {
 	struct cal_block_data		*cal_block = NULL;
 	int ret;
-
-	pr_debug("%s: cal index %d\n", __func__, cal_index);
 
 	if (this_adm.cal_data[cal_index] == NULL) {
 		pr_debug("%s: cal_index %d not allocated!\n",
