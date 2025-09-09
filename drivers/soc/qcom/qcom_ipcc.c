@@ -12,6 +12,10 @@
 #include <linux/mailbox_controller.h>
 #include <dt-bindings/soc/qcom,ipcc.h>
 
+#ifdef CONFIG_OPLUS_WAKELOCK_PROFILER
+#include <oplus/oplus_wakelock_profiler.h>
+#endif
+
 /* IPCC Register offsets */
 #define IPCC_REG_SEND_ID		0x0C
 #define IPCC_REG_RECV_ID		0x10
@@ -334,6 +338,15 @@ static void msm_ipcc_resume(void)
 		name = desc->action->name;
 
 	pr_warn("%s: %d triggered %s\n", __func__, virq, name);
+#ifdef CONFIG_OPLUS_WAKELOCK_PROFILER
+        do {
+                int platform_id = get_cached_platform_id();
+                if (platform_id == KONA) {
+                        wakeup_reasons_statics(IRQ_NAME_GLINK, WS_CNT_GLINK);
+                        wakeup_reasons_statics(name, WS_CNT_WLAN|WS_CNT_ADSP|WS_CNT_CDSP|WS_CNT_SLPI);
+                }
+        } while(0);
+#endif
 }
 #else
 #define msm_ipcc_suspend NULL
