@@ -1250,7 +1250,7 @@ static int32_t afe_callback(struct apr_client_data *data, void *priv)
 #ifdef CONFIG_US_PROXIMITY
 	} else if (data->opcode == MI_ULTRASOUND_OPCODE) {
 		if (NULL != data->payload) {
-			printk(KERN_DEBUG "[MIUS] mi ultrasound afe afe cb");
+			pr_debug("[MIUS] mi ultrasound afe afe cb");
 			mius_process_apr_payload(data->payload);
 		} else
 			pr_err("[EXPORT_SYMBOLLUS]: payload ptr is Invalid");
@@ -2497,11 +2497,8 @@ static void afe_send_custom_topology(void)
 	this_afe.set_custom_topology = 0;
 	cal_block = cal_utils_get_only_cal_block(this_afe.cal_data[cal_index]);
 	if (cal_block == NULL || cal_utils_is_cal_stale(cal_block)) {
-		pr_err("%s cal_block not found!!\n", __func__);
 		goto unlock;
 	}
-
-	pr_debug("%s: Sending cal_index cal %d\n", __func__, cal_index);
 
 	ret = remap_cal_data(cal_block, cal_index);
 	if (ret) {
@@ -3380,7 +3377,7 @@ static int afe_get_cal_topology_id(u16 port_id, u32 *topology_id,
 	struct audio_cal_info_afe_top   *afe_top_info = NULL;
 
 	if (this_afe.cal_data[cal_type_index] == NULL) {
-		pr_err("%s: cal_type %d not initialized\n", __func__,
+		pr_debug("%s: cal_type %d not initialized\n", __func__,
 			cal_type_index);
 		return -EINVAL;
 	}
@@ -3394,7 +3391,7 @@ static int afe_get_cal_topology_id(u16 port_id, u32 *topology_id,
 	cal_block = afe_find_cal_topo_id_by_port(
 		this_afe.cal_data[cal_type_index], port_id);
 	if (cal_block == NULL) {
-		pr_err("%s: cal_type %d not initialized for this port %d\n",
+		pr_debug("%s: cal_type %d not initialized for this port %d\n",
 			__func__, cal_type_index, port_id);
 		ret = -EINVAL;
 		goto unlock;
@@ -3830,7 +3827,6 @@ static int send_afe_cal_type(int cal_index, int port_id)
 				this_afe.cal_data[cal_index]);
 
 	if (cal_block == NULL || cal_utils_is_cal_stale(cal_block)) {
-		pr_err_ratelimited("%s cal_block not found!!\n", __func__);
 		ret = -EINVAL;
 		goto unlock;
 	}
