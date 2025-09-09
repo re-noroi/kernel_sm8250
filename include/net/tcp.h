@@ -266,6 +266,10 @@ extern int sysctl_tcp_use_userconfig;
 extern struct percpu_counter tcp_sockets_allocated;
 extern unsigned long tcp_memory_pressure;
 
+#ifdef CONFIG_E404_OPLUS
+extern int sysctl_tcp_ts_control[2];
+#endif
+
 /* optimized version of sk_under_memory_pressure() for TCP sockets */
 static inline bool tcp_under_memory_pressure(const struct sock *sk)
 {
