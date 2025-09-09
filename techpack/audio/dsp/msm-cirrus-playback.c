@@ -56,8 +56,6 @@
 
 #undef pr_info
 #undef pr_err
-#undef pr_debug
-#define pr_debug(fmt, args...) printk(KERN_INFO "[CSPL] " pr_fmt(fmt), ##args)
 #define pr_info(fmt, args...) printk(KERN_INFO "[CSPL] " pr_fmt(fmt), ##args)
 #define pr_err(fmt, args...) printk(KERN_ERR "[CSPL] " pr_fmt(fmt), ##args)
 
@@ -428,7 +426,7 @@ static int crus_afe_set_param_v3(int port, int module_id,
 
 	ret = 0;
 fail_cmd:
-	pr_info("[CSPL]%s param_id %x status %d\n", __func__, param_id, ret);
+	pr_debug("[CSPL]%s param_id %x status %d\n", __func__, param_id, ret);
 	kfree(set_param);
 	kfree(packed_param_data);
 	return ret;
@@ -704,7 +702,7 @@ static int msm_routing_crus_sp_enable_put(struct snd_kcontrol *kcontrol,
 static int msm_routing_crus_sp_enable_get(struct snd_kcontrol *kcontrol,
 					  struct snd_ctl_elem_value *ucontrol)
 {
-	pr_info("%s: %d\n", __func__, this_ctrl.enable);
+	pr_debug("%s: %d\n", __func__, this_ctrl.enable);
 	ucontrol->value.integer.value[0] = this_ctrl.enable;
 
 	return 0;
@@ -773,7 +771,7 @@ static int msm_routing_crus_sp_usecase_put(struct snd_kcontrol *kcontrol,
 static int msm_routing_crus_sp_usecase_get(struct snd_kcontrol *kcontrol,
 					   struct snd_ctl_elem_value *ucontrol)
 {
-	pr_info("%s: %d\n", __func__, this_ctrl.usecase);
+	pr_debug("%s: %d\n", __func__, this_ctrl.usecase);
 	ucontrol->value.integer.value[0] = this_ctrl.usecase;
 
     return 0;
@@ -1133,7 +1131,7 @@ static const struct snd_kcontrol_new crus_no_protect_controls[] = {
 void msm_crus_pb_add_controls(struct snd_soc_component *component)
 {
 	if (this_ctrl.usecase_dt_count == 0)
-		pr_info("CRUS_SP: Usecase config not specified\n");
+		pr_debug("CRUS_SP: Usecase config not specified\n");
 
 	crus_sp_usecase_enum[0].items = this_ctrl.usecase_dt_count;
 	crus_sp_usecase_enum[0].texts = crus_sp_usecase_dt_text;
@@ -1150,7 +1148,7 @@ void msm_crus_pb_add_controls(struct snd_soc_component *component)
 EXPORT_SYMBOL(msm_crus_pb_add_controls);
 int crus_afe_port_start(u16 port_id)
 {
-	pr_info("%s: 0x%x\n", __func__, port_id);
+	pr_debug("%s: 0x%x\n", __func__, port_id);
 #if 0
 //CSPL do not be involved in AFE
 	struct snd_kcontrol kcontrol;
@@ -1160,7 +1158,7 @@ int crus_afe_port_start(u16 port_id)
 		return 0;
 
 	this_ctrl.afe_start = true;
-	pr_info("%s: 0x%x\n", __func__, port_id);
+	pr_debug("%s: 0x%x\n", __func__, port_id);
 
 	mutex_lock(&this_ctrl.sp_lock);
 	msm_routing_crus_sp_usecase_get(&kcontrol,
@@ -1174,14 +1172,14 @@ int crus_afe_port_start(u16 port_id)
 EXPORT_SYMBOL(crus_afe_port_start);
 int crus_afe_port_close(u16 port_id)
 {
-	pr_info("%s: 0x%x\n", __func__, port_id);
+	pr_debug("%s: 0x%x\n", __func__, port_id);
 #if 0
 //CSPL do not be involved in AFE
 	if (port_id != this_ctrl.ff_port)
 		return 0;
 
 	this_ctrl.afe_start = false;
-	pr_info("%s: 0x%x\n", __func__, port_id);
+	pr_debug("%s: 0x%x\n", __func__, port_id);
 #endif
 	return 0;
 }
