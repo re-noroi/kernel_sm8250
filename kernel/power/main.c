@@ -16,6 +16,9 @@
 #include <linux/debugfs.h>
 #include <linux/seq_file.h>
 #include <linux/suspend.h>
+#ifdef CONFIG_OPLUS_WAKELOCK_PROFILER
+#include <linux/rtc.h>
+#endif
 
 #include "power.h"
 
@@ -723,15 +726,43 @@ power_attr(state);
  * are any wakeup events detected after 'wakeup_count' was written to.
  */
 
+#ifdef CONFIG_OPLUS_WAKELOCK_PROFILER
+static void pm_wakeup_count_marker(char *annotation)
+{
+        struct timespec ts;
+        struct rtc_time tm;
+
+        getnstimeofday(&ts);
+        rtc_time_to_tm(ts.tv_sec, &tm);
+        pr_debug("PM: wakeup_count %s %d-%02d-%02d %02d:%02d:%02d.%09lu UTC\n",
+                annotation, tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
+                tm.tm_hour, tm.tm_min, tm.tm_sec, ts.tv_nsec);
+}
+
 static ssize_t wakeup_count_show(struct kobject *kobj,
 				struct kobj_attribute *attr,
 				char *buf)
 {
-	unsigned int val;
+	unsigned int val, error;
 
-	return pm_get_wakeup_count(&val, true) ?
-		sprintf(buf, "%u\n", val) : -EINTR;
+        pm_wakeup_count_marker("read enter");
+        error = pm_get_wakeup_count(&val, true);
+        pm_wakeup_count_marker("read exit");
+
+	return error ? sprintf(buf, "%u\n", val) : -EINTR;
 }
+
+#else
+static ssize_t wakeup_count_show(struct kobject *kobj,
+                                struct kobj_attribute *attr,
+                                char *buf)
+{
+        unsigned int val;
+
+        return pm_get_wakeup_count(&val, true) ?
+                sprintf(buf, "%u\n", val) : -EINTR;
+}
+#endif
 
 static ssize_t wakeup_count_store(struct kobject *kobj,
 				struct kobj_attribute *attr,
@@ -740,6 +771,9 @@ static ssize_t wakeup_count_store(struct kobject *kobj,
 	unsigned int val;
 	int error;
 
+#ifdef CONFIG_OPLUS_WAKELOCK_PROFILER
+	pm_wakeup_count_marker("store");
+#endif
 	error = pm_autosleep_lock();
 	if (error)
 		return error;
