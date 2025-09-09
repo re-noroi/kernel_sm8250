@@ -968,7 +968,7 @@ enum Tfa98xx_Error tfa98xx_set_mtp(struct tfa_device *tfa, uint16_t value, uint1
 
 	if (mtp_old == mtp_new) /* no change */ {
 		if (tfa->verbose)
-			pr_info("No change in MTP. Value not written! \n");
+			pr_debug("No change in MTP. Value not written! \n");
 		return Tfa98xx_Error_Ok;
 	}
 	error = tfa98xx_update_lpm(tfa, 1);
@@ -1316,7 +1316,7 @@ enum Tfa98xx_Error
 
 		/******MCH_TO_TEST**************/
 		if (error == Tfa98xx_Error_Ok) {
-			pr_info("tfa cold boot patch\n");
+			pr_debug("tfa cold boot patch\n");
 			error = tfaRunColdboot(tfa, 1);
 			if (error) {
 				pr_err("tfa_dsp_patch DSP_not_running\n");
@@ -2706,7 +2706,7 @@ enum Tfa98xx_Error tfa_cf_powerup(struct tfa_device *tfa)
 
 	// wait until everything is stable, in case clock has been off
 	if (tfa->verbose)
-		pr_info("Waiting for DSP system stable...\n");
+		pr_debug("Waiting for DSP system stable...\n");
 	for (tries = CFSTABLE_TRIES; tries > 0; tries--) {
 		err = tfa98xx_dsp_system_stable(tfa, &status);
 		_ASSERT(err == Tfa98xx_Error_Ok);
@@ -3301,7 +3301,7 @@ enum tfa_error tfa_dev_start(struct tfa_device *tfa, int next_profile, int vstep
 		active_profile = -1;
 
 	/* TfaRun_SpeakerBoost implies un-mute */
-	pr_info("Active_profile:%s, next_profile:%s\n",
+	pr_debug("Active_profile:%s, next_profile:%s\n",
 		tfaContProfileName(tfa->cnt, tfa->dev_idx, active_profile),
 		tfaContProfileName(tfa->cnt, tfa->dev_idx, next_profile));
 
@@ -3311,7 +3311,7 @@ enum tfa_error tfa_dev_start(struct tfa_device *tfa, int next_profile, int vstep
 	 * else we should be in operating state
 	 */
 	if (strstr(tfaContProfileName(tfa->cnt, tfa->dev_idx, next_profile), ".standby") != NULL) {
-		pr_info("This is  .standby profile, we do need power up device 0x%x\n", tfa->slave_address);
+		pr_debug("This is  .standby profile, we do need power up device 0x%x\n", tfa->slave_address);
 		goto error_exit;
 	}
 
@@ -3387,7 +3387,7 @@ enum tfa_error tfa_dev_start(struct tfa_device *tfa, int next_profile, int vstep
 	/* PLMA5539: Gives information about current setting of powerswitch */
 	if (tfa->verbose) {
 		if (!tfa98xx_powerswitch_is_enabled(tfa))
-			pr_info("Device start without powerswitch enabled!\n");
+			pr_debug("Device start without powerswitch enabled!\n");
 	}
 
 error_exit:
@@ -3452,7 +3452,7 @@ int tfa_reset(struct tfa_device *tfa)
 	if (tfa->verbose) {
 		if (((tfa->tfa_family == 1) && state != TFA_STATE_RESET) ||
 			((tfa->tfa_family == 2) && state != TFA_STATE_POWERDOWN)) {
-			pr_info("WARNING: Device reset should be performed in POWERDOWN state\n");
+			pr_debug("WARNING: Device reset should be performed in POWERDOWN state\n");
 		}
 	}
 
@@ -4392,13 +4392,13 @@ int tfa_plop_noise_interrupt(struct tfa_device *tfa, int profile, int vstep)
 		/* Detect for clock is lost! (clock is not stable) */
 		if (no_clk == 1) {
 			/* Clock is lost. Set I2CR to remove POP noise */
-			pr_info("No clock detected. Resetting the I2CR to avoid pop on 72! \n");
+			pr_debug("No clock detected. Resetting the I2CR to avoid pop on 72! \n");
 			err = (enum Tfa98xx_Error)tfa_dev_start(tfa, profile, vstep);//add (enum Tfa98xx_Error) for compile normal.
 			if (err != Tfa98xx_Error_Ok) {
 				pr_err("Error loading i2c registers (tfa_dev_start), err=%d\n", err);
 			}
 			else {
-				pr_info("Setting i2c registers after I2CR succesfull\n");
+				pr_debug("Setting i2c registers after I2CR succesfull\n");
 				tfa_dev_set_state(tfa, TFA_STATE_UNMUTE, 0);
 			}
 
@@ -4410,7 +4410,7 @@ int tfa_plop_noise_interrupt(struct tfa_device *tfa, int profile, int vstep)
 			   However: Not tested yet! But also does not harm normal flow!
 			*/
 			if (strstr(tfaContProfileName(tfa->cnt, tfa->dev_idx, profile), ".saam")) {
-				pr_info("Powering down from a SAAM profile, workaround PLMA4766 used! \n");
+				pr_debug("Powering down from a SAAM profile, workaround PLMA4766 used! \n");
 				TFA_SET_BF(tfa, PWDN, 1);
 				TFA_SET_BF(tfa, AMPE, 0);
 				TFA_SET_BF(tfa, SAMMODE, 0);
@@ -4436,10 +4436,10 @@ void tfa_lp_mode_interrupt(struct tfa_device *tfa)
 	if (tfa_irq_get(tfa, irq_stclp0)) {
 		lp0 = TFA_GET_BF(tfa, LP0);
 		if (lp0 > 0) {
-			pr_info("lowpower mode 0 detected\n");
+			pr_debug("lowpower mode 0 detected\n");
 		}
 		else {
-			pr_info("lowpower mode 0 not detected\n");
+			pr_debug("lowpower mode 0 not detected\n");
 		}
 
 		tfa_irq_set_pol(tfa, irq_stclp0, (lp0 == 0));
@@ -4451,10 +4451,10 @@ void tfa_lp_mode_interrupt(struct tfa_device *tfa)
 	if (tfa_irq_get(tfa, tfa9912_irq_stclpr)) {
 		lp1 = TFA_GET_BF(tfa, LP1);
 		if (lp1 > 0) {
-			pr_info("lowpower mode 1 detected\n");
+			pr_debug("lowpower mode 1 detected\n");
 		}
 		else {
-			pr_info("lowpower mode 1 not detected\n");
+			pr_debug("lowpower mode 1 not detected\n");
 		}
 
 		tfa_irq_set_pol(tfa, tfa9912_irq_stclpr, (lp1 == 0));
