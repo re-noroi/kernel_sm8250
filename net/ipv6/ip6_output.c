@@ -200,7 +200,11 @@ static int ip6_finish_output(struct net *net, struct sock *sk, struct sk_buff *s
 
 int ip6_output(struct net *net, struct sock *sk, struct sk_buff *skb)
 {
+#ifdef CONFIG_E404_OPLUS
+	struct net_device *dev = skb_dst(skb)->dev, *indev = skb->dev;
+#else
 	struct net_device *dev = skb_dst(skb)->dev;
+#endif
 	struct inet6_dev *idev = ip6_dst_idev(skb_dst(skb));
 
 	skb->protocol = htons(ETH_P_IPV6);
@@ -213,7 +217,11 @@ int ip6_output(struct net *net, struct sock *sk, struct sk_buff *skb)
 	}
 
 	return NF_HOOK_COND(NFPROTO_IPV6, NF_INET_POST_ROUTING,
+#ifdef CONFIG_E404_OPLUS
+			    net, sk, skb, indev, dev,
+#else
 			    net, sk, skb, NULL, dev,
+#endif
 			    ip6_finish_output,
 			    !(IP6CB(skb)->flags & IP6SKB_REROUTED));
 }

@@ -146,6 +146,9 @@ static enum alarmtimer_restart hardidletimer_tg_alarmproc(struct alarm *alarm,
 	return ALARMTIMER_NORESTART;
 }
 
+#ifdef CONFIG_OPLUS_WAKELOCK_PROFILER
+enum alarmtimer_restart (*net_alarm_func)(struct alarm *, ktime_t now) = hardidletimer_tg_alarmproc;
+#endif
 static int hardidletimer_tg_create(struct hardidletimer_tg_info *info)
 {
 	int ret;
