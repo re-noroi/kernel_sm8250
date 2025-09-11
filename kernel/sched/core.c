@@ -4227,7 +4227,7 @@ static void sched_tick_remote(struct work_struct *work)
 	 * Make sure the next tick runs within a reasonable
 	 * amount of time.
 	 */
-	WARN_ON_ONCE(delta > (u64)NSEC_PER_SEC * 3);
+	WARN_ON_ONCE(delta > (u64)NSEC_PER_SEC * 30);
 	curr->sched_class->task_tick(rq, curr, 0);
 
 out_unlock:
