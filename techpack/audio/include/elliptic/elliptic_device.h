@@ -47,7 +47,7 @@ extern struct class *elliptic_class;
 	pr_warn("[ELUS] : (%s) : " string "\n", __func__, ##arg)
 
 #define EL_PRINT_I(string, arg...) \
-	pr_info("[ELUS] : (%s) : " string "\n", __func__, ##arg)
+	pr_debug("[ELUS] : (%s) : " string "\n", __func__, ##arg)
 
 #define EL_PRINT_D(string, arg...) \
 	pr_debug("[ELUS] : (%s) : " string "\n", __func__, ##arg)
