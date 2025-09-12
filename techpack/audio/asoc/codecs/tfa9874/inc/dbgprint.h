@@ -35,14 +35,14 @@
 #   ifdef DEBUG
 #      define _DEBUG(level,fmt,va...) do {\
                 if (unlikely(debug >= (level))) \
-                        printk(KERN_INFO PREFIX "%s:%d: "fmt,__func__,__LINE__,##va); \
+                        printk(KERN_DEBUG PREFIX "%s:%d: "fmt,__func__,__LINE__,##va); \
         } while (0)
 
 #   else
 #      define _DEBUG(level,fmt,va...) do {} while(0)
 #   endif
 
-#   define MSG(fmt,va...) printk(KERN_INFO PREFIX "%s:%d: "fmt,__func__,__LINE__,##va)
+#   define MSG(fmt,va...) printk(KERN_DEBUG PREFIX "%s:%d: "fmt,__func__,__LINE__,##va)
 #   define _ERRORMSG(fmt,va...) printk(KERN_ERR PREFIX "ERROR %s:%d: "fmt,__func__,__LINE__, ##va)
 
 
@@ -52,7 +52,7 @@
 #   define DEBUG3(x...) _DEBUG(3,x)
 #   define ERRORMSG(x...) _ERRORMSG(x)
 #	define PRINT(x...)	printk(x) 
-#   define PRINT_ERROR(x...) printk(KERN_INFO PREFIX " **ERROR** " x)
+#   define PRINT_ERROR(x...) printk(KERN_DEBUG PREFIX " **ERROR** " x)
 #   define PRINT_ASSERT(e)if ((e)) printk(KERN_ERR "PrintAssert:%s (%s:%d) error code:%d\n",__FUNCTION__,__FILE__,__LINE__, e)
 
 #   define PRINT_ENTRY DEBUG2("+[%s]\n", __func__)
