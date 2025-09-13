@@ -266,7 +266,7 @@ extern int sysctl_tcp_use_userconfig;
 extern struct percpu_counter tcp_sockets_allocated;
 extern unsigned long tcp_memory_pressure;
 
-#ifdef CONFIG_E404_OPLUS
+#ifdef CONFIG_OPLUS_PORT
 extern int sysctl_tcp_ts_control[2];
 #endif
 
