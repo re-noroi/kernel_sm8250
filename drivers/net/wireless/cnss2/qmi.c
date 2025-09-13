@@ -79,7 +79,7 @@ void cnss_ignore_qmi_failure(bool ignore)
 void cnss_ignore_qmi_failure(bool ignore) { }
 #endif
 
-static char *cnss_qmi_mode_to_str(enum cnss_driver_mode mode)
+static __maybe_unused char *cnss_qmi_mode_to_str(enum cnss_driver_mode mode)
 {
 	switch (mode) {
 	case CNSS_MISSION:
