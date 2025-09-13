@@ -276,7 +276,7 @@ static void print_wakeup_sources(void)
 	spin_unlock_irqrestore(&wakeup_reason_lock, flags);
 }
 
-#ifdef CONFIG_E404_OPLUS
+#ifdef CONFIG_OPLUS_PORT
 extern void bts_net_clear(void);
 extern bool bts_net_exist(void);
 extern ssize_t bts_net_fill(char * desc, ssize_t size);
@@ -298,7 +298,7 @@ static ssize_t last_resume_reason_show(struct kobject *kobj,
 		return buf_offset;
 	}
 
-#ifdef CONFIG_E404_OPLUS
+#ifdef CONFIG_OPLUS_PORT
 	if(bts_net_exist()) {
 		buf_offset +=  bts_net_fill(buf + buf_offset, PAGE_SIZE - buf_offset);
 		bts_net_clear();
@@ -310,7 +310,7 @@ static ssize_t last_resume_reason_show(struct kobject *kobj,
 			buf_offset += scnprintf(buf + buf_offset,
 					PAGE_SIZE - buf_offset,
 					"%d %s\n", n->irq,
-#ifdef CONFIG_E404_OPLUS
+#ifdef CONFIG_OPLUS_PORT
 					(strncmp(n->irq_name, "ipcc_1", strlen("ipcc_1")) == 0) ? "qmi" : n->irq_name);
 #else
 					n->irq_name);
