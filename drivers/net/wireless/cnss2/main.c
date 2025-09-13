@@ -492,7 +492,7 @@ out:
 	return ret;
 }
 
-static char *cnss_driver_event_to_str(enum cnss_driver_event_type type)
+static __maybe_unused char *cnss_driver_event_to_str(enum cnss_driver_event_type type)
 {
 	switch (type) {
 	case CNSS_DRIVER_EVENT_SERVER_ARRIVE:
@@ -1102,7 +1102,7 @@ void *cnss_get_virt_ramdump_mem(struct device *dev, unsigned long *size)
 }
 EXPORT_SYMBOL(cnss_get_virt_ramdump_mem);
 
-static const char *cnss_recovery_reason_to_str(enum cnss_recovery_reason reason)
+static __maybe_unused const char *cnss_recovery_reason_to_str(enum cnss_recovery_reason reason)
 {
 	switch (reason) {
 	case CNSS_REASON_DEFAULT:
