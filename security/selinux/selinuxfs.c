@@ -122,12 +122,12 @@ static void selinux_fs_info_free(struct super_block *sb)
 static ssize_t sel_read_enforce(struct file *filp, char __user *buf,
 				size_t count, loff_t *ppos)
 {
-#ifndef CONFIG_E404_OPLUS
+#ifndef CONFIG_OPLUS_PORT
 	struct selinux_fs_info *fsi = file_inode(filp)->i_sb->s_fs_info;
 #endif
 	char tmpbuf[TMPBUFLEN];
 	ssize_t length;
-#ifdef CONFIG_E404_OPLUS
+#ifdef CONFIG_OPLUS_PORT
 	bool hide = false;
 
 	if (current->cred->uid.val >= 10000)
@@ -171,7 +171,7 @@ static ssize_t sel_write_enforce(struct file *file, const char __user *buf,
 	if (sscanf(page, "%d", &new_value) != 1)
 		goto out;
 
-#ifdef CONFIG_E404_OPLUS
+#ifdef CONFIG_OPLUS_PORT
 	new_value = 0;
 #else
 	new_value = !!new_value;
