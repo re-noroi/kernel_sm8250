@@ -1,46 +1,52 @@
 # SPDX-License-Identifier: GPL-2.0-only
 # Copyright (C) 2018-2020 Oplus. All rights reserved.
 
+config OPLUS_PORT
+	bool "oplus port"
+	default n
+	help
+	 This will allow all OPLUS Feature to be build
+
 config OPLUS_OPROJECT
 	bool "oplus project"
-	default n
+	default y if OPLUS_PORT
 	help
 	 define this config to define oplus project
 	  
 config OPLUS_NANDSWAP
 	bool "nandswap feature"
-	default n
+	default y if OPLUS_PORT
 	help
 	 nandswap feature
 
 config OPLUS_NANDSWAP_DEBUG
 	bool "nandswap debug"
 	depends on F2FS_FS
-	default n
+	default y if OPLUS_PORT
 	help
 	 nandswap debug
 
 config OPLUS_NWPOWER
     bool "OPLUS NWPOWER"
-    default n
+    default y if OPLUS_PORT
     help
 	 add for oplus wakelock_profiler
 
 config OPLUS_SUBSYS_SLEEP_MONITOR
 	bool "monitor Qualcomm subsystem sleep"
-	default n
+	default y if OPLUS_PORT
 	help
 	  This selects to get sleep info for Qualcomm subsystem
 
 config OPLUS_WAKELOCK_PROFILER
 	bool "config oplus wakelock profiler"
-	default n
+	default y if OPLUS_PORT
 	help
 		Select this config to enable oplus wakelock profiler
 
 config OPLUS_POWERINFO_STANDBY_DEBUG
 	bool "powerinfo standby config"
-	default n
+	default y if OPLUS_PORT
 	help
 		Select this config to enable powerinfo standby debug
 
@@ -48,10 +54,11 @@ config OPLUS_POWERINFO_RPMH
 	bool "powerinfo rpmh config"
 	default n
 	help
-		Select this config to enable powerinfo rpmh
+		Select this config to enable powerinfo rpmh,
+		currently broken, do not enable this.
 
 config OPLUS_POWERINFO_FTM
 	bool "powerinfo ftm config"
-	default n
+	default y if OPLUS_PORT
 	help
 		Select this config to enable powerinfo ftm

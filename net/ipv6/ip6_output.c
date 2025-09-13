@@ -200,7 +200,7 @@ static int ip6_finish_output(struct net *net, struct sock *sk, struct sk_buff *s
 
 int ip6_output(struct net *net, struct sock *sk, struct sk_buff *skb)
 {
-#ifdef CONFIG_E404_OPLUS
+#ifdef CONFIG_OPLUS_PORT
 	struct net_device *dev = skb_dst(skb)->dev, *indev = skb->dev;
 #else
 	struct net_device *dev = skb_dst(skb)->dev;
@@ -217,7 +217,7 @@ int ip6_output(struct net *net, struct sock *sk, struct sk_buff *skb)
 	}
 
 	return NF_HOOK_COND(NFPROTO_IPV6, NF_INET_POST_ROUTING,
-#ifdef CONFIG_E404_OPLUS
+#ifdef CONFIG_OPLUS_PORT
 			    net, sk, skb, indev, dev,
 #else
 			    net, sk, skb, NULL, dev,
