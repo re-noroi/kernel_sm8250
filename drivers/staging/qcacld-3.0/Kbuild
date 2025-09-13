@@ -91,7 +91,6 @@ HDD_OBJS := 	$(HDD_SRC_DIR)/wlan_hdd_assoc.o \
 		$(HDD_SRC_DIR)/wlan_hdd_softap_tx_rx.o \
 		$(HDD_SRC_DIR)/wlan_hdd_sta_info.o \
 		$(HDD_SRC_DIR)/wlan_hdd_stats.o \
-		$(HDD_SRC_DIR)/wlan_hdd_trace.o \
 		$(HDD_SRC_DIR)/wlan_hdd_tx_rx.o \
 		$(HDD_SRC_DIR)/wlan_hdd_wmm.o \
 		$(HDD_SRC_DIR)/wlan_hdd_wowl.o
@@ -413,7 +412,6 @@ MAC_LIM_OBJS := $(MAC_SRC_DIR)/pe/lim/lim_aid_mgmt.o \
 		$(MAC_SRC_DIR)/pe/lim/lim_session_utils.o \
 		$(MAC_SRC_DIR)/pe/lim/lim_sme_req_utils.o \
 		$(MAC_SRC_DIR)/pe/lim/lim_timer_utils.o \
-		$(MAC_SRC_DIR)/pe/lim/lim_trace.o \
 		$(MAC_SRC_DIR)/pe/lim/lim_utils.o
 
 ifeq ($(CONFIG_QCA_IBSS_SUPPORT), y)
@@ -640,7 +638,6 @@ QDF_OBJS := \
 	$(QDF_LINUX_OBJ_DIR)/qdf_periodic_work.o \
 	$(QDF_LINUX_OBJ_DIR)/qdf_status.o \
 	$(QDF_LINUX_OBJ_DIR)/qdf_threads.o \
-	$(QDF_LINUX_OBJ_DIR)/qdf_trace.o \
 	$(QDF_OBJ_DIR)/qdf_flex_mem.o \
 	$(QDF_OBJ_DIR)/qdf_parse.o \
 	$(QDF_OBJ_DIR)/qdf_platform.o \
