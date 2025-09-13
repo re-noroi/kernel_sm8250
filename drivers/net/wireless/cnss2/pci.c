@@ -1083,7 +1083,7 @@ void cnss_pci_unlock_reg_window(struct device *dev, unsigned long *flags)
 }
 EXPORT_SYMBOL(cnss_pci_unlock_reg_window);
 
-static char *cnss_mhi_state_to_str(enum cnss_mhi_state mhi_state)
+static __maybe_unused char *cnss_mhi_state_to_str(enum cnss_mhi_state mhi_state)
 {
 	switch (mhi_state) {
 	case CNSS_MHI_INIT:
@@ -2109,7 +2109,7 @@ static int cnss_qca6290_powerup(struct cnss_pci_data *pci_priv)
 	int ret = 0;
 	struct cnss_plat_data *plat_priv = pci_priv->plat_priv;
 	unsigned int timeout;
-	int retry = 0, sw_ctrl_gpio = plat_priv->pinctrl_info.sw_ctrl_gpio;
+	int retry = 0;
 
 	if (plat_priv->ramdump_info_v2.dump_data_valid) {
 		cnss_pci_clear_dump_info(pci_priv);
@@ -2256,8 +2256,6 @@ out:
 
 static void cnss_qca6290_crash_shutdown(struct cnss_pci_data *pci_priv)
 {
-	struct cnss_plat_data *plat_priv = pci_priv->plat_priv;
-
 	cnss_pr_dbg("Crash shutdown with driver_state 0x%lx\n",
 		    plat_priv->driver_state);
 
@@ -4655,7 +4653,7 @@ static int cnss_pci_update_fw_name(struct cnss_pci_data *pci_priv)
 	return 0;
 }
 
-static char *cnss_mhi_notify_status_to_str(enum MHI_CB status)
+static __maybe_unused char *cnss_mhi_notify_status_to_str(enum MHI_CB status)
 {
 	switch (status) {
 	case MHI_CB_IDLE:
