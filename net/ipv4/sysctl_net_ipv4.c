@@ -478,7 +478,7 @@ static struct ctl_table ipv4_table[] = {
 		.mode		= 0644,
 		.proc_handler	= proc_doulongvec_minmax,
 	},
-#ifdef CONFIG_E404_OPLUS
+#ifdef CONFIG_OPLUS_PORT
 	{
 		.procname	= "tcp_timestamps_control",
 		.data		= &sysctl_tcp_ts_control,
@@ -1033,7 +1033,7 @@ static struct ctl_table ipv4_net_table[] = {
 		.mode		= 0644,
 		.proc_handler	= proc_dointvec
 	},
-#ifdef CONFIG_E404_OPLUS
+#ifdef CONFIG_OPLUS_PORT
 	{
 		.procname	= "tcp_random_timestamp",
 		.data		= &init_net.ipv4.sysctl_tcp_random_timestamp,
