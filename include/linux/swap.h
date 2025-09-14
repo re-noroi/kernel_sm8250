@@ -459,6 +459,8 @@ static inline bool vm_swap_full(void)
 		return (atomic_long_read(&nr_swap_pages) -
 			(nandswap_si->pages - nandswap_si->inuse_pages)) * 2
 			< (total_swap_pages - nandswap_si->pages);
+	else
+		return atomic_long_read(&nr_swap_pages) * 2 < total_swap_pages;
 #endif
 	return atomic_long_read(&nr_swap_pages) * 2 < total_swap_pages;
 }
@@ -469,6 +471,8 @@ static inline long get_nr_swap_pages(void)
 	if (nandswap_si)
 		return atomic_long_read(&nr_swap_pages) -
 			(nandswap_si->pages - nandswap_si->inuse_pages);
+	else
+		return atomic_long_read(&nr_swap_pages);
 #endif
 	return atomic_long_read(&nr_swap_pages);
 }
