@@ -22,7 +22,7 @@ config OPLUS_NANDSWAP
 config OPLUS_NANDSWAP_DEBUG
 	bool "nandswap debug"
 	depends on F2FS_FS
-	default y if OPLUS_PORT
+	default n
 	help
 	 nandswap debug
 
@@ -46,7 +46,7 @@ config OPLUS_WAKELOCK_PROFILER
 
 config OPLUS_POWERINFO_STANDBY_DEBUG
 	bool "powerinfo standby config"
-	default y if OPLUS_PORT
+	default n
 	help
 		Select this config to enable powerinfo standby debug
 
@@ -59,6 +59,6 @@ config OPLUS_POWERINFO_RPMH
 
 config OPLUS_POWERINFO_FTM
 	bool "powerinfo ftm config"
-	default y if OPLUS_PORT
+	default n
 	help
 		Select this config to enable powerinfo ftm
