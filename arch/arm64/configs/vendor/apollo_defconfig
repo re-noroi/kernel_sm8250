@@ -642,6 +642,12 @@ CONFIG_CRYPTO_POLY1305_NEON=y
 # CONFIG_RMNET_SHS is not set
 
 #
+# Xiaomi Camera Configuration
+#
+# CONFIG_CAMERA_NONEDXO is not set
+CONFIG_CAMERA_CAS=y
+
+#
 # Qualcomm Atheros CLD WLAN module
 #
 CONFIG_QCA_CLD_WLAN=y
