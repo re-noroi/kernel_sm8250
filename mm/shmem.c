@@ -1872,7 +1872,7 @@ alloc_nohuge:
 					    PageTransHuge(page));
 	if (error)
 		goto unacct;
-		error = shmem_add_to_page_cache(page, mapping, hindex,
+	error = shmem_add_to_page_cache(page, mapping, hindex,
 						NULL, gfp & GFP_RECLAIM_MASK);
 	if (error) {
 		mem_cgroup_cancel_charge(page, memcg,
