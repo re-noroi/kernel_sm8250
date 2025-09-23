@@ -4065,7 +4065,6 @@ disable_slot:
 	return 0;
 }
 
-/**
 /*
  * Issue an Address Device command and optionally send a corresponding
  * SetAddress request to the device.
