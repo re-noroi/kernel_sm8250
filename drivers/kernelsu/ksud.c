@@ -58,12 +58,11 @@ static void stop_input_hook();
 static struct work_struct stop_vfs_read_work;
 static struct work_struct stop_execve_hook_work;
 static struct work_struct stop_input_hook_work;
-#endif
-
+#else
 bool ksu_vfs_read_hook __read_mostly = true;
 bool ksu_execveat_hook __read_mostly = true;
 bool ksu_input_hook __read_mostly = true;
-
+#endif
 
 u32 ksu_devpts_sid;
 
@@ -396,7 +395,7 @@ int ksu_handle_vfs_read(struct file **file_ptr, char __user **buf_ptr,
 	if (orig_read) {
 		fops_proxy.read = read_proxy;
 	}
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0) 
 	orig_read_iter = file->f_op->read_iter;
 	if (orig_read_iter) {
 		fops_proxy.read_iter = read_iter_proxy;
@@ -488,10 +487,12 @@ __maybe_unused int ksu_handle_execve_ksud(const char __user *filename_user,
 	struct filename filename_in, *filename_p;
 	char path[32];
 
+#ifndef CONFIG_KSU_KPROBES_HOOK
 	// return early if disabled.
 	if (!ksu_execveat_hook) {
 		return 0;
 	}
+#endif
 
 	if (!filename_user)
 		return 0;

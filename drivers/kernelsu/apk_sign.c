@@ -3,6 +3,7 @@
 #include <linux/gfp.h>
 #include <linux/kernel.h>
 #include <linux/slab.h>
+#include <linux/string.h>
 #include <linux/version.h>
 #ifdef CONFIG_KSU_DEBUG
 #include <linux/moduleparam.h>
@@ -13,12 +14,13 @@
 #else
 #include <crypto/sha.h>
 #endif
-
 #include "apk_sign.h"
 #include "klog.h" // IWYU pragma: keep
 #include "kernel_compat.h"
 #include "throne_tracker.h"
 
+static unsigned int expected_manager_size = EXPECTED_MANAGER_SIZE;
+static char expected_manager_hash[SHA256_DIGEST_SIZE * 2 + 1] = EXPECTED_MANAGER_HASH;
 
 struct sdesc {
 	struct shash_desc shash;
@@ -333,11 +335,16 @@ bool is_manager_apk(char *path)
 		return false;
 	}
 
-	return (check_v2_signature(path, EXPECTED_NEXT_SIZE, EXPECTED_NEXT_HASH)
+	// set debug info to print size and hash to kernel log
+	pr_info("%s: expected size: %u, expected hash: %s\n",
+		path, expected_manager_size, expected_manager_hash);
+
+	return (check_v2_signature(path, expected_manager_size, expected_manager_hash)
 	|| check_v2_signature(path, 0x33b, "c371061b19d8c7d7d6133c6a9bafe198fa944e50c1b31c9d8daa8d7f1fc2d2d6") // official KernelSU
 	|| check_v2_signature(path, 0x180, "7e0c6d7278a3bb8e364e0fcba95afaf3666cf5ff3c245a3b63c8833bd0445cc4") // 5ec1cff/KernelSU
 	|| check_v2_signature(path, 0x396, "f415f4ed9435427e1fdf7f1fccd4dbc07b3d6b8751e4dbcec6f19671f427870b") // rsuntk/KernelSU
 	|| check_v2_signature(path, 0x363, "4359c171f32543394cbc23ef908c4bb94cad7c8087002ba164c8230948c21549") // backslashxx/KernelSU
 	|| check_v2_signature(path, 0x35c, "947ae944f3de4ed4c21a7e4f7953ecf351bfa2b36239da37a34111ad29993eef") // ShirkNeko/KernelSU
+	|| check_v2_signature(path, 0x39b, "593d4ce870c02468639efeef631e07ca4d852d63f154be56706229f9a5be0800") // Wild/KernelSU
 	);
 }

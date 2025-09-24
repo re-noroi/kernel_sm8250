@@ -44,7 +44,6 @@
 #include "manager.h"
 #include "selinux/selinux.h"
 #include "throne_tracker.h"
-#include "throne_tracker.h"
 #include "kernel_compat.h"
 
 static bool ksu_module_mounted = false;
@@ -64,7 +63,7 @@ static inline bool is_allow_su()
 	return ksu_is_allow_uid(current_uid().val);
 }
 
-static inline bool is_unsupported_uid(uid_t uid)
+static inline bool is_unsupported_app_uid(uid_t uid)
 {
 #define LAST_APPLICATION_UID 19999
 	uid_t appid = uid % 100000;
@@ -131,6 +130,7 @@ static void disable_seccomp(void)
 #ifdef CONFIG_SECCOMP
 	current->seccomp.mode = 0;
 	current->seccomp.filter = NULL;
+	atomic_set(&current->seccomp.filter_count, 0);
 #else
 #endif
 }
@@ -252,7 +252,35 @@ static void nuke_ext4_sysfs() {
 	}
 
 	ext4_unregister_sysfs(sb);
- 	path_put(&path);
+	path_put(&path);
+}
+
+static bool is_system_bin_su(void)
+{
+    static const char *su_paths[] = {
+        "/system/bin/su",
+        "/vendor/bin/su",
+        "/product/bin/su",
+        "/system_ext/bin/su",
+		"/odm/bin/su",
+		"/system/xbin/su",
+		"/system_ext/xbin/su"
+    };
+    char path_buf[256];
+    char *pathname;
+    int i;
+
+    struct mm_struct *mm = current->mm;
+    if (mm && mm->exe_file) {
+        pathname = d_path(&mm->exe_file->f_path, path_buf, sizeof(path_buf));
+        if (!IS_ERR(pathname)) {
+            for (i = 0; i < ARRAY_SIZE(su_paths); i++) {
+                if (strcmp(pathname, su_paths[i]) == 0)
+                    return true;
+            }
+        }
+    }
+    return false;
 }
 
 int ksu_handle_prctl(int option, unsigned long arg2, unsigned long arg3,
@@ -277,10 +305,18 @@ int ksu_handle_prctl(int option, unsigned long arg2, unsigned long arg3,
 	bool from_root = 0 == current_uid().val;
 	bool from_manager = is_manager();
 
+#ifdef CONFIG_KSU_KPROBES_HOOK
+	if (!from_root && !from_manager 
+		&& !(is_allow_su() && is_system_bin_su())) {
+		// only root or manager can access this interface
+		return 0;
+	}
+#else
 	if (!from_root && !from_manager) {
 		// only root or manager can access this interface
 		return 0;
 	}
+#endif
 
 #ifdef CONFIG_KSU_DEBUG
 	pr_info("option: 0x%x, cmd: %ld\n", option, arg2);
@@ -446,6 +482,32 @@ int ksu_handle_prctl(int option, unsigned long arg2, unsigned long arg3,
 		return 0;
 	}
 
+#ifdef CONFIG_KSU_KPROBES_HOOK
+	if (arg2 == CMD_ENABLE_SU) {
+		bool enabled = (arg3 != 0);
+		if (enabled == ksu_su_compat_enabled) {
+			pr_info("cmd enable su but no need to change.\n");
+			if (copy_to_user(result, &reply_ok, sizeof(reply_ok))) {// return the reply_ok directly
+				pr_err("prctl reply error, cmd: %lu\n", arg2);
+			}
+			return 0;
+		}
+
+		if (enabled) {
+			ksu_sucompat_init();
+		} else {
+			ksu_sucompat_exit();
+		}
+		ksu_su_compat_enabled = enabled;
+
+		if (copy_to_user(result, &reply_ok, sizeof(reply_ok))) {
+			pr_err("prctl reply error, cmd: %lu\n", arg2);
+		}
+
+		return 0;
+	}
+#endif
+
 	// all other cmds are for 'root manager'
 	if (!from_manager) {
 		return 0;
@@ -499,7 +561,7 @@ int ksu_handle_prctl(int option, unsigned long arg2, unsigned long arg3,
 		}
 		return 0;
 	}
-
+#ifndef CONFIG_KSU_KPROBES_HOOK
 	if (arg2 == CMD_ENABLE_SU) {
 		bool enabled = (arg3 != 0);
 		if (enabled == ksu_su_compat_enabled) {
@@ -523,18 +585,19 @@ int ksu_handle_prctl(int option, unsigned long arg2, unsigned long arg3,
 
 		return 0;
 	}
+#endif
+
 
 	return 0;
 }
 
-static bool is_appuid(kuid_t uid)
+static bool is_non_appuid(kuid_t uid)
 {
 #define PER_USER_RANGE 100000
 #define FIRST_APPLICATION_UID 10000
-#define LAST_APPLICATION_UID 19999
 
 	uid_t appid = uid.val % PER_USER_RANGE;
-	return appid >= FIRST_APPLICATION_UID && appid <= LAST_APPLICATION_UID;
+	return appid < FIRST_APPLICATION_UID;
 }
 
 static bool should_umount(struct path *path)
@@ -611,13 +674,25 @@ int ksu_handle_setuid(struct cred *new, const struct cred *old)
 		return 0;
 	}
 
-	if (!is_appuid(new_uid) || is_unsupported_uid(new_uid.val)) {
-		// pr_info("handle setuid ignore non application or isolated uid: %d\n", new_uid.val);
+	if (is_non_appuid(new_uid)) {
+#ifdef CONFIG_KSU_DEBUG
+		pr_info("handle setuid ignore non application uid: %d\n", new_uid.val);
+#endif
 		return 0;
 	}
 
+	// isolated process may be directly forked from zygote, always unmount
+	if (is_unsupported_app_uid(new_uid.val)) {
+#ifdef CONFIG_KSU_DEBUG
+		pr_info("handle umount for unsupported application uid: %d\n", new_uid.val);
+#endif
+		goto do_umount;
+	}
+
 	if (ksu_is_allow_uid(new_uid.val)) {
-		// pr_info("handle setuid ignore allowed application: %d\n", new_uid.val);
+#ifdef CONFIG_KSU_DEBUG
+		pr_info("handle setuid ignore allowed application: %d\n", new_uid.val);
+#endif
 		return 0;
 	}
 
@@ -629,11 +704,11 @@ int ksu_handle_setuid(struct cred *new, const struct cred *old)
 #endif
 	}
 
+do_umount:
 	// check old process's selinux context, if it is not zygote, ignore it!
 	// because some su apps may setuid to untrusted_app but they are in global mount namespace
 	// when we umount for such process, that is a disaster!
-	bool is_zygote_child = is_zygote(old->security);
-	if (!is_zygote_child) {
+	if (!is_zygote(old->security)) {
 		pr_info("handle umount ignore non zygote child: %d\n",
 			current->pid);
 		return 0;
@@ -656,7 +731,7 @@ int ksu_handle_setuid(struct cred *new, const struct cred *old)
 	// try umount ksu temp path
 	try_umount("/debug_ramdisk", false, MNT_DETACH);
 	try_umount("/sbin", false, MNT_DETACH);
-	
+
 	// try umount hosts file
 	try_umount("/system/etc/hosts", false, MNT_DETACH);
 
@@ -980,8 +1055,8 @@ void __init ksu_lsm_hook_init(void)
 void __init ksu_core_init(void)
 {
 #ifdef CONFIG_KSU_LSM_SECURITY_HOOKS
- 	ksu_lsm_hook_init();
-#else	
+	ksu_lsm_hook_init();
+#else
 	pr_info("ksu_core_init: LSM hooks not in use.\n");
 #endif
 }
