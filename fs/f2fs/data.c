@@ -947,7 +947,7 @@ alloc_new:
 	if (fio->io_wbc)
 		wbc_account_io(fio->io_wbc, page, PAGE_SIZE);
 
-	inc_page_count(fio->sbi, WB_DATA_TYPE(page));
+	inc_page_count(fio->sbi, WB_DATA_TYPE(fio->page));
 
 	*fio->last_block = fio->new_blkaddr;
 	*fio->bio = bio;
