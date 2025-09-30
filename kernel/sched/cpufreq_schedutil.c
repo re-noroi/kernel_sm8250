@@ -256,7 +256,7 @@ static inline unsigned long apply_dvfs_headroom(unsigned long util, int cpu)
 
 	/* Quadratic taper */
 	delta = capacity - util;
-	headroom = (delta * delta) / (6 * 1024);
+	headroom = (delta * delta) / (6 * capacity);
 	if (!cpumask_test_cpu(cpu, cpu_prime_mask))
 		headroom *= 2;
 
