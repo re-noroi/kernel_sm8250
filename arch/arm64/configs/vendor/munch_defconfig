@@ -5290,7 +5290,7 @@ CONFIG_NVMEM_SPMI_SDAM=y
 #
 # HW tracing support
 #
-CONFIG_STM=y
+# CONFIG_STM is not set
 # CONFIG_STM_DUMMY is not set
 # CONFIG_STM_SOURCE_CONSOLE is not set
 # CONFIG_STM_SOURCE_HEARTBEAT is not set
