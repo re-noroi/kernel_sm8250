@@ -789,11 +789,7 @@ static inline bool cfqg_is_descendant(struct cfq_group *cfqg,
 static inline void cfqg_get(struct cfq_group *cfqg) { }
 static inline void cfqg_put(struct cfq_group *cfqg) { }
 
-#define cfq_log_cfqq(cfqd, cfqq, fmt, args...)	\
-	blk_add_trace_msg((cfqd)->queue, "cfq%d%c%c " fmt, (cfqq)->pid,	\
-			cfq_cfqq_sync((cfqq)) ? 'S' : 'A',		\
-			cfqq_type((cfqq)) == SYNC_NOIDLE_WORKLOAD ? 'N' : ' ',\
-				##args)
+#define cfq_log_cfqq(cfqd, cfqq, fmt, args...)		do {} while (0)
 #define cfq_log_cfqg(cfqd, cfqg, fmt, args...)		do {} while (0)
 
 static inline void cfqg_stats_update_io_add(struct cfq_group *cfqg,
@@ -822,8 +818,7 @@ static inline u64 get_group_idle(struct cfq_data *cfqd)
 	return cfqd->cfq_group_idle;
 }
 
-#define cfq_log(cfqd, fmt, args...)	\
-	blk_add_trace_msg((cfqd)->queue, "cfq " fmt, ##args)
+#define cfq_log(cfqd, fmt, args...)		do {} while (0)
 
 /* Traverses through cfq group service trees */
 #define for_each_cfqg_st(cfqg, i, j, st) \
