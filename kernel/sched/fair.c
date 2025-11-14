@@ -11290,7 +11290,8 @@ update_newidle_cost(struct sched_domain *sd, u64 cost, unsigned int success)
 	unsigned long next_decay = sd->last_decay_max_lb_cost + HZ;
 	unsigned long now = jiffies;
 
-	update_newidle_stats(sd, success);
+	if (cost)
+		update_newidle_stats(sd, success);
 
 	if (cost > sd->max_newidle_lb_cost) {
 		/*
