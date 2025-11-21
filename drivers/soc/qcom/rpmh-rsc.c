@@ -232,7 +232,7 @@ static const struct tcs_request *get_req_from_tcs(struct rsc_drv *drv,
 	return NULL;
 }
 
-static void __tcs_trigger(struct rsc_drv *drv, int tcs_id, bool trigger)
+static void __tcs_set_trigger(struct rsc_drv *drv, int tcs_id, bool trigger)
 {
 	u32 enable;
 
@@ -257,7 +257,7 @@ static void __tcs_trigger(struct rsc_drv *drv, int tcs_id, bool trigger)
 	}
 }
 
-static inline void enable_tcs_irq(struct rsc_drv *drv, int tcs_id, bool enable)
+static void enable_tcs_irq(struct rsc_drv *drv, int tcs_id, bool enable)
 {
 	u32 data;
 
@@ -309,25 +309,25 @@ static irqreturn_t tcs_tx_done(int irq, void *p)
 			       "IRQ response: m=%d err=%d", i, err);
 
 		/*
-		 * if wake tcs was re-purposed for sending active
+		 * If wake tcs was re-purposed for sending active
 		 * votes, clear AMC trigger & enable modes and
 		 * disable interrupt for this TCS
 		 */
-		if (!drv->tcs[ACTIVE_TCS].num_tcs) {
-			__tcs_trigger(drv, i, false);
-			/*
-			 * Disable interrupt for this TCS to avoid being
-			 * spammed with interrupts coming when the solver
-			 * sends its wake votes.
-			 */
-			enable_tcs_irq(drv, i, false);
-		}
+		if (!drv->tcs[ACTIVE_TCS].num_tcs)
+			__tcs_set_trigger(drv, i, false);
 skip:
 		/* Reclaim the TCS */
 		write_tcs_reg(drv, RSC_DRV_CMD_ENABLE, i, 0);
 		write_tcs_reg(drv, RSC_DRV_CMD_WAIT_FOR_CMPL, i, 0);
 		write_tcs_reg(drv, RSC_DRV_IRQ_CLEAR, 0, BIT(i));
 		clear_bit(i, drv->tcs_in_use);
+		/*
+		 * Disable interrupt for WAKE TCS to avoid being
+		 * spammed with interrupts coming when the solver
+		 * sends its wake votes.
+		 */
+		if (!drv->tcs[ACTIVE_TCS].num_tcs)
+			enable_tcs_irq(drv, i, false);
 		if (req)
 			rpmh_tx_done(req, err);
 	}
@@ -447,7 +447,7 @@ static int tcs_write(struct rsc_drv *drv, const struct tcs_request *msg)
 		enable_tcs_irq(drv, tcs_id, true);
 
 	__tcs_buffer_write(drv, tcs_id, 0, msg);
-	__tcs_trigger(drv, tcs_id, true);
+	__tcs_set_trigger(drv, tcs_id, true);
 
 done_write:
 	rpmh_spin_unlock(&drv->lock);
