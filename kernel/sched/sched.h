@@ -559,7 +559,7 @@ struct cfs_rq {
 	unsigned int		idle_h_nr_running; /* SCHED_IDLE */
 
 	s64			avg_vruntime;
-	u64			avg_load;
+	u64			sum_weight;
 
 	u64			zero_vruntime;
 
