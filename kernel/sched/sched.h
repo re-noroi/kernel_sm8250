@@ -558,7 +558,7 @@ struct cfs_rq {
 	unsigned int		h_nr_runnable;     /* SCHED_{NORMAL,BATCH,IDLE} */
 	unsigned int		idle_h_nr_running; /* SCHED_IDLE */
 
-	s64			avg_vruntime;
+	s64			sum_w_vruntime;
 	u64			sum_weight;
 
 	u64			zero_vruntime;
