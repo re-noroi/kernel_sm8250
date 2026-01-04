@@ -3021,6 +3021,7 @@ static void _dsi_ctrl_destroy_isr(struct dsi_ctrl *dsi_ctrl)
 		devm_free_irq(&dsi_ctrl->pdev->dev,
 				dsi_ctrl->irq_info.irq_num, dsi_ctrl);
 		dsi_ctrl->irq_info.irq_num = -1;
+		dsi_ctrl->irq_info.irq_stat_mask = 0x0;
 	}
 }
 
