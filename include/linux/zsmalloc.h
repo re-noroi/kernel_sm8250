@@ -44,6 +44,7 @@ static inline bool zs_handle_is_allocated(const struct zs_handle *handle)
 }
 
 struct zs_pool;
+struct scatterlist;
 
 struct zs_pool *zs_create_pool(const char *name);
 void zs_destroy_pool(struct zs_pool *pool);
@@ -67,5 +68,8 @@ void *zs_obj_read_begin(struct zs_pool *pool, const struct zs_handle *handle,
 			size_t mem_len, void *local_copy);
 void zs_obj_read_end(struct zs_pool *pool, const struct zs_handle *handle,
 		    size_t mem_len, void *handle_mem);
+void zs_obj_read_sg_begin(struct zs_pool *pool, const struct zs_handle *handle,
+			  struct scatterlist *sg, size_t mem_len);
+void zs_obj_read_sg_end(struct zs_pool *pool, const struct zs_handle *handle);
 
 #endif
