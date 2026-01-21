@@ -1248,6 +1248,7 @@ static inline u32 sched_rng(void)
 #define cpu_curr(cpu)		(cpu_rq(cpu)->curr)
 #define raw_rq()		raw_cpu_ptr(&runqueues)
 
+extern void update_rq_avg_idle(struct rq *rq);
 extern void update_rq_clock(struct rq *rq);
 
 /*
