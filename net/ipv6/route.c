@@ -530,7 +530,6 @@ static void rt6_probe(struct fib6_info *rt)
 {
 	struct __rt6_probe_work *work = NULL;
 	const struct in6_addr *nh_gw;
-	unsigned long last_probe;
 	struct neighbour *neigh;
 	struct net_device *dev;
 	struct inet6_dev *idev;
@@ -549,7 +548,6 @@ static void rt6_probe(struct fib6_info *rt)
 	nh_gw = &rt->fib6_nh.fib_nh_gw6;
 	dev = rt->fib6_nh.fib_nh_dev;
 	rcu_read_lock_bh();
-	last_probe = READ_ONCE(rt->last_probe);
 	idev = __in6_dev_get(dev);
 	if (!idev)
 		goto out;
@@ -567,15 +565,13 @@ static void rt6_probe(struct fib6_info *rt)
 				__neigh_set_probe_once(neigh);
 		}
 		write_unlock(&neigh->lock);
-	} else if (time_after(jiffies, last_probe +
+	} else if (time_after(jiffies, rt->last_probe +
 				       idev->cnf.rtr_probe_interval)) {
 		work = kmalloc(sizeof(*work), GFP_ATOMIC);
 	}
 
-	if (!work || cmpxchg(&rt->last_probe,
-			     last_probe, jiffies) != last_probe) {
-		kfree(work);
-	} else {
+	if (work) {
+		rt->last_probe = jiffies;
 		INIT_WORK(&work->work, rt6_probe_deferred);
 		work->target = *nh_gw;
 		dev_hold(dev);
@@ -3168,10 +3164,6 @@ static struct fib6_info *ip6_route_info_create(struct fib6_config *cfg,
 	rt = fib6_info_alloc(gfp_flags);
 	if (!rt)
 		goto out;
-
-#ifdef CONFIG_IPV6_ROUTER_PREF
-	rt->last_probe = jiffies;
-#endif
 
 	rt->fib6_metrics = ip_fib_metrics_init(net, cfg->fc_mx, cfg->fc_mx_len,
 					       extack);
