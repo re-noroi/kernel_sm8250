@@ -119,6 +119,7 @@
  * Do newidle balancing proportional to its success rate using randomization.
  */
 #define SCHED_FEAT_NI_RANDOM 1
+#define SCHED_FEAT_NI_RATE 1
 
 /*
  * Fast pre-selection of CPU candidates for EAS.
