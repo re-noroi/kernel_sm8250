@@ -111,5 +111,6 @@ obj-$(CONFIG_HARDENED_USERCOPY) += usercopy.o
 obj-$(CONFIG_PERCPU_STATS) += percpu-stats.o
 obj-$(CONFIG_HMM) += hmm.o
 obj-$(CONFIG_MEMFD_CREATE) += memfd.o
+obj-$(CONFIG_MEMFD_ASHMEM_SHIM) += memfd-ashmem-shim.o
 
 CFLAGS_kmemleak.o += -DCONFIG_DEBUG_FS
