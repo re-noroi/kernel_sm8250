@@ -797,7 +797,7 @@ static int match(const char *sym, const char * const pat[])
 		/* "*foo*" */
 		if (*p == '*' && *endp == '*') {
 			char *bare = NOFAIL(strndup(p + 1, strlen(p) - 2));
-			char *here = strstr(sym, bare);
+			const char *here = strstr(sym, bare);
 
 			free(bare);
 			if (here != NULL)
