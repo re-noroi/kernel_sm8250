@@ -62,3 +62,10 @@ config OPLUS_POWERINFO_FTM
 	default n
 	help
 		Select this config to enable powerinfo ftm
+
+config OPLUS_STUB_NODES
+	bool "oplus missing nodes stubs"
+	depends on OPLUS
+	default y
+	help
+	 Select this to enable dummy stubs for missing oplus procfs and sysfs nodes
