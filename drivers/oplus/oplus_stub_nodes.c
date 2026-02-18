@@ -133,6 +133,7 @@ static int __init oplus_stub_nodes_init(void) {
             set_proc_owner(proc_create("sched_impt_task", 0666, sched_assist, &dummy_sink_fops));
             set_proc_owner(proc_create("im_flag_app", 0666, sched_assist, &dummy_sink_fops));
             set_proc_owner(proc_create("im_flag", 0666, sched_assist, &dummy_sink_fops));
+            set_proc_owner(proc_create("ux_task", 0666, sched_assist, &dummy_sink_fops));
         }
     }
 
