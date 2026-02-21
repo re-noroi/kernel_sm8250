@@ -1295,6 +1295,14 @@ config SCHED_AUTOGROUP
 	  desktop applications.  Task group autogeneration is currently based
 	  upon task session.
 
+config SCHED_TUNE_DUMMY
+	bool "Dummy SCHEDTUNE nodes"
+	depends on SMP
+	depends on !SCHED_TUNE && !CGROUP_SCHEDTUNE
+	default y
+	help
+	  Create dummy SCHEDTUNE nodes to satisfy rom compability.
+
 config UCLAMP_ASSIST
 	bool "UClamp configuration helper"
 	depends on ANDROID && UCLAMP_TASK && UCLAMP_TASK_GROUP
