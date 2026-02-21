@@ -81,7 +81,7 @@ void cass_cpu_util(struct cass_cpu_cand *c, int this_cpu, bool sync)
 static __always_inline
 bool cass_cpu_better(const struct cass_cpu_cand *a,
 		     const struct cass_cpu_cand *b, unsigned long p_util,
-		     int this_cpu, int prev_cpu, bool sync)
+		     int this_cpu, int prev_cpu, int prev_llc_id, bool sync)
 {
 #define cass_cmp(a, b) ({ res = (a) - (b); })
 #define cass_eq(a, b) ({ res = (a) == (b); })
@@ -148,9 +148,16 @@ bool cass_cpu_better(const struct cass_cpu_cand *a,
 	if (cass_eq(a->cpu, prev_cpu) || !cass_cmp(b->cpu, prev_cpu))
 		goto done;
 
-	/* Prefer the CPU that shares a cache with the previous CPU */
-	if (cass_cmp(cpus_share_cache(a->cpu, prev_cpu),
-		     cpus_share_cache(b->cpu, prev_cpu)))
+	/*
+	 * Prefer the CPU that shares a cache with the previous CPU.
+	 *
+	 * prev_llc_id is negative when all CPUs share the same LLC (DynamIQ)
+	 * or when sched domains are torn down. In both cases, sd_llc_id cannot
+	 * differentiate candidates. So, we skip it.
+	 */
+	if (prev_llc_id >= 0 &&
+	    cass_cmp(per_cpu(sd_llc_id, a->cpu) == prev_llc_id,
+		     per_cpu(sd_llc_id, b->cpu) == prev_llc_id))
 		goto done;
 
 	/* @a isn't a better CPU than @b. @res must be <=0 to indicate such. */
@@ -166,7 +173,7 @@ static int cass_best_cpu(struct task_struct *p, int prev_cpu, bool sync, bool rt
 	int this_cpu = raw_smp_processor_id();
 	unsigned long p_util, uc_min;
 	bool has_idle = false;
-	int cidx = 0, cpu;
+	int cidx = 0, cpu, prev_llc_id;
 
 	/*
 	 * Get the utilization and uclamp minimum threshold for this task. Note
@@ -174,6 +181,22 @@ static int cass_best_cpu(struct task_struct *p, int prev_cpu, bool sync, bool rt
 	 */
 	p_util = rt ? 0 : task_util_est(p);
 	uc_min = uclamp_eff_value(p, UCLAMP_MIN);
+
+	/*
+	 * When the LLC spans all CPUs (e.g. DynamIQ), every candidate shares
+	 * the cache with prev_cpu and the comparison can never produce a winner.
+	 * When sched domains are torn down, sd_llc_id holds stale values. We
+	 * identify this by making sd_llc RCU-safe. There is no need of rcu_read_lock()
+	 * here since this is a non-preemptible context.
+	 *
+	 * In such scenarios, set prev_llc_id to -1 so that cass_cpu_better() skips
+	 * the check entirely, avoiding unnecessary per_cpu() reads in the hot-path.
+	 */
+	if (unlikely(!rcu_dereference(per_cpu(sd_llc, prev_cpu))) ||
+	    per_cpu(sd_llc_size, prev_cpu) >= nr_cpu_ids)
+		prev_llc_id = -1;
+	else
+		prev_llc_id = per_cpu(sd_llc_id, prev_cpu);
 
 	/*
 	 * Find the best CPU to wake @p on. Although idle_get_state() requires
@@ -287,7 +310,7 @@ static int cass_best_cpu(struct task_struct *p, int prev_cpu, bool sync, bool rt
 		 */
 		if (best == curr ||
 		    cass_cpu_better(curr, best, p_util, this_cpu, prev_cpu,
-				    sync)) {
+				    prev_llc_id, sync)) {
 			best = curr;
 			cidx ^= 1;
 		}
