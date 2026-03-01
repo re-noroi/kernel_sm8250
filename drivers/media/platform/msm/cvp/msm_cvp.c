@@ -436,13 +436,16 @@ static int msm_cvp_map_buf_user_persist(struct msm_cvp_inst *inst,
 
 	mutex_lock(&inst->persistbufs.lock);
 	list_add_tail(&cbuf->list, &inst->persistbufs.list);
-	mutex_unlock(&inst->persistbufs.lock);
 
 	*iova = cbuf->smem.device_addr;
+
 
 	dprintk(CVP_DBG,
 	"%s: %x : fd %d %s size %d", "map persist", hash32_ptr(inst->session),
 	cbuf->smem.fd, cbuf->smem.dma_buf->buf_name, cbuf->smem.size);
+
+	mutex_unlock(&inst->persistbufs.lock);
+
 	return rc;
 
 exit:
