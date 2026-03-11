@@ -1258,6 +1258,12 @@ static ssize_t algorithm_params_store(struct device *dev,
 		}
 	}
 
+	down_write(&zram->init_lock);
+	if (init_done(zram)) {
+		ret = -EBUSY;
+		goto unlock;
+	}
+
 	/* Lookup priority by algorithm name */
 	if (algo) {
 		s32 p;
@@ -1274,11 +1280,18 @@ static ssize_t algorithm_params_store(struct device *dev,
 		}
 	}
 
-	if (prio < ZRAM_PRIMARY_COMP || prio >= ZRAM_MAX_COMPS)
-		return -EINVAL;
+	if (prio < ZRAM_PRIMARY_COMP || prio >= ZRAM_MAX_COMPS) {
+		ret = -EINVAL;
+		goto unlock;
+	}
 
 	ret = comp_params_store(zram, prio, level, dict_path);
+	up_write(&zram->init_lock);
 	return ret ? ret : len;
+
+unlock:
+	up_write(&zram->init_lock);
+	return ret;
 }
 
 static ssize_t comp_algorithm_show(struct device *dev,
