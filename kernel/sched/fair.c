@@ -11911,14 +11911,14 @@ static inline int on_null_domain(struct rq *rq)
 
 static inline int find_new_ilb(void)
 {
-	int ilb;
+	int ilb, this_cpu = smp_processor_id();
 	const struct cpumask *hk_mask;
 
 	hk_mask = housekeeping_cpumask(HK_FLAG_MISC);
 
 	for_each_cpu_and(ilb, nohz.idle_cpus_mask, hk_mask) {
 
-		if (ilb == smp_processor_id())
+		if (ilb == this_cpu)
 			continue;
 
 		if (idle_cpu(ilb))
