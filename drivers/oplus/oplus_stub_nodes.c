@@ -83,13 +83,21 @@ static const struct file_operations devinfo_lcd_s_fops = {
 static struct class *oplus_chg_class;
 static struct device *oplus_chg_common_dev;
 
-static ssize_t mutual_cmd_show(struct device *dev, struct device_attribute *attr, char *buf) {
-    msleep(5000); 
-    return sprintf(buf, "0\n"); 
+static DECLARE_WAIT_QUEUE_HEAD(mutual_cmd_wq);
+static int mutual_cmd_val = 0;
+
+static ssize_t mutual_cmd_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+    wait_event_interruptible_timeout(mutual_cmd_wq, false, msecs_to_jiffies(30000));
+    return sprintf(buf, "%d\n", mutual_cmd_val);
 }
-static ssize_t mutual_cmd_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count) {
-    msleep(5000);
-    return count; 
+
+static ssize_t mutual_cmd_store(struct device *dev, struct device_attribute *attr,
+                                const char *buf, size_t count)
+{
+    sscanf(buf, "%d", &mutual_cmd_val);
+    wake_up_interruptible(&mutual_cmd_wq);
+    return count;
 }
 static DEVICE_ATTR_RW(mutual_cmd);
 
