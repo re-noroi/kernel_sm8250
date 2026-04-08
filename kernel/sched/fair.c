@@ -717,7 +717,7 @@ again:
 	weight = avg_vruntime_weight(cfs_rq, se->load.weight);
 	key = entity_key(cfs_rq, se);
 
-	if (check_mul_overflow(key, weight, &key))
+	if (check_mul_overflow(key, (s64)weight, &key))
 		goto overflow;
 
 	if (check_add_overflow(cfs_rq->sum_w_vruntime, key, &tmp))
