@@ -6,6 +6,7 @@
  *        tasks which are handled in sched/fair.c )
  */
 #include "sched.h"
+#include "pelt.h"
 
 #include <trace/events/power.h>
 
