@@ -236,9 +236,22 @@ static unsigned int get_next_freq(struct sugov_policy *sg_policy,
 static inline unsigned long calc_dvfs_headroom(unsigned long util,
 					unsigned long capacity)
 {
-	unsigned long delta = capacity - min(util, capacity);
+	unsigned long delta;
+	unsigned long threshold = (capacity * 15) / 100;
+	unsigned long delta_t = capacity - threshold;
+	unsigned long capped_util = min(util, capacity);
+	unsigned long headroom;
 
-	return (delta * delta) / (6 * 1024);
+	delta = capacity - capped_util;
+
+	headroom = (delta * delta * delta * 5) /
+		   (delta_t * capacity * 16);
+
+	if (capped_util < threshold)
+		headroom = (headroom * capped_util * capped_util) /
+			   (threshold * threshold);
+
+	return headroom;
 }
 
 static inline unsigned long apply_dvfs_headroom(unsigned long util, int cpu)
