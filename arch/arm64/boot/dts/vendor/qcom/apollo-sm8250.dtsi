@@ -550,7 +550,7 @@ this file is for attribution only of apollo
 				4480000  3680000>;
 	mi,six-pin-step-chg;
 	mi,six-pin-soc-th = <22>;
-	mi,fcc-batt-unverify-ua = <2000000>;
+	mi,fcc-batt-unverify-ua = <3000000>;
 	mi,support-ffc;
 	qcom,lpd-disable;
 	mi,use-bq-pump;
