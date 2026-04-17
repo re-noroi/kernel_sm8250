@@ -9906,12 +9906,22 @@ static void update_cpu_capacity(struct sched_domain *sd, int cpu)
 	 * on TICK doesn't end up hurting it as it can happen after we would
 	 * have crossed this threshold.
 	 *
-	 * To ensure that invaraince is taken into account, we don't scale time
+	 * To ensure that invariance is taken into account, we don't scale time
 	 * and use it as-is, approximate_util_avg() will then let us know the
 	 * our threshold.
+	 *
+	 * Multiply approximate runtime of dynamic capacity by 1024 (the PELT
+	 * period constant) rather than USEC_PER_MSEC (1000) for accurate
+	 * period-to-microsecond conversion. Each iteration of approximate_runtime()
+	 * advances by delta = 1024 PELT units ~ 1024 us.
+	 *
+	 * On very slow or heavily throttled CPUs, the ramp-up time can be shorter
+	 * than one tick interval, which would cause limit to wrap to a huge u64
+	 * value and make fits_capacity_threshold incorrectly equal to
+	 * SCHED_CAPACITY_SCALE. So, add a safe subtraction.
 	 */
-	limit = approximate_runtime(capacity) * USEC_PER_MSEC;
-	limit -= TICK_USEC; /* sd->balance_interval is more accurate */
+	limit = approximate_runtime(capacity) * 1024ULL;
+	lsub_positive(&limit, TICK_USEC);	/* sd->balance_interval is more accurate */
 	rq->fits_capacity_threshold = approximate_util_avg(0, limit);
 
 	sdg->sgc->capacity = capacity;
