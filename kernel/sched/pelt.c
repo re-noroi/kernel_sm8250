@@ -158,7 +158,8 @@ accumulate_sum(u64 delta, struct sched_avg *sa,
 
 	if (runnable) {
 		sa->runnable_sum += runnable * contrib << SCHED_CAPACITY_SHIFT;
-		sa->runnable_sum = min_t(u64, sa->runnable_sum, divider * runnable);
+		sa->runnable_sum = min_t(u64, sa->runnable_sum,
+					 divider * runnable << SCHED_CAPACITY_SHIFT);
 	}
 
 	if (running) {
