@@ -21,5 +21,7 @@ void fie_init_cpu_domain(const struct cpumask *cpus, unsigned int max_freq);
 void fie_cpufreq_pressure(int cpu, unsigned int capped_freq);
 void fie_rate_set(int cpu, unsigned int freq);
 void fie_tick_entry(void);
+void fie_idle_enter(void);
+void fie_idle_exit(void);
 
 #endif /* _FIE_H_ */
