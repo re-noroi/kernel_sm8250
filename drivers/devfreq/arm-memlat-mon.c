@@ -26,6 +26,8 @@
 #include <linux/perf_event.h>
 #include <linux/of_device.h>
 #include <linux/mutex.h>
+#include <linux/kthread.h>
+#include <linux/freezer.h>
 
 enum common_ev_idx {
 	INST_IDX,
@@ -114,8 +116,11 @@ struct memlat_mon {
  * @last_ts_delta_us:		The time difference between the most recent
  *				update and the one before that. Used to compute
  *				effective frequency.
- * @work:			The delayed_work used for handling updates.
- * @update_ms:			The frequency with which @work triggers.
+ * @thread:			The kthread used for handling updates.
+ * @waitq:			Waitqueue to wake the kthread.
+ * @kick:			Atomic flag to signal the kthread.
+ * @timer:			High-resolution timer for periodic kicks.
+ * @update_ms:			The frequency with which @timer triggers.
  * @num_mons:		The number of @mons for this cpu_grp.
  * @num_inited_mons:	The number of @mons who have probed.
  * @num_active_mons:	The number of @mons currently running
@@ -131,7 +136,10 @@ struct memlat_cpu_grp {
 	ktime_t			last_update_ts;
 	unsigned long		last_ts_delta_us;
 
-	struct delayed_work	work;
+	struct task_struct	*thread;
+	wait_queue_head_t	waitq;
+	atomic_t		kick;
+	struct hrtimer		timer;
 	unsigned int		update_ms;
 
 	unsigned int		num_mons;
@@ -152,8 +160,6 @@ struct memlat_mon_spec {
 #define to_devstats(mon, cpu) \
 	(&mon->hw.core_stats[cpu - cpumask_first(&mon->cpus)])
 #define to_mon(hwmon) container_of(hwmon, struct memlat_mon, hw)
-
-static struct workqueue_struct *memlat_wq;
 
 #define MAX_COUNT_LIM 0xFFFFFFFFFFFFFFFF
 static inline void read_event(struct event_data *event)
@@ -333,39 +339,66 @@ static void free_common_evs(struct memlat_cpu_grp *cpu_grp)
 	}
 }
 
-static void memlat_monitor_work(struct work_struct *work)
+static enum hrtimer_restart memlat_hrtimer_handler(struct hrtimer *timer)
+{
+	struct memlat_cpu_grp *cpu_grp =
+		container_of(timer, struct memlat_cpu_grp, timer);
+
+	if (!atomic_xchg(&cpu_grp->kick, 1))
+		wake_up(&cpu_grp->waitq);
+
+	return HRTIMER_NORESTART;
+}
+
+static int memlat_thread(void *data)
 {
 	int err;
-	struct memlat_cpu_grp *cpu_grp =
-		container_of(work, struct memlat_cpu_grp, work.work);
+	struct memlat_cpu_grp *cpu_grp = data;
 	struct memlat_mon *mon;
 	unsigned int i;
 
-	mutex_lock(&cpu_grp->mons_lock);
-	if (!cpu_grp->num_active_mons)
-		goto unlock_out;
-	update_counts(cpu_grp);
-	for (i = 0; i < cpu_grp->num_mons; i++) {
-		struct devfreq *df;
+	set_freezable();
 
-		mon = &cpu_grp->mons[i];
+	while (true) {
+		wait_event_freezable(cpu_grp->waitq, atomic_read(&cpu_grp->kick) ||
+				     kthread_should_stop());
 
-		if (!mon->is_active)
-			continue;
+		if (kthread_freezable_should_stop(NULL))
+			break;
 
-		df = mon->hw.df;
-		mutex_lock(&df->lock);
-		err = update_devfreq(df);
-		if (err)
-			dev_err(mon->hw.dev, "Memlat update failed: %d\n", err);
-		mutex_unlock(&df->lock);
+		atomic_set(&cpu_grp->kick, 0);
+
+		mutex_lock(&cpu_grp->mons_lock);
+		if (cpu_grp->num_active_mons) {
+			update_counts(cpu_grp);
+			for (i = 0; i < cpu_grp->num_mons; i++) {
+				struct devfreq *df;
+
+				mon = &cpu_grp->mons[i];
+
+				if (!mon->is_active)
+					continue;
+
+				df = mon->hw.df;
+				mutex_lock(&df->lock);
+				err = update_devfreq(df);
+				if (err < 0)
+					dev_err(mon->hw.dev,
+						"Memlat update failed: %d\n",
+						err);
+				mutex_unlock(&df->lock);
+			}
+
+			if (cpu_grp->update_ms != UINT_MAX)
+				hrtimer_start(&cpu_grp->timer,
+					      ms_to_ktime(cpu_grp->update_ms),
+					      HRTIMER_MODE_REL);
+		}
+
+		mutex_unlock(&cpu_grp->mons_lock);
 	}
 
-	queue_delayed_work(memlat_wq, &cpu_grp->work,
-			   msecs_to_jiffies(cpu_grp->update_ms));
-
-unlock_out:
-	mutex_unlock(&cpu_grp->mons_lock);
+	return 0;
 }
 
 static int start_hwmon(struct memlat_hwmon *hw)
@@ -387,7 +420,15 @@ static int start_hwmon(struct memlat_hwmon *hw)
 		if (ret)
 			goto unlock_out;
 
-		INIT_DEFERRABLE_WORK(&cpu_grp->work, &memlat_monitor_work);
+		cpu_grp->thread = kthread_run(memlat_thread, cpu_grp, "memlat_%d",
+					      cpumask_first(&cpu_grp->cpus));
+		if (IS_ERR(cpu_grp->thread)) {
+			ret = PTR_ERR(cpu_grp->thread);
+			dev_err(mon->hw.dev, "Failed to create memlat kthread: %d\n",
+				ret);
+			cpu_grp->thread = NULL;
+			goto unlock_out;
+		}
 	}
 
 	if (mon->miss_ev) {
@@ -416,11 +457,26 @@ static int start_hwmon(struct memlat_hwmon *hw)
 	mon->is_active = true;
 
 	if (should_init_cpu_grp)
-		queue_delayed_work(memlat_wq, &cpu_grp->work,
-				   msecs_to_jiffies(cpu_grp->update_ms));
+		hrtimer_start(&cpu_grp->timer,
+			      ms_to_ktime(cpu_grp->update_ms),
+			      HRTIMER_MODE_REL);
 
 unlock_out:
-	mutex_unlock(&cpu_grp->mons_lock);
+	if (ret < 0 && should_init_cpu_grp) {
+		struct task_struct *thread = cpu_grp->thread;
+
+		cpu_grp->thread = NULL;
+		hrtimer_cancel(&cpu_grp->timer);
+		free_common_evs(cpu_grp);
+
+		mutex_unlock(&cpu_grp->mons_lock);
+
+		if (thread)
+			kthread_stop(thread);
+	} else {
+		mutex_unlock(&cpu_grp->mons_lock);
+	}
+
 	kfree(attr);
 
 	return ret;
@@ -450,10 +506,19 @@ static void stop_hwmon(struct memlat_hwmon *hw)
 	}
 
 	if (!cpu_grp->num_active_mons) {
-		cancel_delayed_work(&cpu_grp->work);
+		struct task_struct *thread;
+
+		hrtimer_cancel(&cpu_grp->timer);
+		thread = cpu_grp->thread;
+		cpu_grp->thread = NULL;
 		free_common_evs(cpu_grp);
+		mutex_unlock(&cpu_grp->mons_lock);
+
+		if (thread)
+			kthread_stop(thread);
+	} else {
+		mutex_unlock(&cpu_grp->mons_lock);
 	}
-	mutex_unlock(&cpu_grp->mons_lock);
 }
 
 /**
@@ -473,18 +538,15 @@ static void set_update_ms(struct memlat_cpu_grp *cpu_grp)
 				min(new_update_ms, mon->requested_update_ms);
 	}
 
-	if (new_update_ms == UINT_MAX) {
-		cancel_delayed_work(&cpu_grp->work);
-	} else if (cpu_grp->update_ms == UINT_MAX) {
-		queue_delayed_work(memlat_wq, &cpu_grp->work,
-				   msecs_to_jiffies(new_update_ms));
-	} else if (new_update_ms > cpu_grp->update_ms) {
-		cancel_delayed_work(&cpu_grp->work);
-		queue_delayed_work(memlat_wq, &cpu_grp->work,
-				   msecs_to_jiffies(new_update_ms));
+	if (new_update_ms != cpu_grp->update_ms) {
+		cpu_grp->update_ms = new_update_ms;
+		if (new_update_ms == UINT_MAX)
+			hrtimer_cancel(&cpu_grp->timer);
+		else
+			hrtimer_start(&cpu_grp->timer,
+				      ms_to_ktime(new_update_ms),
+				      HRTIMER_MODE_REL);
 	}
-
-	cpu_grp->update_ms = new_update_ms;
 }
 
 static void request_update_ms(struct memlat_hwmon *hw, unsigned int update_ms)
@@ -612,6 +674,10 @@ static int memlat_cpu_grp_probe(struct platform_device *pdev)
 		return -ENOMEM;
 
 	mutex_init(&cpu_grp->mons_lock);
+	hrtimer_init(&cpu_grp->timer, CLOCK_BOOTTIME, HRTIMER_MODE_REL);
+	cpu_grp->timer.function = memlat_hrtimer_handler;
+	init_waitqueue_head(&cpu_grp->waitq);
+	atomic_set(&cpu_grp->kick, 0);
 	cpu_grp->update_ms = DEFAULT_UPDATE_MS;
 
 	dev_set_drvdata(dev, cpu_grp);
@@ -627,14 +693,6 @@ static int memlat_mon_probe(struct platform_device *pdev, bool is_compute)
 	struct memlat_mon *mon;
 	struct memlat_hwmon *hw;
 	unsigned int event_id, num_cpus, cpu;
-
-	if (!memlat_wq)
-		memlat_wq = create_freezable_workqueue("memlat_wq");
-
-	if (!memlat_wq) {
-		dev_err(dev, "Couldn't create memlat workqueue.\n");
-		return -ENOMEM;
-	}
 
 	cpu_grp = dev_get_drvdata(dev->parent);
 	if (!cpu_grp) {
