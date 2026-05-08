@@ -1,29 +1,29 @@
 qcom,4599811_xiaomi_j3ssun_5000mah_averaged_masterslave_may28th2020 {
 	qcom,profile-revision = <24>;
 	/* #4599811_Xiaomi_J3Ssun_5000mAh_averaged_MasterSlave_May28th2020*/
-	qcom,max-voltage-uv = <4480000>;
+	qcom,max-voltage-uv = <4450000>;
 	qcom,fastchg-current-ma = <6000>;
 	qcom,jeita-fcc-ranges = <(-100)  0   0
 				1  50  980000
 				51  100  2450000
 				101 150  3840000
-				151 480  6000000
-				481 580  2450000>;
+				151 440  6000000
+				441 480  2450000>;
 	qcom,jeita-fv-ranges = <(-100)  0   4450000
 				1   50  4450000
 				51  100  4450000
 				101 150  4450000
-				151 480  4480000
-				481 580  4100000>;
-	qcom,jeita-too-hot = <580>;
+				151 480  4450000
+				481 580  4400000>;
+	qcom,jeita-too-hot = <480>;
 	qcom,jeita-too-cold = <0>;
-	qcom,jeita-warm-th= <480>;
+	qcom,jeita-warm-th= <440>;
 	qcom,jeita-cool-th= <150>;
 	qcom,use-bq-pump;
 	mi,six-pin-battery;
 	qcom,ffc-term-current-ma = <(-755)>;
-	qcom,fg-cc-cv-threshold-mv = <4440>;
-	qcom,fg-ffc-cc-cv-threshold-mv = <4490>;
+	qcom,fg-cc-cv-threshold-mv = <4410>;
+	qcom,fg-ffc-cc-cv-threshold-mv = <4440>;
 	qcom,nom-batt-capacity-mah = <5000>;
 	qcom,batt-id-kohm = <100>;
 	qcom,battery-beta = <4250>;

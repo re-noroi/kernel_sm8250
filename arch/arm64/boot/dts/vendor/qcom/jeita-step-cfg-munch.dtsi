@@ -23,24 +23,24 @@ qcom,munch {
 				1   50   4450000
 				51  100  4450000
 				101 150  4450000
-				151 479  4480000
-				480 580  4090000>;
+				151 440  4450000
+				441 480  4400000>;
 	qcom,step-chg-ranges = <3000000  3349000  1000000
 				3350000  4200000  12400000
 				4201000  4300000  8220000
 				4301000  4400000  6900000
-				4401000  4480000  5580000>;
+				4401000  4450000  5580000>;
 	qcom,cold-step-chg-ranges = <3000000  4199000  1000000
 				4200000  4450000  660000>;
-	qcom,jeita-too-hot = <600>;
+	qcom,jeita-too-hot = <480>;
 	qcom,jeita-too-cold = <(-100)>;
-	qcom,jeita-warm-th= <480>;
+	qcom,jeita-warm-th= <440>;
 	qcom,jeita-cool-th= <150>;
 	qcom,ocv-based-step-chg;
 	qcom,taper-fcc;
 	qcom,use-bq-pump;
 	qcom,use-ext-gauge;
-	qcom,max-voltage-uv = <4490000>;//for fv
+	qcom,max-voltage-uv = <4450000>;//for fv
 	qcom,batt-id-kohm = <100>;
 	qcom,battery-type = "L11R_profile";
 };

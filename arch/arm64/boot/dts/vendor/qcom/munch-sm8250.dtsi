@@ -539,7 +539,7 @@ And public attribution of xiaomi platforms(like L11R and so and)
 	qcom,sec-charger-config = <0>;
 	qcom,usb-icl-ua = <6200000>;
 	qcom,fcc-max-ua = <12400000>;
-	qcom,fv-max-uv = <4480000>;
+	qcom,fv-max-uv = <4450000>;
 	qcom,non-fcc-fv-max-uv = <4450000>;
 	qcom,dc-icl-ua = <1000000>;
 	qcom,auto-recharge-vbat-mv = <4380000>;
@@ -547,7 +547,7 @@ And public attribution of xiaomi platforms(like L11R and so and)
 	qcom,chg-term-current-ma = <(-200)>;
 	qcom,step-charging-enable;
 	qcom,sw-jeita-enable;
-	qcom,chg-warm-th= <480>;
+	qcom,chg-warm-th= <440>;
 	qcom,chg-cool-th= <150>;
 	//qcom,suspend-input-on-debug-batt;
 	pinctrl-names = "default", "smb5_active", "smb5_suspend";
@@ -637,11 +637,11 @@ And public attribution of xiaomi platforms(like L11R and so and)
 	cp_qc30 {
 		compatible = "xiaomi,cp-qc30";
 		status = "ok";
-		mi,qc3-bat-volt-max = <4480>;
+		mi,qc3-bat-volt-max = <4450>;
 		mi,qc3-bat-curr-max = <3600>;
 		mi,qc3-bus-volt-max = <12000>;
 		mi,qc3-bus-curr-max = <2100>;
-		mi,qc3-battery-warm-th = <480>;
+		mi,qc3-battery-warm-th = <440>;
 		mi,cp-sec-enable;
 		mi,support-qc3p5-without-smb;
 	};
@@ -649,7 +649,7 @@ And public attribution of xiaomi platforms(like L11R and so and)
 	usbpd_pm {
 		compatible = "xiaomi,usbpd-pm";
 		status = "ok";
-		mi,pd-bat-volt-max = <4480>;
+		mi,pd-bat-volt-max = <4450>;
 		mi,pd-bat-curr-max = <12400>;
 		mi,pd-bus-volt-max = <12000>;
 		mi,pd-bus-curr-max = <6200>;
@@ -657,8 +657,8 @@ And public attribution of xiaomi platforms(like L11R and so and)
 		mi,pd-bus-curr-compensate  = <0>;
 		mi,step-charge-high-vol-curr-max = <4400>;
 		mi,cell-vol-high-threshold-mv = <4500>;
-		mi,cell-vol-max-threshold-mv = <4480>;
-		mi,pd-battery-warm-th = <480>;
+		mi,cell-vol-max-threshold-mv = <4450>;
+		mi,pd-battery-warm-th = <440>;
 		mi,cp-sec-enable;
 	};
 
