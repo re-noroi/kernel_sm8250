@@ -29,13 +29,6 @@
  */
 static u64 cpu_min_sample_cntpct __read_mostly = 3 * NSEC_PER_USEC;
 
-/* Max frequencies for SM8250 (Snapdragon 865 / Poco F3) (kHz) */
-static const u64 max_freqs[] = {
-	1804800, 1804800, 1804800, 1804800,	/* Cores 0-3 (Silver/LITTLE) */
-	2419200, 2419200, 2419200,		/* Cores 4-6 (Gold/Big) */
-	3187200					/* Core 7 (Prime) */
-};
-
 /*
  * CNTPCT_EL0 arithmetic helpers to avoid overflowing a u64 when converting
  * between ticks and nanoseconds. This avoids needing mult_frac() in a hot path.
@@ -98,6 +91,8 @@ static DEFINE_PER_CPU(struct cpu_pmu, cpu_pmu_evs) = {
 
 static DEFINE_PER_CPU_READ_MOSTLY(bool, cpu_has_amu);
 static DEFINE_PER_CPU_READ_MOSTLY(bool, cpu_has_amu_const);
+static DEFINE_PER_CPU_READ_MOSTLY(u32, cpu_max_freq);
+
 static DEFINE_STATIC_KEY_FALSE(fie_ready);
 static int cpuhp_state;
 
@@ -120,6 +115,15 @@ static __always_inline bool cpu_supports_amu_const(int cpu)
 {
 	return per_cpu(cpu_has_amu_const, cpu);
 }
+
+void fie_init_cpu_domain(const struct cpumask *cpus, unsigned int max_freq)
+{
+	int cpu;
+
+	for_each_cpu(cpu, cpus)
+		per_cpu(cpu_max_freq, cpu) = max_freq;
+}
+EXPORT_SYMBOL_GPL(fie_init_cpu_domain);
 
 static struct perf_event *create_pev(struct perf_event_attr *attr, int cpu)
 {
@@ -296,7 +300,7 @@ static void update_freq_scale(int cpu, struct rq *rq, bool local_cpu)
 
 	if (rq->cpu == cpu) {
 		if (sfd->const_cyc >= cpu_min_sample_cntpct) {
-			u64 max_freq = max_freqs[cpu];
+			u64 max_freq = per_cpu(cpu_max_freq, cpu);
 			u64 freq, ns = cntpct_to_ns(sfd->const_cyc);
 
 			freq = min(max_freq, USEC_PER_SEC * sfd->cpu_cyc / ns);
