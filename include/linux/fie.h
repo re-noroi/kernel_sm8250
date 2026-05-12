@@ -9,5 +9,6 @@
 struct rq;
 
 void fie_update_rq_clock(struct rq *rq);
+void fie_init_cpu_domain(const struct cpumask *cpus, unsigned int max_freq);
 
 #endif /* _FIE_H_ */
