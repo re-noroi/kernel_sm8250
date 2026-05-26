@@ -3942,7 +3942,7 @@ static inline void update_tg_load_avg(struct cfs_rq *cfs_rq)
 	 * For migration heavy workloads, access to tg->load_avg can be
 	 * unbound. Limit the update rate to at most once per ms.
 	 */
-	now = sched_clock_cpu(cpu_of(rq_of(cfs_rq)));
+	now = rq_clock(rq_of(cfs_rq));
 	if (now - cfs_rq->last_update_tg_load_avg < NSEC_PER_MSEC)
 		return;
 
