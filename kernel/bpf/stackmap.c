@@ -125,8 +125,7 @@ static struct bpf_map *stack_map_alloc(union bpf_attr *attr)
 	n_buckets = roundup_pow_of_two(attr->max_entries);
 
 	cost = n_buckets * sizeof(struct stack_map_bucket *) + sizeof(*smap);
-	err = bpf_map_charge_init(&mem, cost + attr->max_entries *
-			   (sizeof(struct stack_map_bucket) + (u64)value_size));
+	err = bpf_map_charge_init(&mem, cost);
 	if (err)
 		return ERR_PTR(err);
 
