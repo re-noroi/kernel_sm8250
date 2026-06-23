@@ -1330,7 +1330,7 @@ int __irq_domain_alloc_irqs(struct irq_domain *domain, int irq_base,
 	ret = irq_domain_alloc_irqs_hierarchy(domain, virq, nr_irqs, arg);
 	if (ret < 0) {
 		mutex_unlock(&irq_domain_mutex);
-		goto out_free_irq_data;
+		goto out_free_irqs;
 	}
 	for (i = 0; i < nr_irqs; i++)
 		irq_domain_insert_irq(virq + i);
@@ -1338,6 +1338,8 @@ int __irq_domain_alloc_irqs(struct irq_domain *domain, int irq_base,
 
 	return virq;
 
+out_free_irqs:
+	irq_domain_free_irqs_hierarchy(domain, virq, nr_irqs);
 out_free_irq_data:
 	irq_domain_free_irq_data(virq, nr_irqs);
 out_free_desc:
