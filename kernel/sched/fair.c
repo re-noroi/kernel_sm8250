@@ -8624,18 +8624,18 @@ static void check_preempt_wakeup(struct rq *rq, struct task_struct *p, int wake_
 	    likely(!task_has_idle_policy(p)))
 		goto preempt;
 
-	/*
-	 * Batch and idle tasks do not preempt non-idle tasks (their preemption
-	 * is driven by the tick):
-	 */
-	if (unlikely(p->policy != SCHED_NORMAL) || !sched_feat(WAKEUP_PREEMPTION))
-		return;
-
 	find_matching_se(&se, &pse);
 	WARN_ON_ONCE(!pse);
 
 	cfs_rq = cfs_rq_of(se);
 	update_curr(cfs_rq);
+
+	/*
+	 * Batch and idle tasks do not preempt non-idle tasks (their preemption
+	 * is driven by the tick):
+	 */
+	if (unlikely(p->policy != SCHED_NORMAL) || !sched_feat(WAKEUP_PREEMPTION))
+		goto update;
 
 	/*
 	 * If @p has a shorter slice than current and @p is eligible, override
@@ -8653,7 +8653,7 @@ static void check_preempt_wakeup(struct rq *rq, struct task_struct *p, int wake_
 	 * EEVDF to forcibly queue an ineligible task.
 	 */
 	if ((wake_flags & WF_FORK) || pse->sched_delayed)
-		return;
+		goto update;
 
 	/* Prefer picking wakee soon if appropriate. */
 	if (sched_feat(NEXT_BUDDY) && set_preempt_buddy(cfs_rq, pse)) {
@@ -8697,7 +8697,7 @@ pick:
 	 */
 	if (preempt_action == PREEMPT_WAKEUP_SHORT && entity_eligible(cfs_rq, pse))
 		goto preempt;
-
+update:
 	if (sched_feat(RUN_TO_PARITY))
 		update_protect_slice(cfs_rq, se);
 
