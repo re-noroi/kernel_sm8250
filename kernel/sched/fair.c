@@ -832,6 +832,67 @@ u64 avg_vruntime(struct cfs_rq *cfs_rq)
 	return cfs_rq->zero_vruntime;
 }
 
+/*
+ *     \Sum (v_i - v0)*w_i
+ * V = ------------------- + v0
+ *          \Sum w_i
+ *
+ * Let W = \Sum w_i, and move v_j such that 'v_j == V', thus:
+ *
+ * V = 1/W * {(v_j - v0)*w_j + \Sum_i!=j (v_i - v0)*w_i} + v0
+ *
+ * v_j = 1/W * {(v_j - v0)*w_j + \Sum_i!=j (v_i - v0)*w_i} + v0
+ *
+ * v_j = 1/W * (v_j - v0)*w_j + 1/W * \Sum_i!=j (v_i - v0)*w_i + v0
+ *
+ * v_j - 1/W * (v_j - v0)*w_j = 1/W * \Sum_i!=j (v_i - v0)*w_i + v0
+ *
+ * v_j*W - (v_j - v0)*w_j = \Sum_i!=j (v_i - v0)*w_i + v0*W
+ *
+ * v_j*(W - w_j) + v0*w_j = \Sum_i!=j (v_i - v0)*w_i + v0*W
+ *
+ * v_j*(W - w_j) = \Sum_i!=j (v_i - v0)*w_i + v0*(W - w_j)
+ *
+ *       \Sum_i!=j (v_i - v0)*w_i
+ * v_j = ------------------------ + v0
+ *               W - w_j
+ *
+ * When v_j happens to be curr, then '\Sum_i!=j (v_i - v0)*w_i'
+ * is cfs_rq->sum_w_runtime, and 'W - w_j' is cfs_rq->sum_weight, since curr
+ * is not included in the sum.
+ */
+static u64 ineligible_vruntime(struct cfs_rq *cfs_rq)
+{
+	struct sched_entity *curr = cfs_rq->curr;
+	long weight = cfs_rq->sum_weight;
+	s64 delta = 0;
+
+	if (curr && !curr->on_rq)
+		curr = NULL;
+
+	/*
+	 * This is called from set_next_task_fair(.first=true) /
+	 * set_protect_slice() so curr had better be set and on_rq.
+	 */
+	WARN_ON_ONCE(!curr);
+
+	if (weight) {
+		s64 runtime = cfs_rq->sum_w_vruntime;
+
+		/*
+		 * Do not add @curr to obtain the effective '- w_j' terms.
+		 */
+
+		/* sign flips effective floor / ceiling */
+		if (runtime < 0)
+			runtime -= (weight - 1);
+
+		delta = div64_long(runtime, weight);
+	}
+
+	return cfs_rq->zero_vruntime + delta + 1;
+}
+
 static inline u64 cfs_rq_max_slice(struct cfs_rq *cfs_rq);
 
 /*
@@ -1112,8 +1173,14 @@ static inline void set_protect_slice(struct cfs_rq *cfs_rq, struct sched_entity 
 		slice = cfs_rq_min_slice(cfs_rq);
 
 	slice = min(slice, se->slice);
-	if (slice != se->slice)
-		vprot = min_vruntime(vprot, se->vruntime + calc_delta_fair(slice, se));
+
+	/* If there are shorter slices than se's one */
+	if (slice != se->slice) {
+		if (sched_feat(PREEMPT_SHORT))
+			vprot = min_vruntime(vprot, ineligible_vruntime(cfs_rq));
+		else
+			vprot = min_vruntime(vprot, se->vruntime + calc_delta_fair(slice, se));
+	}
 
 	se->vprot = vprot;
 }
