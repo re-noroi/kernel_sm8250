@@ -8520,9 +8520,7 @@ enum preempt_wakeup_action {
 	PREEMPT_WAKEUP_RESCHED,	/* Force reschedule. */
 };
 
-static inline bool
-set_preempt_buddy(struct cfs_rq *cfs_rq, int wake_flags,
-		  struct sched_entity *pse, struct sched_entity *se)
+static inline bool set_preempt_buddy(struct cfs_rq *cfs_rq, struct sched_entity *pse)
 {
 	/*
 	 * Keep existing buddy if the deadline is sooner than pse.
@@ -8650,9 +8648,7 @@ static void check_preempt_wakeup(struct rq *rq, struct task_struct *p, int wake_
 		return;
 
 	/* Prefer picking wakee soon if appropriate. */
-	if (sched_feat(NEXT_BUDDY) &&
-	    set_preempt_buddy(cfs_rq, wake_flags, pse, se)) {
-
+	if (sched_feat(NEXT_BUDDY) && set_preempt_buddy(cfs_rq, pse)) {
 		/*
 		 * Decide whether to obey WF_SYNC hint for a new buddy. Old
 		 * buddies are ignored as they may not be relevant to the
