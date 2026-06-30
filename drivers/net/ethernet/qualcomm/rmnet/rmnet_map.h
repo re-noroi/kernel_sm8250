@@ -285,4 +285,5 @@ int rmnet_map_dl_ind_register(struct rmnet_port *port,
 int rmnet_map_dl_ind_deregister(struct rmnet_port *port,
 				struct rmnet_map_dl_ind *dl_ind);
 void rmnet_map_cmd_exit(struct rmnet_port *port);
+u32 rmnet_map_validate_packet_len(struct sk_buff *skb, struct rmnet_port *port);
 #endif /* _RMNET_MAP_H_ */

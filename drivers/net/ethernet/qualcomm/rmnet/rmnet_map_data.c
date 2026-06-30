@@ -370,6 +370,37 @@ done:
 	return map_header;
 }
 
+u32 rmnet_map_validate_packet_len(struct sk_buff *skb, struct rmnet_port *port)
+{
+	struct rmnet_map_header *maph;
+	unsigned char *data = rmnet_map_data_ptr(skb);
+	u32 packet_len;
+
+	/* Prevent Out-Of-Bounds read of the MAP header itself */
+	if (skb->len < sizeof(*maph))
+		return 0;
+
+	maph = (struct rmnet_map_header *)data;
+
+	/* Some hardware can send us empty frames. Catch them */
+	if (ntohs(maph->pkt_len) == 0)
+		return 0;
+
+	packet_len = ntohs(maph->pkt_len) + sizeof(struct rmnet_map_header);
+
+	if (port->data_format & RMNET_FLAGS_INGRESS_MAP_CKSUMV4) {
+		packet_len += sizeof(struct rmnet_map_dl_csum_trailer);
+	} else if (port->data_format & RMNET_FLAGS_INGRESS_MAP_CKSUMV5) {
+		if (!maph->cd_bit)
+			packet_len += sizeof(struct rmnet_map_v5_csum_header);
+	}
+
+	if (skb->len < packet_len)
+		return 0;
+
+	return packet_len;
+}
+
 /* Deaggregates a single packet
  * A whole new buffer is allocated for each portion of an aggregated frame.
  * Caller should keep calling deaggregate() on the source skb until 0 is
@@ -384,29 +415,17 @@ struct sk_buff *rmnet_map_deaggregate(struct sk_buff *skb,
 	unsigned char *data = rmnet_map_data_ptr(skb), *next_hdr = NULL;
 	u32 packet_len;
 
-	if (skb->len == 0)
+	packet_len = rmnet_map_validate_packet_len(skb, port);
+	if (!packet_len)
 		return NULL;
 
 	maph = (struct rmnet_map_header *)data;
-	packet_len = ntohs(maph->pkt_len) + sizeof(struct rmnet_map_header);
 
-	if (port->data_format & RMNET_FLAGS_INGRESS_MAP_CKSUMV4)
-		packet_len += sizeof(struct rmnet_map_dl_csum_trailer);
-	else if (port->data_format & RMNET_FLAGS_INGRESS_MAP_CKSUMV5) {
-		if (!maph->cd_bit) {
-			packet_len += sizeof(struct rmnet_map_v5_csum_header);
-
+	if ((port->data_format & RMNET_FLAGS_INGRESS_MAP_CKSUMV5) &&
+		!maph->cd_bit) {
 			/* Coalescing headers require MAPv5 */
 			next_hdr = data + sizeof(*maph);
 		}
-	}
-
-	if (((int)skb->len - (int)packet_len) < 0)
-		return NULL;
-
-	/* Some hardware can send us empty frames. Catch them */
-	if (ntohs(maph->pkt_len) == 0)
-		return NULL;
 
 	if (next_hdr &&
 	    ((struct rmnet_map_v5_coal_header *)next_hdr)->header_type ==

@@ -325,7 +325,10 @@ rmnet_map_ingress_handler(struct sk_buff *skb,
 
 	/* No aggregation. Pass the frame on as is */
 	if (!(port->data_format & RMNET_FLAGS_INGRESS_DEAGGREGATION)) {
-		__rmnet_map_ingress_handler(skb, port);
+		if (rmnet_map_validate_packet_len(skb, port))
+			__rmnet_map_ingress_handler(skb, port);
+		else
+			kfree_skb(skb);
 		return;
 	}
 
