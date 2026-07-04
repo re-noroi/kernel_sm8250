@@ -330,6 +330,21 @@ static void scan_and_kill(void)
 		/* Make the victim reap anonymous memory first in exit_mmap() */
 		set_bit(MMF_OOM_VICTIM, &mm->flags);
 
+		/*
+		 * Yield between kills to let RCU grace periods progress
+		 * and reduce scheduling contention from the thundering
+		 * herd of exiting victims.
+		 */
+		if (i)
+			cond_resched();
+
+		/*
+		 * Thaw the victim first so it can receive and process the
+		 * kill signal immediately. Signals can't wake frozen tasks;
+		 * only a thaw operation can.
+		 */
+		__thaw_task(vtsk);
+
 		/* Accelerate the victim's death by forcing the kill signal */
 		do_send_sig_info(SIGKILL, SEND_SIG_FORCED, vtsk, PIDTYPE_TGID);
 
@@ -337,27 +352,21 @@ static void scan_and_kill(void)
 			set_bit(MMF_SIMPLE_LMK_VICTIM, &mm->flags);
 
 		/*
-		 * Mark the thread group dead so that other kernel code knows,
-		 * and then elevate the thread group to SCHED_RR with minimum RT
-		 * priority. The entire group needs to be elevated because
-		 * there's no telling which threads have references to the mm as
-		 * well as which thread will happen to put the final reference
-		 * and release the mm's memory. If the mm is released from a
-		 * thread with low scheduling priority then it may take a very
-		 * long time for exit_mmap() to complete.
+		 * Mark the thread group dead so that other kernel code knows
+		 * to prioritize their memory allocation. TIF_MEMDIE is
+		 * sufficient for this - it tells the page allocator to
+		 * give these tasks priority without changing scheduling
+		 * class. Elevating to SCHED_RR causes RT throttling when
+		 * many processes are killed simultaneously, which can
+		 * trigger watchdog resets.
 		 */
 		rcu_read_lock();
 		for_each_thread(vtsk, t)
 			set_tsk_thread_flag(t, TIF_MEMDIE);
-		for_each_thread(vtsk, t)
-			set_task_rt_prio(t, 1);
 		rcu_read_unlock();
 
 		/* Allow the victim to run on any CPU. This won't schedule. */
 		set_cpus_allowed_ptr(vtsk, cpu_all_mask);
-
-		/* Signals can't wake frozen tasks; only a thaw operation can */
-		__thaw_task(vtsk);
 
 		/* Store the number of anon pages to sort victims for reaping */
 		victim->size = get_mm_counter(mm, MM_ANONPAGES);
