@@ -24,6 +24,9 @@
 /* Timeout in jiffies for each reclaim */
 #define RECLAIM_EXPIRES msecs_to_jiffies(CONFIG_ANDROID_SIMPLE_LMK_TIMEOUT_MSEC)
 
+/* Android oom_score_adj range is 0 to 1000 */
+#define ADJ_MAX 1000
+
 struct victim_info {
 	struct task_struct *tsk;
 	struct mm_struct *mm;
@@ -31,7 +34,7 @@ struct victim_info {
 };
 
 static struct victim_info victims[MAX_VICTIMS] __cacheline_aligned_in_smp;
-static struct task_struct *task_bucket[SHRT_MAX + 1] __cacheline_aligned;
+static struct task_struct *task_bucket[ADJ_MAX + 1] __cacheline_aligned;
 static DECLARE_WAIT_QUEUE_HEAD(oom_waitq);
 static DECLARE_WAIT_QUEUE_HEAD(reaper_waitq);
 static DECLARE_COMPLETION(reclaim_done);
@@ -71,7 +74,7 @@ static unsigned long get_total_mm_pages(struct mm_struct *mm)
 
 static unsigned long find_victims(int *vindex)
 {
-	short i, min_adj = SHRT_MAX, max_adj = 0;
+	short i, min_adj = ADJ_MAX, max_adj = 0;
 	unsigned long pages_found = 0;
 	struct task_struct *tsk;
 
@@ -90,7 +93,7 @@ static unsigned long find_victims(int *vindex)
 		 */
 		sig = tsk->signal;
 		adj = READ_ONCE(sig->oom_score_adj);
-		if (adj < 0 ||
+		if (adj < 0 || adj > ADJ_MAX ||
 		    sig->flags & (SIGNAL_GROUP_EXIT | SIGNAL_GROUP_COREDUMP) ||
 		    (thread_group_empty(tsk) && tsk->flags & PF_EXITING))
 			continue;
