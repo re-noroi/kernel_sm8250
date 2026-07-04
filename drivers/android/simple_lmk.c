@@ -55,9 +55,14 @@ static unsigned long get_target_free_pages(void)
 
 static int nr_victims;
 static bool reclaim_active;
+
+#define LMK_TIERS 3
+static const short tier_min_adj[LMK_TIERS] = { 800, 200, 1 };
+
 static atomic_t needs_reclaim = ATOMIC_INIT(0);
 static atomic_t needs_reap = ATOMIC_INIT(0);
 static atomic_t nr_killed = ATOMIC_INIT(0);
+static atomic_t target_min_adj = ATOMIC_INIT(tier_min_adj[0]);
 
 static int victim_cmp(const void *lhs_ptr, const void *rhs_ptr)
 {
@@ -105,6 +110,7 @@ static unsigned long get_total_mm_pages(struct mm_struct *mm)
 static unsigned long find_victims(int *vindex)
 {
 	short i, min_adj = ADJ_MAX, max_adj = 0;
+	short limit_adj = atomic_read(&target_min_adj);
 	unsigned long pages_found = 0;
 	unsigned long target_pages = get_target_free_pages();
 	struct task_struct *tsk;
@@ -129,7 +135,7 @@ static unsigned long find_victims(int *vindex)
 		 */
 		sig = tsk->signal;
 		adj = READ_ONCE(sig->oom_score_adj);
-		if (adj < 0 || adj > ADJ_MAX ||
+		if (adj < limit_adj || adj > ADJ_MAX ||
 		    sig->flags & (SIGNAL_GROUP_EXIT | SIGNAL_GROUP_COREDUMP) ||
 		    (thread_group_empty(tsk) && tsk->flags & PF_EXITING))
 			continue;
@@ -408,6 +414,31 @@ static void scan_and_kill(void)
 			   nr_free_pages() >= totalreserve_pages &&
 			   atomic_read(&needs_reap) == 0,
 			   msecs_to_jiffies(200));
+
+	/* If memory already recovered, skip escalation entirely */
+	if (nr_free_pages() >= totalreserve_pages)
+		goto deescalate;
+
+	/* Escalate PSI trigger if kill failed to free enough memory */
+	if (nr_free_pages() < totalreserve_pages) {
+		int current_adj = atomic_read(&target_min_adj);
+		if (current_adj == tier_min_adj[0])
+			atomic_set(&target_min_adj, tier_min_adj[1]);
+		else if (current_adj == tier_min_adj[1])
+			atomic_set(&target_min_adj, tier_min_adj[2]);
+
+		atomic_set(&needs_reclaim, 1);
+		if (waitqueue_active(&oom_waitq))
+			wake_up(&oom_waitq);
+	} else {
+deescalate:
+		/*
+		 * Memory recovered — de-escalate to least aggressive tier.
+		 * This prevents the driver from staying at a high kill tier
+		 * after a transient memory spike has resolved.
+		 */
+		atomic_set(&target_min_adj, tier_min_adj[0]);
+	}
 
 	/* Clean up for future reclaims but let the reaper thread keep going */
 	write_lock(&mm_free_lock);
