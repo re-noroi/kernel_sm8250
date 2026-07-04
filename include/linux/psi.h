@@ -26,6 +26,7 @@ int psi_show(struct seq_file *s, struct psi_group *group, enum psi_res res);
 struct psi_trigger *psi_trigger_create(struct psi_group *group,
 			char *buf, enum psi_res res);
 void psi_trigger_destroy(struct psi_trigger *t);
+void psi_trigger_set_waitq(struct psi_trigger *t, wait_queue_head_t *wq);
 
 __poll_t psi_trigger_poll(void **trigger_ptr, struct file *file,
 			poll_table *wait);
