@@ -12,7 +12,8 @@
 #include <linux/oom.h>
 #include <linux/sched/mm.h>
 #include <linux/sort.h>
-#include <linux/vmpressure.h>
+#include <linux/swap.h>
+#include <linux/psi.h>
 #include <uapi/linux/sched/types.h>
 
 /* The minimum number of pages to free per reclaim */
@@ -456,8 +457,13 @@ static int simple_lmk_reclaim_thread(void *data)
 
 	while (1) {
 		wait_event_freezable(oom_waitq, atomic_read(&needs_reclaim));
-		scan_and_kill();
+		/*
+		 * Clear needs_reclaim before scanning so that any escalation
+		 * signal set by scan_and_kill() (or a new PSI event arriving
+		 * during the scan) is not lost.
+		 */
 		atomic_set(&needs_reclaim, 0);
+		scan_and_kill();
 	}
 
 	return 0;
@@ -607,38 +613,98 @@ void simple_lmk_mm_freed(struct mm_struct *mm)
 		mmdrop(mm);
 }
 
-static int simple_lmk_vmpressure_cb(struct notifier_block *nb,
-				    unsigned long pressure, void *data)
+static struct psi_trigger *psi_triggers[LMK_TIERS];
+static DECLARE_WAIT_QUEUE_HEAD(psi_waitq);
+
+static int simple_lmk_psi_thread(void *data)
 {
-	if (pressure == 100) {
-		atomic_set(&needs_reclaim, 1);
-		smp_mb__after_atomic();
-		if (waitqueue_active(&oom_waitq))
+	set_task_rt_prio(current, MAX_RT_PRIO - 3);
+	set_freezable();
+
+	/* Wait for PSI triggers to be created before accessing them */
+	wait_for_completion(&psi_init_done);
+
+	while (!kthread_should_stop()) {
+		short min_adj = ADJ_MAX;
+
+		/*
+		 * Sleep until a PSI trigger fires or the timeout elapses.
+		 * wait_event_freezable_timeout checks try_to_freeze()
+		 * before sleeping, allowing the freezer to suspend us.
+		 */
+		wait_event_freezable_timeout(psi_waitq,
+					     cmpxchg(&psi_triggers[0]->event, 1, 0) ||
+					     cmpxchg(&psi_triggers[1]->event, 1, 0) ||
+					     cmpxchg(&psi_triggers[2]->event, 1, 0),
+					     msecs_to_jiffies(100));
+
+		/* Check triggers from highest to lowest severity */
+		if (cmpxchg(&psi_triggers[2]->event, 1, 0)) {
+			min_adj = tier_min_adj[2];
+		} else if (cmpxchg(&psi_triggers[1]->event, 1, 0)) {
+			min_adj = tier_min_adj[1];
+		} else if (cmpxchg(&psi_triggers[0]->event, 1, 0)) {
+			min_adj = tier_min_adj[0];
+		}
+
+		/*
+		 * Map PSI stall events to target adj levels.
+		 * reclaim_active is used to ensure we don't start a new cycle
+		 * while scan_and_kill is still in its settle phase.
+		 */
+		if (min_adj != ADJ_MAX && !reclaim_active) {
+			atomic_set(&target_min_adj, min_adj);
+			if (!atomic_xchg(&needs_reclaim, 1) && waitqueue_active(&oom_waitq))
 			wake_up(&oom_waitq);
 	}
+	}
 
-	return NOTIFY_OK;
+	return 0;
 }
-
-static struct notifier_block vmpressure_notif = {
-	.notifier_call = simple_lmk_vmpressure_cb,
-	.priority = INT_MAX
-};
 
 /* Initialize Simple LMK when lmkd in Android writes to the minfree parameter */
 static int simple_lmk_init_set(const char *val, const struct kernel_param *kp)
 {
 	static atomic_t init_done = ATOMIC_INIT(0);
 	struct task_struct *thread;
+	int thresholds[LMK_TIERS] = {
+		CONFIG_ANDROID_SIMPLE_LMK_PSI_THRESHOLD_LOW_US,
+		CONFIG_ANDROID_SIMPLE_LMK_PSI_THRESHOLD_MED_US,
+		CONFIG_ANDROID_SIMPLE_LMK_PSI_THRESHOLD_HIGH_US
+	};
+	int i;
 
 	if (!atomic_cmpxchg(&init_done, 0, 1)) {
 		thread = kthread_run(simple_lmk_reaper_thread, NULL,
 				     "simple_lmkd_reaper");
-		BUG_ON(IS_ERR(thread));
+		if (WARN_ON(IS_ERR(thread)))
+			return PTR_ERR(thread);
+
 		thread = kthread_run(simple_lmk_reclaim_thread, NULL,
 				     "simple_lmkd");
-		BUG_ON(IS_ERR(thread));
-		BUG_ON(vmpressure_notifier_register(&vmpressure_notif));
+		if (WARN_ON(IS_ERR(thread)))
+			return PTR_ERR(thread);
+
+		/*
+		 * Create PSI triggers before the PSI monitor thread so
+		 * the triggers are ready when the thread wakes up.
+		 */
+		for (i = 0; i < LMK_TIERS; i++) {
+			char buf[64];
+			snprintf(buf, sizeof(buf), "full %d %d", thresholds[i],
+				 CONFIG_ANDROID_SIMPLE_LMK_PSI_WINDOW_MS * 1000);
+			psi_triggers[i] = psi_trigger_create(&psi_system, buf, PSI_MEM);
+			if (WARN_ON(IS_ERR(psi_triggers[i])))
+				return PTR_ERR(psi_triggers[i]);
+			psi_trigger_set_waitq(psi_triggers[i], &psi_waitq);
+		}
+
+		thread = kthread_run(simple_lmk_psi_thread, NULL,
+				     "simple_lmkd_psi");
+		if (WARN_ON(IS_ERR(thread)))
+			return PTR_ERR(thread);
+
+		complete(&psi_init_done);
 	}
 
 	return 0;

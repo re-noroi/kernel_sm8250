@@ -87,14 +87,13 @@ config ANDROID_BINDER_LOGS
 
 config ANDROID_SIMPLE_LMK
 	bool "Simple Android Low Memory Killer"
-	depends on !ANDROID_LOW_MEMORY_KILLER && !MEMCG && !PSI
+	depends on !ANDROID_LOW_MEMORY_KILLER && !MEMCG && PSI
 	---help---
 	  This is a complete low memory killer solution for Android that is
 	  small and simple. Processes are killed according to the priorities
 	  that Android gives them, so that the least important processes are
 	  always killed first. Processes are killed until memory deficits are
-	  satisfied, as observed from direct reclaim and kswapd reclaim
-	  struggling to free up pages, via VM pressure notifications.
+	  satisfied, as observed from PSI stall notifications.
 
 if ANDROID_SIMPLE_LMK
 
@@ -115,6 +114,31 @@ config ANDROID_SIMPLE_LMK_TIMEOUT_MSEC
 	  which can block Simple LMK from killing more processes in time when
 	  needed. After the specified timeout elapses, Simple LMK will stop
 	  waiting and make itself available to kill more processes.
+
+config ANDROID_SIMPLE_LMK_PSI_WINDOW_MS
+	int "PSI polling window size in milliseconds"
+	default 1000
+	help
+	  PSI polling window size in milliseconds.
+
+config ANDROID_SIMPLE_LMK_PSI_THRESHOLD_LOW_US
+	int "PSI MEM_FULL stall threshold for tier-0 kills"
+	default 50000
+	help
+	  PSI MEM_FULL stall threshold (µs/window) for tier-0 kills
+	  (cached processes only, adj >= 800).
+
+config ANDROID_SIMPLE_LMK_PSI_THRESHOLD_MED_US
+	int "PSI MEM_FULL stall threshold for tier-1 kills"
+	default 100000
+	help
+	  Stall threshold (µs/window) for tier-1 kills (adj >= 200).
+
+config ANDROID_SIMPLE_LMK_PSI_THRESHOLD_HIGH_US
+	int "PSI MEM_FULL stall threshold for tier-2 kills"
+	default 150000
+	help
+	  Stall threshold (µs/window) for tier-2 kills (adj >= 1).
 
 endif
 
