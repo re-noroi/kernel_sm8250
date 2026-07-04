@@ -628,15 +628,14 @@ static int simple_lmk_psi_thread(void *data)
 		short min_adj = ADJ_MAX;
 
 		/*
-		 * Sleep until a PSI trigger fires or the timeout elapses.
-		 * wait_event_freezable_timeout checks try_to_freeze()
-		 * before sleeping, allowing the freezer to suspend us.
+		 * Sleep until a PSI trigger fires. wait_event_freezable
+		 * checks try_to_freeze() before sleeping, allowing the
+		 * freezer to suspend us.
 		 */
-		wait_event_freezable_timeout(psi_waitq,
-					     cmpxchg(&psi_triggers[0]->event, 1, 0) ||
-					     cmpxchg(&psi_triggers[1]->event, 1, 0) ||
-					     cmpxchg(&psi_triggers[2]->event, 1, 0),
-					     msecs_to_jiffies(100));
+		wait_event_freezable(psi_waitq,
+				     READ_ONCE(psi_triggers[0]->event) ||
+				     READ_ONCE(psi_triggers[1]->event) ||
+				     READ_ONCE(psi_triggers[2]->event));
 
 		/* Check triggers from highest to lowest severity */
 		if (cmpxchg(&psi_triggers[2]->event, 1, 0)) {
