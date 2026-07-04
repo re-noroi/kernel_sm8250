@@ -397,6 +397,18 @@ static void scan_and_kill(void)
 	if (!wait_for_completion_timeout(&reclaim_done, RECLAIM_EXPIRES))
 		pr_info("Timeout hit waiting for victims to die, proceeding\n");
 
+	/*
+	 * The kernel's memory accounting can lag behind the actual freeing of
+	 * memory. To avoid a "kill-loop" where we kill more processes than
+	 * necessary due to stale vmpressure events, wait for the system state
+	 * to actually recover. We wait until free pages reach a safe level
+	 * AND the reaper thread has finished its work.
+	 */
+	wait_event_timeout(oom_waitq,
+			   nr_free_pages() >= totalreserve_pages &&
+			   atomic_read(&needs_reap) == 0,
+			   msecs_to_jiffies(200));
+
 	/* Clean up for future reclaims but let the reaper thread keep going */
 	write_lock(&mm_free_lock);
 	reinit_completion(&reclaim_done);
