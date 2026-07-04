@@ -38,7 +38,20 @@ static struct task_struct *task_bucket[ADJ_MAX + 1] __cacheline_aligned;
 static DECLARE_WAIT_QUEUE_HEAD(oom_waitq);
 static DECLARE_WAIT_QUEUE_HEAD(reaper_waitq);
 static DECLARE_COMPLETION(reclaim_done);
+static DECLARE_COMPLETION(psi_init_done);
 static __cacheline_aligned_in_smp DEFINE_RWLOCK(mm_free_lock);
+
+static unsigned long get_target_free_pages(void)
+{
+	unsigned long deficit;
+
+	if (nr_free_pages() >= totalreserve_pages)
+		return MIN_FREE_PAGES;
+
+	deficit = totalreserve_pages - nr_free_pages();
+	return max_t(unsigned long, MIN_FREE_PAGES, deficit + (deficit >> 2));
+}
+
 static int nr_victims;
 static bool reclaim_active;
 static atomic_t needs_reclaim = ATOMIC_INIT(0);
@@ -76,6 +89,7 @@ static unsigned long find_victims(int *vindex)
 {
 	short i, min_adj = ADJ_MAX, max_adj = 0;
 	unsigned long pages_found = 0;
+	unsigned long target_pages = get_target_free_pages();
 	struct task_struct *tsk;
 
 	/*
@@ -185,7 +199,7 @@ drop_ref:
 		if (*vindex == old_vindex)
 			continue;
 
-		if (*vindex == MAX_VICTIMS || pages_found >= MIN_FREE_PAGES)
+		if (*vindex == MAX_VICTIMS || pages_found >= target_pages)
 			break;
 		}
 
@@ -207,6 +221,7 @@ drain_remaining:
 static int process_victims(int vlen)
 {
 	unsigned long pages_found = 0;
+	unsigned long target_pages = get_target_free_pages();
 	int i, nr_to_kill = 0;
 
 	/*
@@ -218,7 +233,7 @@ static int process_victims(int vlen)
 		struct task_struct *vtsk = victim->tsk;
 
 		/* The victim's mm and task refs were taken in find_victims */
-		if (pages_found >= MIN_FREE_PAGES) {
+		if (pages_found >= target_pages) {
 			mmdrop(victim->mm);
 			put_task_struct(vtsk);
 			victim->mm = NULL;
@@ -246,24 +261,7 @@ static void scan_and_kill(void)
 	static struct mm_struct *drop_mms[MAX_VICTIMS];
 	int i, nr_to_kill, nr_found = 0;
 	unsigned long pages_found;
-	int num_drop = 0;
-
-	/*
-	 * Reset nr_victims so the reaper thread and simple_lmk_mm_freed() are
-	 * aware that the victims array is no longer valid. Drop leftover mms.
-	 */
-	write_lock(&mm_free_lock);
-	for (i = 0; i < nr_victims; i++) {
-		if (victims[i].mm) {
-			drop_mms[num_drop++] = victims[i].mm;
-			victims[i].mm = NULL;
-		}
-	}
-	nr_victims = 0;
-	write_unlock(&mm_free_lock);
-
-	for (i = 0; i < num_drop; i++)
-		mmdrop(drop_mms[i]);
+	int num_drop;
 
 	/* Populate the victims array with tasks sorted by adj and then size */
 	pages_found = find_victims(&nr_found);
@@ -272,26 +270,12 @@ static void scan_and_kill(void)
 		return;
 	}
 
-	/* Minimize the number of victims if we found more pages than needed */
-	if (pages_found > MIN_FREE_PAGES) {
-		/* First round of processing to weed out unneeded victims */
+	/*
+	 * Sort all victims by size (descending) to kill largest first,
+	 * then select the minimum number needed to meet the target.
+	 */
+	sort(victims, nr_found, sizeof(*victims), victim_cmp, victim_swap);
 		nr_to_kill = process_victims(nr_found);
-
-		/*
-		 * Try to kill as few of the chosen victims as possible by
-		 * sorting the chosen victims by size, which means larger
-		 * victims that have a lower adj can be killed in place of
-		 * smaller victims with a high adj.
-		 */
-		sort(victims, nr_to_kill, sizeof(*victims), victim_cmp,
-		     victim_swap);
-
-		/* Second round of processing to finally select the victims */
-		nr_to_kill = process_victims(nr_to_kill);
-	} else {
-		/* Too few pages found, so all the victims need to be killed */
-		nr_to_kill = nr_found;
-	}
 
 	/*
 	 * Store the final number of victims for simple_lmk_mm_freed() and the
