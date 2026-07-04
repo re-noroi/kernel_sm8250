@@ -31,6 +31,7 @@ struct victim_info {
 	struct task_struct *tsk;
 	struct mm_struct *mm;
 	unsigned long size;
+	unsigned long score;
 };
 
 static struct victim_info victims[MAX_VICTIMS] __cacheline_aligned_in_smp;
@@ -63,7 +64,23 @@ static int victim_cmp(const void *lhs_ptr, const void *rhs_ptr)
 	const struct victim_info *lhs = (typeof(lhs))lhs_ptr;
 	const struct victim_info *rhs = (typeof(rhs))rhs_ptr;
 
-	return rhs->size - lhs->size;
+	if (rhs->score > lhs->score)
+		return 1;
+	if (rhs->score < lhs->score)
+		return -1;
+	return 0;
+}
+
+static int victim_cmp_size(const void *lhs_ptr, const void *rhs_ptr)
+{
+	const struct victim_info *lhs = (typeof(lhs))lhs_ptr;
+	const struct victim_info *rhs = (typeof(rhs))rhs_ptr;
+
+	if (rhs->size > lhs->size)
+		return 1;
+	if (rhs->size < lhs->size)
+		return -1;
+	return 0;
 }
 
 static void victim_swap(void *lhs_ptr, void *rhs_ptr, int size)
@@ -274,7 +291,7 @@ static void scan_and_kill(void)
 	 * Sort all victims by size (descending) to kill largest first,
 	 * then select the minimum number needed to meet the target.
 	 */
-	sort(victims, nr_found, sizeof(*victims), victim_cmp, victim_swap);
+	sort(victims, nr_found, sizeof(*victims), victim_cmp_size, victim_swap);
 		nr_to_kill = process_victims(nr_found);
 
 	/*
@@ -353,7 +370,10 @@ static void scan_and_kill(void)
 		set_cpus_allowed_ptr(vtsk, cpu_all_mask);
 
 		/* Store the number of anon pages to sort victims for reaping */
-		victim->size = get_mm_counter(mm, MM_ANONPAGES);
+		if (mm)
+			victim->score = get_mm_counter(mm, MM_ANONPAGES);
+		else
+			victim->score = 0;
 
 		/* We don't need the task_struct anymore */
 		put_task_struct(vtsk);
