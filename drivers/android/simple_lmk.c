@@ -333,6 +333,9 @@ static void scan_and_kill(void)
 		/* Accelerate the victim's death by forcing the kill signal */
 		do_send_sig_info(SIGKILL, SEND_SIG_FORCED, vtsk, PIDTYPE_TGID);
 
+		if (mm)
+			set_bit(MMF_SIMPLE_LMK_VICTIM, &mm->flags);
+
 		/*
 		 * Mark the thread group dead so that other kernel code knows,
 		 * and then elevate the thread group to SCHED_RR with minimum RT
@@ -515,7 +518,14 @@ void simple_lmk_mm_freed(struct mm_struct *mm)
 	 * Victims are guaranteed to have MMF_OOM_SKIP set after exit_mmap()
 	 * finishes. Use this to ignore unrelated dying processes.
 	 */
-	if (!test_bit(MMF_OOM_SKIP, &mm->flags))
+	if (!test_bit(MMF_OOM_SKIP, &mm->flags) || !test_bit(MMF_SIMPLE_LMK_VICTIM, &mm->flags))
+		return;
+
+	/*
+	 * Fast path: if no reclaim is active and the reaper is done, then
+	 * there's no need to search the victims array.
+	 */
+	if (!reclaim_active && !atomic_read(&needs_reap))
 		return;
 
 	write_lock(&mm_free_lock);
