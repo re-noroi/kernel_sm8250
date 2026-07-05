@@ -16,9 +16,6 @@
 #include <linux/psi.h>
 #include <uapi/linux/sched/types.h>
 
-/* The minimum number of pages to free per reclaim */
-#define MIN_FREE_PAGES (CONFIG_ANDROID_SIMPLE_LMK_MINFREE * SZ_1M / PAGE_SIZE)
-
 /* Kill up to this many victims per reclaim */
 #define MAX_VICTIMS 1024
 
@@ -48,10 +45,10 @@ static unsigned long get_target_free_pages(void)
 	unsigned long deficit;
 
 	if (nr_free_pages() >= totalreserve_pages)
-		return MIN_FREE_PAGES;
+		return 0;
 
 	deficit = totalreserve_pages - nr_free_pages();
-	return max_t(unsigned long, MIN_FREE_PAGES, deficit + (deficit >> 2));
+	return deficit + (deficit >> 2);
 }
 
 static int nr_victims;
