@@ -633,14 +633,14 @@ static int simple_lmk_psi_thread(void *data)
 
 		/*
 		 * Map PSI stall events to target adj levels.
-		 * reclaim_active is used to ensure we don't start a new cycle
-		 * while scan_and_kill is still in its settle phase.
+		 * reclaim_active gates new cycles while scan_and_kill
+		 * is still running.
 		 */
 		if (min_adj != ADJ_MAX && !READ_ONCE(reclaim_active)) {
 			atomic_set(&target_min_adj, min_adj);
 			if (!atomic_xchg(&needs_reclaim, 1) && waitqueue_active(&oom_waitq))
-			wake_up(&oom_waitq);
-	}
+				wake_up(&oom_waitq);
+		}
 	}
 
 	return 0;
