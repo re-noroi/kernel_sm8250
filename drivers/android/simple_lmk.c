@@ -17,7 +17,7 @@
 #include <uapi/linux/sched/types.h>
 
 /* Kill up to this many victims per reclaim */
-#define MAX_VICTIMS 1024
+#define MAX_VICTIMS 32
 
 /* Timeout in jiffies for each reclaim */
 #define RECLAIM_EXPIRES msecs_to_jiffies(CONFIG_ANDROID_SIMPLE_LMK_TIMEOUT_MSEC)
