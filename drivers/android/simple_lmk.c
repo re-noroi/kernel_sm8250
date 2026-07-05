@@ -306,7 +306,7 @@ static void scan_and_kill(void)
 	num_drop = 0;
 	write_lock(&mm_free_lock);
 	nr_victims = nr_to_kill;
-	reclaim_active = true;
+	WRITE_ONCE(reclaim_active, true);
 	for (i = 0; i < nr_to_kill; i++) {
 		struct mm_struct *mm = victims[i].mm;
 
@@ -429,7 +429,7 @@ static void scan_and_kill(void)
 	/* Clean up for future reclaims but let the reaper thread keep going */
 	write_lock(&mm_free_lock);
 	reinit_completion(&reclaim_done);
-	reclaim_active = false;
+	WRITE_ONCE(reclaim_active, false);
 	atomic_set(&nr_killed, 0);
 	write_unlock(&mm_free_lock);
 }
@@ -502,7 +502,7 @@ static struct mm_struct *next_reap_victim(void)
 		if (should_retry)
 			/* Return ERR_PTR(-EAGAIN) to try reaping again later */
 			mm = ERR_PTR(-EAGAIN);
-		else if (!reclaim_active)
+		else if (!READ_ONCE(reclaim_active))
 			/*
 			 * Nothing left to reap, so stop simple_lmk_mm_freed()
 			 * from iterating over the victims array since reclaim
@@ -572,7 +572,7 @@ void simple_lmk_mm_freed(struct mm_struct *mm)
 	 * Fast path: if no reclaim is active and the reaper is done, then
 	 * there's no need to search the victims array.
 	 */
-	if (!reclaim_active && !atomic_read(&needs_reap))
+	if (!READ_ONCE(reclaim_active) && !atomic_read(&needs_reap))
 		return;
 
 	write_lock(&mm_free_lock);
@@ -585,7 +585,7 @@ void simple_lmk_mm_freed(struct mm_struct *mm)
 			 * solely for the reaper thread to avoid freed victims.
 			 */
 			victims[i].mm = NULL;
-			if (reclaim_active &&
+			if (READ_ONCE(reclaim_active) &&
 			    atomic_inc_return_relaxed(&nr_killed) == nr_victims)
 				complete(&reclaim_done);
 			matched = true;
@@ -636,7 +636,7 @@ static int simple_lmk_psi_thread(void *data)
 		 * reclaim_active is used to ensure we don't start a new cycle
 		 * while scan_and_kill is still in its settle phase.
 		 */
-		if (min_adj != ADJ_MAX && !reclaim_active) {
+		if (min_adj != ADJ_MAX && !READ_ONCE(reclaim_active)) {
 			atomic_set(&target_min_adj, min_adj);
 			if (!atomic_xchg(&needs_reclaim, 1) && waitqueue_active(&oom_waitq))
 			wake_up(&oom_waitq);
