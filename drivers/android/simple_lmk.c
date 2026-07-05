@@ -400,8 +400,16 @@ static void scan_and_kill(void)
 	if (waitqueue_active(&reaper_waitq))
 		wake_up(&reaper_waitq);
 
-	/* Wait until all the victims die or until the timeout is reached */
-	if (!wait_for_completion_timeout(&reclaim_done, RECLAIM_EXPIRES))
+	/*
+	 * Wait until all the victims die, memory recovers, or timeout.
+	 * Checking nr_free_pages() allows us to proceed as soon as the
+	 * reaper thread or normal exit paths have freed enough memory,
+	 * even if not all victims have fully exited yet.
+	 */
+	if (!wait_event_timeout(oom_waitq,
+				atomic_read(&nr_killed) >= nr_victims ||
+				nr_free_pages() >= totalreserve_pages,
+				RECLAIM_EXPIRES))
 		pr_info("Timeout hit waiting for victims to die, proceeding\n");
 
 	/*
