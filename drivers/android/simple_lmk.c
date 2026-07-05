@@ -36,7 +36,6 @@ static struct victim_info victims[MAX_VICTIMS] __cacheline_aligned_in_smp;
 static struct task_struct *task_bucket[ADJ_MAX + 1] __cacheline_aligned;
 static DECLARE_WAIT_QUEUE_HEAD(oom_waitq);
 static DECLARE_WAIT_QUEUE_HEAD(reaper_waitq);
-static DECLARE_COMPLETION(reclaim_done);
 static DECLARE_COMPLETION(psi_init_done);
 static __cacheline_aligned_in_smp DEFINE_RWLOCK(mm_free_lock);
 
@@ -316,8 +315,6 @@ static void scan_and_kill(void)
 			atomic_inc(&nr_killed);
 		}
 	}
-	if (atomic_read(&nr_killed) >= nr_victims)
-		complete(&reclaim_done);
 	write_unlock(&mm_free_lock);
 
 	for (i = 0; i < num_drop; i++)
@@ -428,7 +425,6 @@ static void scan_and_kill(void)
 
 	/* Clean up for future reclaims but let the reaper thread keep going */
 	write_lock(&mm_free_lock);
-	reinit_completion(&reclaim_done);
 	WRITE_ONCE(reclaim_active, false);
 	atomic_set(&nr_killed, 0);
 	write_unlock(&mm_free_lock);
@@ -585,9 +581,8 @@ void simple_lmk_mm_freed(struct mm_struct *mm)
 			 * solely for the reaper thread to avoid freed victims.
 			 */
 			victims[i].mm = NULL;
-			if (READ_ONCE(reclaim_active) &&
-			    atomic_inc_return_relaxed(&nr_killed) == nr_victims)
-				complete(&reclaim_done);
+			if (READ_ONCE(reclaim_active))
+				atomic_inc(&nr_killed);
 			matched = true;
 			break;
 		}
