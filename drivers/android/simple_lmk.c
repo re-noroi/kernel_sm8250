@@ -363,7 +363,7 @@ static void scan_and_kill(void)
 	/* Kill the victims */
 	for (i = 0; i < nr_to_kill; i++) {
 		struct victim_info *victim = &victims[i];
-		struct task_struct *vtsk = victim->tsk;
+		struct task_struct *t, *vtsk = victim->tsk;
 		struct mm_struct *mm = victim->mm;
 
 		pr_info("Killing %s with adj %d to free %lu KiB\n", vtsk->comm,
@@ -389,10 +389,19 @@ static void scan_and_kill(void)
 		/*
 		 * Drop the victim's oom_score_adj to OOM_SCORE_ADJ_MIN.
 		 * This cleanly ensures Android and the kernel's scheduler
-		 * prioritize the dying task's teardown, avoiding reliance
-		 * on the fragile upstream TIF_MEMDIE flag.
+		 * prioritize the dying task's teardown.
 		 */
 		WRITE_ONCE(vtsk->signal->oom_score_adj, OOM_SCORE_ADJ_MIN);
+
+		/*
+		 * Mark the thread group dead so that the page allocator knows
+		 * to give these tasks emergency memory priority (ALLOC_NO_WATERMARKS).
+		 * Without this, victims stall during exit under extreme pressure.
+		 */
+		rcu_read_lock();
+		for_each_thread(vtsk, t)
+			set_tsk_thread_flag(t, TIF_MEMDIE);
+		rcu_read_unlock();
 
 		/* Allow the victim to run on any CPU. This won't schedule. */
 		set_cpus_allowed_ptr(vtsk, cpu_all_mask);
