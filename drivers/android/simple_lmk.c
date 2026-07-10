@@ -363,7 +363,7 @@ static void scan_and_kill(void)
 	/* Kill the victims */
 	for (i = 0; i < nr_to_kill; i++) {
 		struct victim_info *victim = &victims[i];
-		struct task_struct *t, *vtsk = victim->tsk;
+		struct task_struct *vtsk = victim->tsk;
 		struct mm_struct *mm = victim->mm;
 
 		pr_info("Killing %s with adj %d to free %lu KiB\n", vtsk->comm,
@@ -372,14 +372,6 @@ static void scan_and_kill(void)
 
 		/* Make the victim reap anonymous memory first in exit_mmap() */
 		set_bit(MMF_OOM_VICTIM, &mm->flags);
-
-		/*
-		 * Yield between kills to let RCU grace periods progress
-		 * and reduce scheduling contention from the thundering
-		 * herd of exiting victims.
-		 */
-		if (i)
-			cond_resched();
 
 		/*
 		 * Thaw the victim first so it can receive and process the
@@ -395,18 +387,12 @@ static void scan_and_kill(void)
 			set_bit(MMF_SIMPLE_LMK_VICTIM, &mm->flags);
 
 		/*
-		 * Mark the thread group dead so that other kernel code knows
-		 * to prioritize their memory allocation. TIF_MEMDIE is
-		 * sufficient for this - it tells the page allocator to
-		 * give these tasks priority without changing scheduling
-		 * class. Elevating to SCHED_RR causes RT throttling when
-		 * many processes are killed simultaneously, which can
-		 * trigger watchdog resets.
+		 * Drop the victim's oom_score_adj to OOM_SCORE_ADJ_MIN.
+		 * This cleanly ensures Android and the kernel's scheduler
+		 * prioritize the dying task's teardown, avoiding reliance
+		 * on the fragile upstream TIF_MEMDIE flag.
 		 */
-		rcu_read_lock();
-		for_each_thread(vtsk, t)
-			set_tsk_thread_flag(t, TIF_MEMDIE);
-		rcu_read_unlock();
+		WRITE_ONCE(vtsk->signal->oom_score_adj, OOM_SCORE_ADJ_MIN);
 
 		/* Allow the victim to run on any CPU. This won't schedule. */
 		set_cpus_allowed_ptr(vtsk, cpu_all_mask);
@@ -584,8 +570,8 @@ static int simple_lmk_reaper_thread(void *data)
 	set_freezable();
 
 	while (1) {
-		wait_event_freezable(reaper_waitq,
-				     atomic_cmpxchg_relaxed(&needs_reap, 1, 0));
+		wait_event_freezable(reaper_waitq, atomic_read(&needs_reap));
+		atomic_set(&needs_reap, 0);
 		reap_victims();
 	}
 
