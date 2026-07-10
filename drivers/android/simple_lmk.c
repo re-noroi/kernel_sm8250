@@ -14,7 +14,12 @@
 #include <linux/sort.h>
 #include <linux/swap.h>
 #include <linux/psi.h>
+#include <linux/tracepoint.h>
+#include <trace/events/oom.h>
 #include <uapi/linux/sched/types.h>
+
+/* Grace period in milliseconds for newly backgrounded apps */
+#define GRACE_PERIOD_MS 5000
 
 /* Kill up to this many victims per reclaim */
 #define MAX_VICTIMS 32
@@ -137,6 +142,18 @@ static unsigned long find_victims(int *vindex)
 		    sig->flags & (SIGNAL_GROUP_EXIT | SIGNAL_GROUP_COREDUMP) ||
 		    (thread_group_empty(tsk) && tsk->flags & PF_EXITING))
 			continue;
+
+		/*
+		 * If an app was just backgrounded, it enters the cached tier (>= tier_min_adj[0]).
+		 * Give it a grace period to prevent killing the app the user just left.
+		 * 
+		 * Only grant this luxury during mild preventative reclaims (Tier 0).
+		 * If pressure escalates to Tier 1/2, the system is starving — bypass
+		 * the grace period to ensure heavy apps (e.g. Games) don't cause panics.
+		 */
+		if (limit_adj == tier_min_adj[0] && adj >= tier_min_adj[0] &&
+		    time_before(jiffies, tsk->simple_lmk_cache_time + msecs_to_jiffies(GRACE_PERIOD_MS)))
+			adj--;
 
 		get_task_struct(tsk);
 		tsk->simple_lmk_next = task_bucket[adj];
@@ -641,6 +658,12 @@ static int simple_lmk_psi_thread(void *data)
 	return 0;
 }
 
+static void simple_lmk_oom_adj_probe(void *data, struct task_struct *task)
+{
+	if (task->signal->oom_score_adj >= tier_min_adj[0])
+		task->simple_lmk_cache_time = jiffies;
+}
+
 /* Initialize Simple LMK when lmkd in Android writes to the minfree parameter */
 static int simple_lmk_init_set(const char *val, const struct kernel_param *kp)
 {
@@ -682,6 +705,8 @@ static int simple_lmk_init_set(const char *val, const struct kernel_param *kp)
 				     "simple_lmkd_psi");
 		if (WARN_ON(IS_ERR(thread)))
 			return PTR_ERR(thread);
+
+		WARN_ON(register_trace_oom_score_adj_update(simple_lmk_oom_adj_probe, NULL));
 
 		complete(&psi_init_done);
 	}
