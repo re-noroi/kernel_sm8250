@@ -43,7 +43,18 @@ static DECLARE_WAIT_QUEUE_HEAD(reaper_waitq);
 static DECLARE_COMPLETION(psi_init_done);
 static __cacheline_aligned_in_smp DEFINE_RWLOCK(mm_free_lock);
 
-static unsigned long get_target_free_pages(void)
+static int nr_victims;
+static bool reclaim_active;
+
+#define LMK_TIERS 3
+static const short tier_min_adj[LMK_TIERS] = { 800, 200, 1 };
+
+static atomic_t needs_reclaim = ATOMIC_INIT(0);
+static atomic_t needs_reap = ATOMIC_INIT(0);
+static atomic_t nr_killed = ATOMIC_INIT(0);
+static atomic_t target_min_adj = ATOMIC_INIT(tier_min_adj[0]);
+
+static unsigned long get_target_free_pages(short limit_adj)
 {
 	unsigned long deficit;
 	struct sysinfo val;
@@ -59,24 +70,19 @@ static unsigned long get_target_free_pages(void)
 	 * the PSI stall is likely due to temporary reclaim latency, not a
 	 * true out-of-capacity situation. Cap the kill target to relieve
 	 * the immediate stall without nuking large background apps.
+	 *
+	 * Only trust swap capacity during mild Tier 0 pressure. If pressure
+	 * escalates (Tier 1/2), the system is starving — bypass the cap to
+	 * prevent swap-thrashing livelocks.
 	 */
-	si_swapinfo(&val);
-	if (val.freeswap > (totalram_pages() >> 3))
-		return min_t(unsigned long, deficit, 32 * SZ_1M / PAGE_SIZE);
+	if (limit_adj == tier_min_adj[0]) {
+		si_swapinfo(&val);
+		if (val.freeswap > (totalram_pages() >> 3))
+			return min_t(unsigned long, deficit, 32 * SZ_1M / PAGE_SIZE);
+	}
 
 	return deficit;
 }
-
-static int nr_victims;
-static bool reclaim_active;
-
-#define LMK_TIERS 3
-static const short tier_min_adj[LMK_TIERS] = { 800, 200, 1 };
-
-static atomic_t needs_reclaim = ATOMIC_INIT(0);
-static atomic_t needs_reap = ATOMIC_INIT(0);
-static atomic_t nr_killed = ATOMIC_INIT(0);
-static atomic_t target_min_adj = ATOMIC_INIT(tier_min_adj[0]);
 
 static int victim_cmp(const void *lhs_ptr, const void *rhs_ptr)
 {
@@ -126,7 +132,7 @@ static unsigned long find_victims(int *vindex)
 	short i, min_adj = ADJ_MAX, max_adj = 0;
 	short limit_adj = atomic_read(&target_min_adj);
 	unsigned long pages_found = 0;
-	unsigned long target_pages = get_target_free_pages();
+	unsigned long target_pages = get_target_free_pages(limit_adj);
 	struct task_struct *tsk;
 
 	/*
@@ -282,7 +288,8 @@ drain_remaining:
 static int process_victims(int vlen)
 {
 	unsigned long pages_found = 0;
-	unsigned long target_pages = get_target_free_pages();
+	short limit_adj = atomic_read(&target_min_adj);
+	unsigned long target_pages = get_target_free_pages(limit_adj);
 	int i, nr_to_kill = 0;
 
 	/*
