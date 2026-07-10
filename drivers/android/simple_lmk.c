@@ -47,13 +47,25 @@ static __cacheline_aligned_in_smp DEFINE_RWLOCK(mm_free_lock);
 static unsigned long get_target_free_pages(void)
 {
 	unsigned long deficit;
+	struct sysinfo val;
 
 	if (nr_free_pages() >= totalreserve_pages)
 		return 0;
 
 	deficit = totalreserve_pages - nr_free_pages();
-	/* ponytail: bump to >> 2 if underkill is observed */
-	return deficit + (deficit >> 3);
+	deficit += (deficit >> 3); /* 12.5% margin */
+
+	/*
+	 * If the system has abundant free swap/zRAM (> 12.5% of total RAM),
+	 * the PSI stall is likely due to temporary reclaim latency, not a
+	 * true out-of-capacity situation. Cap the kill target to relieve
+	 * the immediate stall without nuking large background apps.
+	 */
+	si_swapinfo(&val);
+	if (val.freeswap > (totalram_pages() >> 3))
+		return min_t(unsigned long, deficit, 32 * SZ_1M / PAGE_SIZE);
+
+	return deficit;
 }
 
 static int nr_victims;
