@@ -385,7 +385,8 @@ static void scan_and_kill(void)
 		 * kill signal immediately. Signals can't wake frozen tasks;
 		 * only a thaw operation can.
 		 */
-		__thaw_task(vtsk);
+		if (frozen(vtsk))
+			__thaw_task(vtsk);
 
 		/* Accelerate the victim's death by forcing the kill signal */
 		do_send_sig_info(SIGKILL, SEND_SIG_FORCED, vtsk, PIDTYPE_TGID);
