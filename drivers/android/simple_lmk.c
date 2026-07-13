@@ -684,11 +684,12 @@ static int simple_lmk_psi_thread(void *data)
 	return 0;
 }
 
-static void simple_lmk_oom_adj_probe(void *data, struct task_struct *task)
+void simple_lmk_update_adj(struct task_struct *task)
 {
 	if (task->signal->oom_score_adj >= tier_min_adj[0])
 		task->simple_lmk_cache_time = jiffies;
 }
+EXPORT_SYMBOL_GPL(simple_lmk_update_adj);
 
 static int simple_lmk_oom_notify(struct notifier_block *self,
 				 unsigned long val, void *data)
@@ -763,7 +764,7 @@ static int simple_lmk_init_set(const char *val, const struct kernel_param *kp)
 		if (WARN_ON(IS_ERR(thread)))
 			return PTR_ERR(thread);
 
-		WARN_ON(register_trace_oom_score_adj_update(simple_lmk_oom_adj_probe, NULL));
+		
 		WARN_ON(register_oom_notifier(&simple_lmk_oom_nb));
 
 		complete(&psi_init_done);
