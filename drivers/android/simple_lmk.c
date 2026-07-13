@@ -14,8 +14,7 @@
 #include <linux/sort.h>
 #include <linux/swap.h>
 #include <linux/psi.h>
-#include <linux/tracepoint.h>
-#include <trace/events/oom.h>
+
 #include <uapi/linux/sched/types.h>
 
 /* Grace period in milliseconds for newly backgrounded apps */
@@ -154,6 +153,18 @@ static unsigned long find_victims(int *vindex)
 		    sig->flags & (SIGNAL_GROUP_EXIT | SIGNAL_GROUP_COREDUMP) ||
 		    (thread_group_empty(tsk) && tsk->flags & PF_EXITING))
 			continue;
+
+		/*
+		 * If an app was just backgrounded, it enters the cached tier (>= tier_min_adj[0]).
+		 * Give it a grace period to prevent killing the app the user just left.
+		 * 
+		 * Only grant this luxury during mild preventative reclaims (Tier 0).
+		 * If pressure escalates to Tier 1/2, the system is starving — bypass
+		 * the grace period to ensure heavy apps (e.g. Games) don't cause panics.
+		 */
+		if (limit_adj == tier_min_adj[0] && adj >= tier_min_adj[0] &&
+		    time_before(jiffies, tsk->simple_lmk_cache_time + msecs_to_jiffies(GRACE_PERIOD_MS)))
+			adj--;
 
 		/*
 		 * If an app was just backgrounded, it enters the cached tier (>= tier_min_adj[0]).
