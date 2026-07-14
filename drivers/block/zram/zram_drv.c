@@ -58,14 +58,11 @@ static void zram_free_page(struct zram *zram, size_t index);
 static int zram_read_from_zspool(struct zram *zram, struct page *page,
 				 u32 index);
 
-#define slot_dep_map(zram, index) (&(zram)->table[(index)].dep_map)
-
-static void zram_slot_lock_init(struct zram *zram, u32 index)
+static void zram_slot_lock_init(struct zram *zram)
 {
 	static struct lock_class_key __key;
 
-	lockdep_init_map(slot_dep_map(zram, index), "zram->table[index].lock",
-			 &__key, 0);
+	lockdep_init_map(&zram->table_lock_map, "zram->table[index].lock", &__key, 0);
 }
 
 /*
@@ -85,8 +82,8 @@ static __must_check bool zram_slot_trylock(struct zram *zram, u32 index)
 	unsigned long *lock = &zram->table[index].flags;
 
 	if (!test_and_set_bit_lock(ZRAM_ENTRY_LOCK, lock)) {
-		mutex_acquire(slot_dep_map(zram, index), 0, 1, _RET_IP_);
-		lock_acquired(slot_dep_map(zram, index), _RET_IP_);
+		mutex_acquire(&zram->table_lock_map, 0, 1, _RET_IP_);
+		lock_acquired(&zram->table_lock_map, _RET_IP_);
 		return true;
 	}
 
@@ -97,16 +94,16 @@ static void zram_slot_lock(struct zram *zram, u32 index)
 {
 	unsigned long *lock = &zram->table[index].flags;
 
-	mutex_acquire(slot_dep_map(zram, index), 0, 0, _RET_IP_);
+	mutex_acquire(&zram->table_lock_map, 0, 0, _RET_IP_);
 	wait_on_bit_lock(lock, ZRAM_ENTRY_LOCK, TASK_UNINTERRUPTIBLE);
-	lock_acquired(slot_dep_map(zram, index), _RET_IP_);
+	lock_acquired(&zram->table_lock_map, _RET_IP_);
 }
 
 static void zram_slot_unlock(struct zram *zram, u32 index)
 {
 	unsigned long *lock = &zram->table[index].flags;
 
-	mutex_release(slot_dep_map(zram, index), 1, _RET_IP_);
+	mutex_release(&zram->table_lock_map, 1, _RET_IP_);
 	clear_and_wake_up_bit(ZRAM_ENTRY_LOCK, lock);
 }
 
@@ -1515,7 +1512,7 @@ static void zram_meta_free(struct zram *zram, u64 disksize)
 
 static bool zram_meta_alloc(struct zram *zram, u64 disksize)
 {
-	size_t num_pages, index;
+	size_t num_pages;
 
 	num_pages = disksize >> PAGE_SHIFT;
 	zram->table = vzalloc(array_size(num_pages, sizeof(*zram->table)));
@@ -1532,8 +1529,7 @@ static bool zram_meta_alloc(struct zram *zram, u64 disksize)
 	if (!huge_class_size)
 		huge_class_size = zs_huge_class_size(zram->mem_pool);
 
-	for (index = 0; index < num_pages; index++)
-		zram_slot_lock_init(zram, index);
+	zram_slot_lock_init(zram);
 
 	return true;
 }
