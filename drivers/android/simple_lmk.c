@@ -320,7 +320,22 @@ static void scan_and_kill(void)
 	/* Populate the victims array with tasks sorted by adj and then size */
 	pages_found = find_victims(&nr_found);
 	if (unlikely(!nr_found)) {
-		pr_err_ratelimited("No processes available to kill!\n");
+		/*
+		 * No victims at the current tier. If there's still a memory
+		 * deficit, escalate immediately to the next tier instead of
+		 * waiting for the next PSI event. Without this, the system
+		 * gets stuck at Tier 0 forever when all cached apps are
+		 * already dead but memory pressure continues.
+		 */
+		if (get_target_free_pages(atomic_read(&target_min_adj)) > 0) {
+			int current_adj = atomic_read(&target_min_adj);
+			if (current_adj == tier_min_adj[0])
+				atomic_set(&target_min_adj, tier_min_adj[1]);
+			else if (current_adj == tier_min_adj[1])
+				atomic_set(&target_min_adj, tier_min_adj[2]);
+			pr_info_ratelimited("Escalating to adj %d, no victims at current tier\n",
+					    atomic_read(&target_min_adj));
+		}
 		return;
 	}
 
