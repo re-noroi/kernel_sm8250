@@ -160,30 +160,6 @@ static unsigned long find_victims(int *vindex)
 		    (thread_group_empty(tsk) && tsk->flags & PF_EXITING))
 			continue;
 
-		/*
-		 * If an app was just backgrounded, it enters the cached tier (>= tier_min_adj[0]).
-		 * Give it a grace period to prevent killing the app the user just left.
-		 * 
-		 * Only grant this luxury during mild preventative reclaims (Tier 0).
-		 * If pressure escalates to Tier 1/2, the system is starving — bypass
-		 * the grace period to ensure heavy apps (e.g. Games) don't cause panics.
-		 */
-		if (limit_adj == tier_min_adj[0] && adj >= tier_min_adj[0] &&
-		    time_before(jiffies, tsk->simple_lmk_cache_time + msecs_to_jiffies(GRACE_PERIOD_MS)))
-			adj--;
-
-		/*
-		 * If an app was just backgrounded, it enters the cached tier (>= tier_min_adj[0]).
-		 * Give it a grace period to prevent killing the app the user just left.
-		 * 
-		 * Only grant this luxury during mild preventative reclaims (Tier 0).
-		 * If pressure escalates to Tier 1/2, the system is starving — bypass
-		 * the grace period to ensure heavy apps (e.g. Games) don't cause panics.
-		 */
-		if (limit_adj == tier_min_adj[0] && adj >= tier_min_adj[0] &&
-		    time_before(jiffies, tsk->simple_lmk_cache_time + msecs_to_jiffies(GRACE_PERIOD_MS)))
-			adj--;
-
 		get_task_struct(tsk);
 		tsk->simple_lmk_next = task_bucket[adj];
 		task_bucket[adj] = tsk;
@@ -217,6 +193,16 @@ static unsigned long find_victims(int *vindex)
 			unsigned long pages = 0;
 
 			next = tsk->simple_lmk_next;
+
+			/*
+			 * Grace period: protect recently backgrounded apps from
+			 * Tier 0 kills. When an app enters the cached tier
+			 * (adj >= 800), it gets a 5-second grace period.
+			 * Only applies during mild Tier 0 pressure.
+			 */
+			if (limit_adj == tier_min_adj[0] && i >= tier_min_adj[0] &&
+			    time_before(jiffies, tsk->simple_lmk_cache_time + msecs_to_jiffies(GRACE_PERIOD_MS)))
+				goto drop_ref;
 
 			rcu_read_lock();
 			vtsk = find_lock_task_mm(tsk);
