@@ -93,8 +93,8 @@ config ANDROID_SIMPLE_LMK
 	  small and simple. Processes are killed according to the priorities
 	  that Android gives them, so that the least important processes are
 	  always killed first. Processes are killed until memory deficits are
-	  satisfied, as observed from direct reclaim and kswapd reclaim
-	  struggling to free up pages, via VM pressure notifications.
+	  satisfied when direct reclaim or kswapd repeatedly struggle to free
+	  up pages.
 
 if ANDROID_SIMPLE_LMK
 
