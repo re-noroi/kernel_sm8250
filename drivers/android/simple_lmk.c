@@ -307,10 +307,13 @@ static void scan_and_kill(void)
 		 */
 		if (get_target_free_pages(atomic_read(&target_min_adj)) > 0) {
 			int current_adj = atomic_read(&target_min_adj);
-			if (current_adj == tier_min_adj[0])
+			if (current_adj == tier_min_adj[0]) {
 				atomic_set(&target_min_adj, tier_min_adj[1]);
-			else if (current_adj == tier_min_adj[1])
+				atomic_set(&needs_reclaim, 1);
+			} else if (current_adj == tier_min_adj[1]) {
 				atomic_set(&target_min_adj, tier_min_adj[2]);
+				atomic_set(&needs_reclaim, 1);
+			}
 			pr_info_ratelimited("Escalating to adj %d, no victims at current tier\n",
 					    atomic_read(&target_min_adj));
 		}
