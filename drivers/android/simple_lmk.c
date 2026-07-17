@@ -116,15 +116,10 @@ static void victim_swap(void *lhs_ptr, void *rhs_ptr, int size)
 	swap(*lhs, *rhs);
 }
 
-static unsigned long get_total_mm_pages(struct mm_struct *mm)
+static unsigned long get_reclaimable_pages(struct mm_struct *mm)
 {
-	unsigned long pages = 0;
-	int i;
-
-	for (i = 0; i < NR_MM_COUNTERS; i++)
-		pages += get_mm_counter(mm, i);
-
-	return pages;
+	return get_mm_counter(mm, MM_ANONPAGES) +
+	       get_mm_counter(mm, MM_SWAPENTS);
 }
 
 static unsigned long find_victims(int *vindex)
@@ -213,7 +208,7 @@ static unsigned long find_victims(int *vindex)
 				goto drop_ref;
 			}
 
-			pages = get_total_mm_pages(vtsk->mm);
+			pages = get_reclaimable_pages(vtsk->mm);
 			if (!pages) {
 				task_unlock(vtsk);
 				rcu_read_unlock();
