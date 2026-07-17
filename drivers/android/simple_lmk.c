@@ -57,29 +57,12 @@ static atomic_t target_min_adj = ATOMIC_INIT(tier_min_adj[0]);
 static unsigned long get_target_free_pages(short limit_adj)
 {
 	unsigned long deficit;
-	struct sysinfo val;
 
 	if (nr_free_pages() >= totalreserve_pages)
 		return 0;
 
 	deficit = totalreserve_pages - nr_free_pages();
 	deficit += (deficit >> 3); /* 12.5% margin */
-
-	/*
-	 * If the system has abundant free swap/zRAM (> 12.5% of total RAM),
-	 * the PSI stall is likely due to temporary reclaim latency, not a
-	 * true out-of-capacity situation. Cap the kill target to relieve
-	 * the immediate stall without nuking large background apps.
-	 *
-	 * Only trust swap capacity during mild Tier 0 pressure. If pressure
-	 * escalates (Tier 1/2), the system is starving — bypass the cap to
-	 * prevent swap-thrashing livelocks.
-	 */
-	if (limit_adj == tier_min_adj[0]) {
-		si_swapinfo(&val);
-		if (val.freeswap > (totalram_pages() >> 3))
-			return min_t(unsigned long, deficit, 32 * SZ_1M / PAGE_SIZE);
-	}
 
 	return deficit;
 }
