@@ -41,7 +41,6 @@ static struct task_struct *task_bucket[ADJ_MAX + 1] __cacheline_aligned;
 static DECLARE_WAIT_QUEUE_HEAD(oom_waitq);
 static DECLARE_WAIT_QUEUE_HEAD(reaper_waitq);
 static DECLARE_COMPLETION(psi_init_done);
-static __cacheline_aligned_in_smp DEFINE_RWLOCK(mm_free_lock);
 
 static int nr_victims;
 static bool reclaim_active;
@@ -332,7 +331,6 @@ static void scan_and_kill(void)
 	 * reaper thread, and indicate that reclaim is active.
 	 */
 	num_drop = 0;
-	write_lock(&mm_free_lock);
 	nr_victims = nr_to_kill;
 	WRITE_ONCE(reclaim_active, true);
 	for (i = 0; i < nr_to_kill; i++) {
@@ -344,7 +342,6 @@ static void scan_and_kill(void)
 			atomic_inc(&nr_killed);
 		}
 	}
-	write_unlock(&mm_free_lock);
 
 	for (i = 0; i < num_drop; i++)
 		mmdrop(drop_mms[i]);
@@ -413,12 +410,10 @@ static void scan_and_kill(void)
 	 * pages first. Then wake the reaper thread if it's asleep. The lock
 	 * orders the needs_reap store before waitqueue_active().
 	 */
-	write_lock(&mm_free_lock);
 	sort(victims, nr_to_kill, sizeof(*victims), victim_cmp, victim_swap);
 	atomic_set(&needs_reap, 1);
 	WRITE_ONCE(reclaim_active, false);
 	atomic_set(&nr_killed, 0);
-	write_unlock(&mm_free_lock);
 	if (waitqueue_active(&reaper_waitq))
 		wake_up(&reaper_waitq);
 }
@@ -449,42 +444,35 @@ static struct mm_struct *next_reap_victim(void)
 	bool should_retry = false;
 	int i;
 
-	/* Take a write lock so no victim's mm can be freed while scanning */
-	write_lock(&mm_free_lock);
+	/*
+	 * We no longer take mm_free_lock here because cmpxchg protects victims[i].mm
+	 * in simple_lmk_mm_freed. We take a reference instead.
+	 */
 	for (i = 0; i < nr_victims; i++, mm = NULL) {
 		/* Check if this victim is alive and hasn't been reaped yet */
-		mm = victims[i].mm;
+		mm = READ_ONCE(victims[i].mm);
 		if (!mm || test_bit(MMF_OOM_SKIP, &mm->flags))
+			continue;
+
+		if (!mmget_not_zero(mm))
 			continue;
 
 		/* Do a trylock so the reaper thread doesn't sleep */
 		if (!down_read_trylock(&mm->mmap_sem)) {
+			mmput(mm);
 			should_retry = true;
-			continue;
-		}
-
-		/*
-		 * If mm_users is 0, __mmput is running. exit_mmap tears down
-		 * VMAs without holding mmap_lock at the end. We must skip
-		 * to avoid use-after-free when walking VMAs.
-		 */
-		if (!atomic_read(&mm->mm_users)) {
-			up_read(&mm->mmap_sem);
 			continue;
 		}
 
 		/*
 		 * Check MMF_OOM_SKIP again under the lock in case this mm was
 		 * reaped by exit_mmap() and then had its page tables destroyed.
-		 * No mmgrab() is needed because the reclaim thread sets
-		 * MMF_OOM_VICTIM under task_lock() for the mm's task, which
-		 * guarantees that MMF_OOM_VICTIM is always set before the
-		 * victim mm can enter exit_mmap(). Therefore, an mmap read lock
-		 * is sufficient to keep the mm struct itself from being freed.
 		 */
 		if (!test_bit(MMF_OOM_SKIP, &mm->flags))
 			break;
+
 		up_read(&mm->mmap_sem);
+		mmput(mm);
 	}
 
 	if (!mm) {
@@ -499,7 +487,6 @@ static struct mm_struct *next_reap_victim(void)
 			 */
 			nr_victims = 0;
 	}
-	write_unlock(&mm_free_lock);
 
 	return mm;
 }
@@ -524,6 +511,7 @@ static void reap_victims(void)
 			set_bit(MMF_OOM_SKIP, &mm->flags);
 		}
 		up_read(&mm->mmap_sem);
+		mmput(mm);
 
 		/* Yield to let RCU grace periods and other work proceed */
 		cond_resched();
@@ -564,23 +552,16 @@ void simple_lmk_mm_freed(struct mm_struct *mm)
 	if (!READ_ONCE(reclaim_active) && !atomic_read(&needs_reap))
 		return;
 
-	write_lock(&mm_free_lock);
 	for (i = 0; i < nr_victims; i++) {
-		if (victims[i].mm == mm) {
-			/*
-			 * Clear out this victim from the victims array and only
-			 * increment nr_killed if reclaim is active. If reclaim
-			 * isn't active, then clearing out the victim is done
-			 * solely for the reaper thread to avoid freed victims.
-			 */
-			victims[i].mm = NULL;
-			if (READ_ONCE(reclaim_active))
-				atomic_inc(&nr_killed);
-			matched = true;
-			break;
+		if (READ_ONCE(victims[i].mm) == mm) {
+			if (cmpxchg(&victims[i].mm, mm, NULL) == mm) {
+				if (READ_ONCE(reclaim_active))
+					atomic_inc(&nr_killed);
+				matched = true;
+				break;
+			}
 		}
 	}
-	write_unlock(&mm_free_lock);
 
 	if (matched)
 		mmdrop(mm);
