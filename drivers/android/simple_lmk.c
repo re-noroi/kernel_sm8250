@@ -413,43 +413,11 @@ static void scan_and_kill(void)
 	write_lock(&mm_free_lock);
 	sort(victims, nr_to_kill, sizeof(*victims), victim_cmp, victim_swap);
 	atomic_set(&needs_reap, 1);
-	write_unlock(&mm_free_lock);
-	if (waitqueue_active(&reaper_waitq))
-		wake_up(&reaper_waitq);
-
-	/*
-	 * Wait until all victims die and the reaper finishes, memory
-	 * recovers, or timeout. Folding the reaper check here eliminates
-	 * the separate settle wait — if accounting lags and PSI fires
-	 * again, the next cycle's get_target_free_pages() sees a small
-	 * or zero deficit and kills little or nothing.
-	 */
-	if (!wait_event_timeout(oom_waitq,
-				(atomic_read(&nr_killed) >= nr_victims &&
-				 !atomic_read(&needs_reap)) ||
-				nr_free_pages() >= totalreserve_pages,
-				RECLAIM_EXPIRES))
-		pr_info("Timeout hit waiting for victims to die, proceeding\n");
-
-	if (nr_free_pages() >= totalreserve_pages) {
-		atomic_set(&target_min_adj, tier_min_adj[0]);
-	} else {
-		int current_adj = atomic_read(&target_min_adj);
-		if (current_adj == tier_min_adj[0])
-			atomic_set(&target_min_adj, tier_min_adj[1]);
-		else if (current_adj == tier_min_adj[1])
-			atomic_set(&target_min_adj, tier_min_adj[2]);
-
-		atomic_set(&needs_reclaim, 1);
-		if (waitqueue_active(&oom_waitq))
-			wake_up(&oom_waitq);
-	}
-
-	/* Clean up for future reclaims but let the reaper thread keep going */
-	write_lock(&mm_free_lock);
 	WRITE_ONCE(reclaim_active, false);
 	atomic_set(&nr_killed, 0);
 	write_unlock(&mm_free_lock);
+	if (waitqueue_active(&reaper_waitq))
+		wake_up(&reaper_waitq);
 }
 
 static int simple_lmk_reclaim_thread(void *data)
