@@ -654,13 +654,12 @@ static int simple_lmk_oom_notify(struct notifier_block *self,
 
 	/*
 	 * If the core OOM killer fired but PSI didn't catch it (e.g. huge
-	 * sudden allocation), force a synchronous kill cycle.
+	 * sudden allocation), force an asynchronous kill cycle at max tier.
 	 */
-	atomic_set(&target_min_adj, tier_min_adj[0]);
-	scan_and_kill();
-
-	if (atomic_read(&nr_killed) > 0)
-		*freed = 1;
+	atomic_set(&target_min_adj, tier_min_adj[2]);
+	atomic_set(&needs_reclaim, 1);
+	if (waitqueue_active(&oom_waitq))
+		wake_up(&oom_waitq);
 
 	return NOTIFY_OK;
 }
