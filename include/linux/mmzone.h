@@ -702,6 +702,7 @@ typedef struct pglist_data {
 	wait_queue_head_t kcompressd_wait;
 	struct task_struct *kcompressd;
 	struct kfifo kcompress_fifo;
+	spinlock_t kcompress_fifo_lock;
 
 #ifdef CONFIG_COMPACTION
 	int kcompactd_max_order;

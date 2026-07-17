@@ -720,5 +720,7 @@ static inline bool mem_cgroup_swap_full(struct page *page)
 }
 #endif
 
+extern int vm_kcompressd;
+
 #endif /* __KERNEL__*/
 #endif /* _LINUX_SWAP_H */
