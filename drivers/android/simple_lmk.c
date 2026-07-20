@@ -101,10 +101,30 @@ static void victim_swap(void *lhs_ptr, void *rhs_ptr, int size)
 	swap(*lhs, *rhs);
 }
 
-static unsigned long get_reclaimable_pages(struct mm_struct *mm)
+static unsigned long get_time_decayed_pages(struct task_struct *tsk, struct mm_struct *mm)
 {
-	return get_mm_counter(mm, MM_ANONPAGES) +
-	       get_mm_counter(mm, MM_SWAPENTS);
+	unsigned long anon_pages = get_mm_counter(mm, MM_ANONPAGES);
+	unsigned long swap_pages = get_mm_counter(mm, MM_SWAPENTS);
+	unsigned long cache_time = tsk->simple_lmk_cache_time;
+
+	/* If not cached, or cache_time not set, it's hot (low weight) */
+	if (tsk->signal->oom_score_adj < tier_min_adj[0] || !cache_time)
+		return (anon_pages >> 2) + swap_pages;
+
+	/* 
+	 * Calculate decay based on time spent in background.
+	 */
+	unsigned long age_jiffies = jiffies - cache_time;
+	int shift;
+
+	if (age_jiffies > 60 * HZ)         /* > 60 seconds: 100% weight */
+		shift = 0;
+	else if (age_jiffies > 30 * HZ)    /* > 30 seconds: 50% weight */
+		shift = 1;
+	else                               /* < 30 seconds: 25% weight */
+		shift = 2;
+
+	return (anon_pages >> shift) + swap_pages;
 }
 
 static unsigned long find_victims(int *vindex)
@@ -193,7 +213,7 @@ static unsigned long find_victims(int *vindex)
 				goto drop_ref;
 			}
 
-			pages = get_reclaimable_pages(vtsk->mm);
+			pages = get_time_decayed_pages(tsk, vtsk->mm);
 			if (!pages) {
 				task_unlock(vtsk);
 				rcu_read_unlock();
