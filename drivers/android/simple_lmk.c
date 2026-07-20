@@ -45,6 +45,9 @@ static DECLARE_COMPLETION(psi_init_done);
 static int nr_victims;
 static bool reclaim_active;
 
+/* Lock to serialize execution of scan_and_kill() */
+static unsigned long lmk_lock;
+
 #define LMK_TIERS 3
 static const short tier_min_adj[LMK_TIERS] = { 800, 200, 1 };
 
@@ -432,7 +435,12 @@ static int simple_lmk_reclaim_thread(void *data)
 		 * during the scan) is not lost.
 		 */
 		atomic_set(&needs_reclaim, 0);
-		scan_and_kill();
+		
+		/* Acquire the lock before scanning */
+		if (!test_and_set_bit(0, &lmk_lock)) {
+			scan_and_kill();
+			clear_bit(0, &lmk_lock);
+		}
 	}
 
 	return 0;
@@ -628,22 +636,36 @@ static int simple_lmk_oom_notify(struct notifier_block *self,
 	unsigned long *freed = data;
 
 	/*
-	 * If PSI reclaim is already active, we are handling the pressure.
-	 * Tell the core OOM killer we freed memory to abort its panic.
+	 * If the lock is contended, the async thread is currently executing
+	 * scan_and_kill(). Tell the core OOM killer we are handling it to
+	 * avoid a dual-kill collision.
 	 */
-	if (READ_ONCE(reclaim_active) || atomic_read(&needs_reclaim)) {
+	if (test_and_set_bit(0, &lmk_lock)) {
 		*freed = 1;
 		return NOTIFY_OK;
 	}
 
 	/*
-	 * If the core OOM killer fired but PSI didn't catch it (e.g. huge
-	 * sudden allocation), force an asynchronous kill cycle at max tier.
+	 * We acquired the lock. This is an uncaught OOM event (e.g. huge
+	 * sudden allocation) that PSI missed. Force a synchronous kill cycle
+	 * at max tier.
 	 */
 	atomic_set(&target_min_adj, tier_min_adj[2]);
-	atomic_set(&needs_reclaim, 1);
-	if (waitqueue_active(&oom_waitq))
-		wake_up(&oom_waitq);
+	scan_and_kill();
+
+	/*
+	 * Accurately report success back to the core OOM killer. If we
+	 * secured victims (nr_victims > 0), tell the core kernel we freed
+	 * memory. If we failed to find any victims, leave *freed = 0 to
+	 * allow the core OOM killer to terminate the deadlock.
+	 */
+	if (nr_victims > 0)
+		*freed = 1;
+	else
+		*freed = 0;
+
+	/* Release the lock */
+	clear_bit(0, &lmk_lock);
 
 	return NOTIFY_OK;
 }
