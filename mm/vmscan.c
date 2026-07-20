@@ -1041,6 +1041,12 @@ enum page_references {
 	PAGEREF_ACTIVATE,
 };
 
+static inline bool is_exec_file_page(struct page *page,
+				     unsigned long vm_flags)
+{
+	return (vm_flags & VM_EXEC) && page_is_file_cache(page);
+}
+
 static enum page_references page_check_references(struct page *page,
 						  struct scan_control *sc)
 {
@@ -1087,7 +1093,7 @@ static enum page_references page_check_references(struct page *page,
 		/*
 		 * Activate file-backed executable pages after first usage.
 		 */
-		if (vm_flags & VM_EXEC)
+		if (is_exec_file_page(page, vm_flags))
 			return PAGEREF_ACTIVATE;
 
 		return PAGEREF_KEEP;
@@ -2230,7 +2236,7 @@ static void shrink_active_list(unsigned long nr_to_scan,
 			 * IO, plus JVM can create lots of anon VM_EXEC pages,
 			 * so we ignore them here.
 			 */
-			if ((vm_flags & VM_EXEC) && page_is_file_cache(page)) {
+			if (is_exec_file_page(page, vm_flags)) {
 				nr_rotated += hpage_nr_pages(page);
 				list_add(&page->lru, &l_active);
 				continue;
