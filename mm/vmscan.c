@@ -1047,6 +1047,38 @@ static inline bool is_exec_file_page(struct page *page,
 	return (vm_flags & VM_EXEC) && page_is_file_cache(page);
 }
 
+#ifdef CONFIG_LRU_GEN
+
+/*
+ * Only used on a mapped page in the eviction (rmap walk) path, where promotion
+ * needs to be done by taking the page off the LRU list and then adding it back
+ * with PG_active set. In contrast, the aging (page table walk) path uses
+ * page_update_gen().
+ */
+static bool lru_gen_set_refs(struct page *page, unsigned long vm_flags)
+{
+	/* see the comment on LRU_REFS_FLAGS */
+	if (!PageReferenced(page) && !PageWorkingset(page)) {
+		/* Activate file-backed executable pages after first usage. */
+		if (is_exec_file_page(page, vm_flags)) {
+			set_mask_bits(&page->flags, LRU_REFS_FLAGS, BIT(PG_workingset));
+			return true;
+		}
+
+		set_mask_bits(&page->flags, LRU_REFS_MASK, BIT(PG_referenced));
+		return false;
+	}
+
+	set_mask_bits(&page->flags, LRU_REFS_FLAGS, BIT(PG_workingset));
+	return true;
+}
+#else
+static bool lru_gen_set_refs(struct page *page, unsigned long vm_flags)
+{
+	return false;
+}
+#endif /* CONFIG_LRU_GEN */
+
 static enum page_references page_check_references(struct page *page,
 						  struct scan_control *sc)
 {
@@ -1067,6 +1099,13 @@ static enum page_references page_check_references(struct page *page,
 	/* rmap lock contention: rotate */
 	if (referenced_ptes == -1)
 		return PAGEREF_KEEP;
+
+	if (lru_gen_enabled()) {
+		if (!referenced_ptes)
+			return PAGEREF_RECLAIM;
+
+		return lru_gen_set_refs(page, vm_flags) ? PAGEREF_ACTIVATE : PAGEREF_KEEP;
+	}
 
 	if (referenced_ptes) {
 		if (PageSwapBacked(page))
@@ -3168,12 +3207,23 @@ static bool positive_ctrl_err(struct ctrl_pos *sp, struct ctrl_pos *pv)
  *                          the aging
  ******************************************************************************/
 
-static int page_update_gen(struct page *page, int gen)
+static int page_update_gen(struct page *page, int gen, unsigned long vm_flags)
 {
 	unsigned long new_flags, old_flags;
 
 	VM_WARN_ON_ONCE(gen >= MAX_NR_GENS);
 	VM_WARN_ON_ONCE(!rcu_read_lock_held());
+
+	/*
+	 * See the comment on LRU_REFS_FLAGS, and activate file-backed
+	 * executable pages after first usage to avoid typical IO
+	 * thrashing from reclaiming.
+	 */
+	if (!PageReferenced(page) && !PageWorkingset(page) &&
+	    !is_exec_file_page(page, vm_flags)) {
+		set_mask_bits(&page->flags, LRU_REFS_MASK, BIT(PG_referenced));
+		return -1;
+	}
 
 	do {
 		old_flags = READ_ONCE(page->flags);
@@ -3450,7 +3500,7 @@ restart:
 		    !(PageAnon(page) && PageSwapBacked(page) && !PageSwapCache(page)))
 			set_page_dirty(page);
 
-		old_gen = page_update_gen(page, new_gen);
+		old_gen = page_update_gen(page, new_gen, walk->vma->vm_flags);
 		if (old_gen >= 0 && old_gen != new_gen)
 			update_batch_size(priv, page, old_gen, new_gen);
 	}
@@ -3529,7 +3579,7 @@ static void walk_pmd_range_locked(pud_t *pud, unsigned long next, struct vm_area
 		    !(PageAnon(page) && PageSwapBacked(page) && !PageSwapCache(page)))
 			set_page_dirty(page);
 
-		old_gen = page_update_gen(page, new_gen);
+		old_gen = page_update_gen(page, new_gen, vma->vm_flags);
 		if (old_gen >= 0 && old_gen != new_gen)
 			update_batch_size(priv, page, old_gen, new_gen);
 next:
@@ -4217,7 +4267,7 @@ void lru_gen_look_around(struct page_vma_mapped_walk *pvmw)
 		if (page_memcg_rcu(page) != memcg)
 			continue;
 
-		old_gen = page_update_gen(page, new_gen);
+		old_gen = page_update_gen(page, new_gen, vma->vm_flags);
 		if (old_gen < 0 || old_gen == new_gen)
 			continue;
 
