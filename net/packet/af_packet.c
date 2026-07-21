@@ -89,6 +89,7 @@
 #include <linux/errqueue.h>
 #include <linux/net_tstamp.h>
 #include <linux/percpu.h>
+#include <linux/workqueue.h>
 #ifdef CONFIG_INET
 #include <net/inet_common.h>
 #endif
@@ -1340,6 +1341,8 @@ static void packet_sock_destruct(struct sock *sk)
 	WARN_ON(atomic_read(&sk->sk_rmem_alloc));
 	WARN_ON(refcount_read(&sk->sk_wmem_alloc));
 
+	packet_free_pending(pkt_sk(sk));
+
 	if (!sock_flag(sk, SOCK_DEAD)) {
 		pr_err("Attempt to release alive packet socket: %p\n", sk);
 		return;
@@ -2488,11 +2491,11 @@ static void tpacket_destruct_skb(struct sk_buff *skb)
 		__u32 ts;
 
 		ph = skb_zcopy_get_nouarg(skb);
-		packet_dec_pending(&po->tx_ring);
 
 		ts = __packet_set_timestamp(po, ph, skb);
 		__packet_set_status(po, ph, TP_STATUS_AVAILABLE | ts);
 
+		packet_dec_pending(&po->tx_ring);
 		complete(&po->skb_completion);
 	}
 
@@ -3148,7 +3151,6 @@ static int packet_release(struct socket *sock)
 	/* Purge queues */
 
 	skb_queue_purge(&sk->sk_receive_queue);
-	packet_free_pending(po);
 	sk_refcnt_debug_release(sk);
 
 	sock_put(sk);
@@ -4299,8 +4301,16 @@ static const struct vm_operations_struct packet_mmap_ops = {
 	.close	=	packet_mm_close,
 };
 
-static void free_pg_vec(struct pgv *pg_vec, unsigned int order,
-			unsigned int len)
+struct packet_pg_vec_free {
+	struct delayed_work work;
+	struct sock *sk;
+	struct pgv *pg_vec;
+	unsigned int order;
+	unsigned int len;
+};
+
+static void __free_pg_vec(struct pgv *pg_vec, unsigned int order,
+			  unsigned int len)
 {
 	int i;
 
@@ -4315,6 +4325,69 @@ static void free_pg_vec(struct pgv *pg_vec, unsigned int order,
 		}
 	}
 	kfree(pg_vec);
+}
+
+static void packet_wait_for_tx_skbs(struct packet_sock *po)
+{
+	while (sk_wmem_alloc_get(&po->sk))
+		wait_for_completion_timeout(&po->skb_completion, 1);
+}
+
+static void packet_free_pg_vec_work(struct work_struct *work)
+{
+	struct packet_pg_vec_free *deferred;
+	struct sock *sk;
+
+	deferred = container_of(to_delayed_work(work),
+				struct packet_pg_vec_free, work);
+	sk = deferred->sk;
+	if (sk_wmem_alloc_get(sk)) {
+		queue_delayed_work(system_long_wq, &deferred->work, 1);
+		return;
+	}
+
+	__free_pg_vec(deferred->pg_vec, deferred->order, deferred->len);
+	kfree(deferred);
+	sock_put(sk);
+}
+
+static bool pg_vec_has_vmalloc(struct pgv *pg_vec, unsigned int len)
+{
+	int i;
+
+	for (i = 0; i < len; i++)
+		if (pg_vec[i].buffer && is_vmalloc_addr(pg_vec[i].buffer))
+			return true;
+
+	return false;
+}
+
+static void free_pg_vec(struct packet_sock *po, struct pgv *pg_vec,
+			unsigned int order, unsigned int len)
+{
+	struct packet_pg_vec_free *deferred;
+
+	if (!pg_vec_has_vmalloc(pg_vec, len) ||
+	    !packet_read_pending(&po->tx_ring)) {
+		__free_pg_vec(pg_vec, order, len);
+		return;
+	}
+
+	deferred = kmalloc(sizeof(*deferred), GFP_KERNEL);
+	if (!deferred) {
+		packet_wait_for_tx_skbs(po);
+		__free_pg_vec(pg_vec, order, len);
+		return;
+	}
+
+	INIT_DELAYED_WORK(&deferred->work, packet_free_pg_vec_work);
+	deferred->sk = &po->sk;
+	deferred->pg_vec = pg_vec;
+	deferred->order = order;
+	deferred->len = len;
+
+	sock_hold(deferred->sk);
+	queue_delayed_work(system_long_wq, &deferred->work, 0);
 }
 
 static char *alloc_one_pg_vec_page(unsigned long order)
@@ -4362,7 +4435,7 @@ out:
 	return pg_vec;
 
 out_free_pgvec:
-	free_pg_vec(pg_vec, order, block_nr);
+	__free_pg_vec(pg_vec, order, block_nr);
 	pg_vec = NULL;
 	goto out;
 }
@@ -4532,7 +4605,10 @@ static int packet_set_ring(struct sock *sk, union tpacket_req_u *req_u,
 out_free_pg_vec:
 	if (pg_vec) {
 		bitmap_free(rx_owner_map);
-		free_pg_vec(pg_vec, order, req->tp_block_nr);
+		if (tx_ring && closing)
+			free_pg_vec(po, pg_vec, order, req->tp_block_nr);
+		else
+			__free_pg_vec(pg_vec, order, req->tp_block_nr);
 	}
 out:
 	return err;
