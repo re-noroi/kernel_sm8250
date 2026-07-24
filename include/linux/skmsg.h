@@ -12,6 +12,7 @@
 #include <net/sock.h>
 #include <net/tcp.h>
 #include <net/strparser.h>
+#include <linux/slab.h>
 
 #define MAX_MSG_FRAGS			MAX_SKB_FRAGS
 #define NR_MSG_FRAG_IDS			(MAX_MSG_FRAGS + 1)
@@ -370,8 +371,10 @@ static inline void sk_psock_restore_proto(struct sock *sk,
 					  struct sk_psock *psock)
 {
 	if (psock->sk_proto) {
-		sk->sk_prot = psock->sk_proto;
+		struct proto *prot = psock->sk_proto;
+
 		psock->sk_proto = NULL;
+		WRITE_ONCE(sk->sk_prot, prot);
 	}
 }
 
