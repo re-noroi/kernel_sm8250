@@ -367,7 +367,7 @@ extern int tcp_use_userconfig_sysctl_handler(struct ctl_table *table,
 				int write, void __user *buffer, size_t *length,
 				loff_t *ppos);
 extern int tcp_proc_delayed_ack_control(struct ctl_table *table, int write,
-				void __user *buffer, size_t *length,
+				void *buffer, size_t *length,
 				loff_t *ppos);
 
 static inline void tcp_dec_quickack_mode(struct sock *sk)
