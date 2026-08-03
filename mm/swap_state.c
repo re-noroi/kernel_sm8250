@@ -125,7 +125,7 @@ int add_to_swap_cache(struct page *page, swp_entry_t entry, gfp_t gfp,
 	struct address_space *address_space = swap_address_space(entry);
 	pgoff_t idx = swp_offset(entry);
 	XA_STATE_ORDER(xas, &address_space->i_pages, idx, compound_order(page));
-	unsigned long i, nr = 1UL << compound_order(page);
+	unsigned long i, nr = hpage_nr_pages(page);
 
 	VM_BUG_ON_PAGE(!PageLocked(page), page);
 	VM_BUG_ON_PAGE(PageSwapCache(page), page);
@@ -161,7 +161,7 @@ int add_to_swap_cache(struct page *page, swp_entry_t entry, gfp_t gfp,
 		address_space->nrpages += nr;
 		__mod_node_page_state(page_pgdat(page), NR_FILE_PAGES, nr);
 		ADD_CACHE_INFO(add_total, nr);
-unlock:
+	unlock:
 		xas_unlock_irq(&xas);
 	} while (xas_nomem(&xas, gfp));
 
@@ -188,8 +188,6 @@ void __delete_from_swap_cache(struct page *page, swp_entry_t entry,
 	VM_BUG_ON_PAGE(!PageLocked(page), page);
 	VM_BUG_ON_PAGE(!PageSwapCache(page), page);
 	VM_BUG_ON_PAGE(PageWriteback(page), page);
-	VM_BUG_ON(shadow && !xa_is_value(shadow));
-
 	for (i = 0; i < nr; i++) {
 		void *old = xas_store(&xas, shadow);
 
@@ -469,9 +467,11 @@ struct page *__read_swap_cache_async(swp_entry_t entry, gfp_t gfp_mask,
 		__SetPageLocked(new_page);
 		__SetPageSwapBacked(new_page);
 		err = add_to_swap_cache(new_page, entry,
-				gfp_mask & GFP_KERNEL, &shadow);
+				gfp_mask & GFP_RECLAIM_MASK, &shadow);
 		if (likely(!err)) {
-			/* Initiate read into locked page */
+			/*
+			 * Initiate read into locked page and return.
+			 */
 			if (!lru_gen_enabled())
 				SetPageWorkingset(new_page);
 			else if (shadow)
