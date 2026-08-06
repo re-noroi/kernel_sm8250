@@ -81,6 +81,7 @@ struct cpufreq_qcom {
 	unsigned long xo_rate;
 	unsigned long cpu_hw_rate;
 	unsigned long dcvsh_freq_limit;
+	unsigned long last_lmh_freq;
 	struct delayed_work freq_poll_work;
 	struct mutex dcvsh_lock;
 	struct device_attribute freq_limit_attr;
@@ -205,14 +206,19 @@ static void qcom_lmh_dcvs_notify(struct cpufreq_qcom *c)
 	 * Route the LMh-reported throttled frequency through FIE's thermal
 	 * pressure aggregation. FIE combines this with its own measured HW
 	 * throttle detection for a more accurate thermal pressure report.
+	 * Only re-send the cpufreq thermal source when the LMh-reported cap
+	 * actually changes.
 	 */
-	fie_cpufreq_pressure(cpu, thermal_pressure >= policy->cpuinfo.max_freq ?
-			     UINT_MAX : thermal_pressure);
+	if (c->last_lmh_freq != thermal_pressure) {
+		c->last_lmh_freq = thermal_pressure;
+		fie_cpufreq_pressure(cpu,
+				     thermal_pressure >= policy->cpuinfo.max_freq ?
+				     UINT_MAX : thermal_pressure);
+	}
 
 	trace_dcvsh_freq(cpu, requested_freq, throttled_freq, thermal_pressure);
 
 	/* Update thermal pressure (boost frequencies are accepted). */
-	arch_update_thermal_pressure(&c->related_cpus, thermal_pressure);
 	c->dcvsh_freq_limit = thermal_pressure;
 
 out:
@@ -529,6 +535,8 @@ static int qcom_cpufreq_hw_cpu_online(struct cpufreq_policy *policy)
 	if (irqd_irq_disabled(irq_get_irq_data(c->dcvsh_irq)))
 		enable_irq(c->dcvsh_irq);
 
+	c->last_lmh_freq = ULONG_MAX;
+
 	return 0;
 }
 
@@ -555,7 +563,8 @@ static int qcom_cpufreq_hw_cpu_offline(struct cpufreq_policy *policy)
 	if (!irqd_irq_disabled(irq_get_irq_data(c->dcvsh_irq)))
 		disable_irq(c->dcvsh_irq);
 
-	arch_update_thermal_pressure(&c->related_cpus, policy->cpuinfo.max_freq);
+	fie_cpufreq_pressure(cpumask_first(policy->related_cpus), UINT_MAX);
+	c->last_lmh_freq = ULONG_MAX;
 	trace_dcvsh_throttle(cpumask_first(&c->related_cpus), 0);
 
 	return 0;
@@ -609,7 +618,7 @@ static int qcom_cpufreq_hw_read_lut(struct platform_device *pdev,
 {
 	struct device *dev = &pdev->dev, *cpu_dev;
 	void __iomem *base_freq, *base_volt;
-	u32 data, src, lval, i, j, core_count, prev_cc, prev_freq, cur_freq, volt;
+	u32 data, src, lval, i, core_count, prev_cc, prev_freq, cur_freq, volt;
 	u32 vc;
 	u32 max_cc = 0;
 	unsigned long cpu;
