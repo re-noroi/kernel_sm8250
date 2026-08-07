@@ -42,9 +42,6 @@ static DECLARE_COMPLETION(psi_init_done);
 static int nr_victims;
 static bool reclaim_active;
 
-/* Lock to serialize execution of scan_and_kill() */
-static unsigned long lmk_lock;
-
 #define LMK_TIERS 3
 static const short tier_min_adj[LMK_TIERS] = { 800, 200, 1 };
 
@@ -448,12 +445,7 @@ static int simple_lmk_reclaim_thread(void *data)
 		 * during the scan) is not lost.
 		 */
 		atomic_set(&needs_reclaim, 0);
-
-		/* Acquire the lock before scanning */
-		if (!test_and_set_bit(0, &lmk_lock)) {
-			scan_and_kill();
-			clear_bit(0, &lmk_lock);
-		}
+		scan_and_kill();
 	}
 
 	return 0;
@@ -647,37 +639,21 @@ static int simple_lmk_oom_notify(struct notifier_block *self,
 	unsigned long *freed = data;
 
 	/*
-	 * If the lock is contended, the async thread is currently executing
-	 * scan_and_kill(). Tell the core OOM killer we are handling it to
-	 * avoid a dual-kill collision.
-	 */
-	if (test_and_set_bit(0, &lmk_lock)) {
-		*freed = 1;
-		return NOTIFY_OK;
-	}
-
-	/*
-	 * We acquired the lock. This is an uncaught OOM event (e.g. huge
-	 * sudden allocation) that PSI missed. Force a synchronous kill cycle
-	 * at max tier.
+	 * This is an uncaught OOM event (e.g. a huge sudden allocation) that
+	 * PSI missed. Escalate to the maximum tier and wake the reclaim thread
+	 * to handle it asynchronously. We never call scan_and_kill() directly
+	 * here because it may sleep (set_cpus_allowed_ptr, etc.) and the OOM
+	 * notifier can run from contexts where sleeping is undesirable.
+	 *
+	 * Tell the core OOM killer we are handling it (*freed = 1) to suppress
+	 * a dual-kill collision. If the reclaim thread fails to find victims,
+	 * the next PSI/OOM event will re-trigger.
 	 */
 	atomic_set(&target_min_adj, tier_min_adj[2]);
-	scan_and_kill();
+	if (!atomic_xchg(&needs_reclaim, 1) && waitqueue_active(&oom_waitq))
+		wake_up(&oom_waitq);
 
-	/*
-	 * Accurately report success back to the core OOM killer. If we
-	 * secured victims (nr_victims > 0), tell the core kernel we freed
-	 * memory. If we failed to find any victims, leave *freed = 0 to
-	 * allow the core OOM killer to terminate the deadlock.
-	 */
-	if (nr_victims > 0)
-		*freed = 1;
-	else
-		*freed = 0;
-
-	/* Release the lock */
-	clear_bit(0, &lmk_lock);
-
+	*freed = 1;
 	return NOTIFY_OK;
 }
 
