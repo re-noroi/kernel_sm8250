@@ -67,10 +67,10 @@ DEFINE_PER_CPU_READ_MOSTLY(int, sched_load_boost);
 /*
  * Headroom manual boost value += boost * util / 100
  */
-unsigned int sysctl_boost_lpmask __read_mostly = 10;
-unsigned int sysctl_boost_bpmask __read_mostly = 20;
-unsigned int sysctl_boost_prime __read_mostly = 3;
-unsigned int sysctl_manual_boost __read_mostly = 1;
+unsigned int sysctl_hr_scale_lp __read_mostly = 10;
+unsigned int sysctl_hr_scale_big __read_mostly = 20;
+unsigned int sysctl_hr_scale_prime __read_mostly = 3;
+unsigned int sysctl_hr_scaling __read_mostly = 1;
 static int zero		= 0;
 static int n_one	= 1;
 static int thirty	= 30;
@@ -131,8 +131,8 @@ unsigned int sysctl_sched_cfs_bandwidth_slice		= 5000UL;
 
 static struct ctl_table sched_headroom_sysctls[] = {
 	{
-		.procname       = "sched_boost_little_cores",
-		.data           = &sysctl_boost_lpmask,
+		.procname       = "sched_boost_hr_lp",
+		.data           = &sysctl_hr_scale_lp,
 		.maxlen         = sizeof(unsigned int),
 		.mode           = 0644,
 		.proc_handler   = proc_dointvec_minmax,
@@ -140,8 +140,8 @@ static struct ctl_table sched_headroom_sysctls[] = {
 		.extra2         = &hundred,
 	},
 	{
-		.procname       = "sched_boost_big_cores",
-		.data           = &sysctl_boost_bpmask,
+		.procname       = "sched_boost_hr_big",
+		.data           = &sysctl_hr_scale_big,
 		.maxlen         = sizeof(unsigned int),
 		.mode           = 0644,
 		.proc_handler   = proc_dointvec_minmax,
@@ -149,8 +149,8 @@ static struct ctl_table sched_headroom_sysctls[] = {
 		.extra2         = &hundred,
 	},
 	{
-		.procname       = "sched_boost_prime_cores",
-		.data           = &sysctl_boost_prime,
+		.procname       = "sched_boost_hr_prime",
+		.data           = &sysctl_hr_scale_prime,
 		.maxlen         = sizeof(unsigned int),
 		.mode           = 0644,
 		.proc_handler   = proc_dointvec_minmax,
@@ -158,8 +158,8 @@ static struct ctl_table sched_headroom_sysctls[] = {
 		.extra2         = &thirty,
 	},
 	{
-		.procname       = "sched_boost_manual",
-		.data           = &sysctl_manual_boost,
+		.procname       = "sched_hr_scaling",
+		.data           = &sysctl_hr_scaling,
 		.maxlen         = sizeof(unsigned int),
 		.mode           = 0644,
 		.proc_handler   = proc_dointvec_minmax,

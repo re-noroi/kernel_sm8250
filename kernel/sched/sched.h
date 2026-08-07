@@ -2180,10 +2180,10 @@ extern const_debug unsigned int sysctl_sched_migration_cost;
 
 extern unsigned int sysctl_sched_base_slice;
 
-extern unsigned int sysctl_boost_lpmask;
-extern unsigned int sysctl_boost_bpmask;
-extern unsigned int sysctl_boost_prime;
-extern unsigned int sysctl_manual_boost;
+extern unsigned int sysctl_hr_scale_lp;
+extern unsigned int sysctl_hr_scale_big;
+extern unsigned int sysctl_hr_scale_prime;
+extern unsigned int sysctl_hr_scaling;
 
 #ifdef CONFIG_SCHED_HRTICK
 

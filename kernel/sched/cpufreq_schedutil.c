@@ -232,25 +232,19 @@ static inline unsigned long apply_dvfs_headroom(unsigned long util, int cpu)
 {
 	unsigned long capacity = capacity_orig_of(cpu);
 	unsigned long delta, headroom;
-	unsigned long base_boost = 0, max_boost, final_hr;
-	unsigned int pct;
+	unsigned long max_boost;
+	unsigned int scale;
 
 	util = min(util, capacity);
 
-	/* Manual boost (optional) */
-	if (sysctl_manual_boost) {
+	/* Headroom scaling */
+	if (sysctl_hr_scaling) {
 		if (cpumask_test_cpu(cpu, cpu_lp_mask))
-			pct = sysctl_boost_lpmask;
+			scale = sysctl_hr_scale_lp;
 		else if (cpumask_test_cpu(cpu, cpu_prime_mask))
-			pct = sysctl_boost_prime;
+			scale = sysctl_hr_scale_prime;
 		else
-			pct = sysctl_boost_bpmask;
-
-		base_boost = util * pct / 100;
-		/* Hard cap: avoid crazy jumps */
-		if (base_boost > capacity * 15 / 100)
-			base_boost = capacity * 15 / 100;
-
+			scale = sysctl_hr_scale_big;
 	}
 
 	/* Quadratic taper */
@@ -258,6 +252,10 @@ static inline unsigned long apply_dvfs_headroom(unsigned long util, int cpu)
 	headroom = (delta * delta) / (6 * 1024);
 	if (!cpumask_test_cpu(cpu, cpu_prime_mask))
 		headroom *= 2;
+
+	/* Scale it if enabled*/
+	if (sysctl_hr_scaling)
+		headroom = headroom * (100 + scale) / 100;
 
 	/* Headroom absolute cap: 15% */
 	max_boost = capacity * 15 / 100;
@@ -268,8 +266,7 @@ static inline unsigned long apply_dvfs_headroom(unsigned long util, int cpu)
 	if (headroom > util / 2)
 		headroom = util / 2;
 
-	final_hr = util + headroom + base_boost;
-	return min(final_hr, capacity);
+	return min(util + headroom, capacity);
 }
 
 unsigned long sugov_effective_cpu_perf(int cpu, unsigned long actual,
