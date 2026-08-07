@@ -251,7 +251,7 @@ drop_ref:
 
 		if (*vindex == MAX_VICTIMS || pages_found >= target_pages)
 			break;
-		}
+	}
 
 drain_remaining:
 	/* Release refs for any candidates still in buckets we didn't visit */
@@ -344,7 +344,7 @@ static void scan_and_kill(void)
 	 * then select the minimum number needed to meet the target.
 	 */
 	sort(victims, nr_found, sizeof(*victims), victim_cmp_size, victim_swap);
-		nr_to_kill = process_victims(nr_found);
+	nr_to_kill = process_victims(nr_found);
 
 	/*
 	 * Store the final number of victims for simple_lmk_mm_freed() and the
