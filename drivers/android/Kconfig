@@ -98,15 +98,16 @@ config ANDROID_SIMPLE_LMK
 if ANDROID_SIMPLE_LMK
 
 config ANDROID_SIMPLE_LMK_TIMEOUT_MSEC
-	int "Reclaim timeout in milliseconds"
+	int "Reaper retry deadline in milliseconds"
 	range 50 1000
 	default 200
 	help
-	  Simple LMK tries to wait until all of the victims it kills have their
-	  memory freed; however, sometimes victims can take a while to die,
-	  which can block Simple LMK from killing more processes in time when
-	  needed. After the specified timeout elapses, Simple LMK will stop
-	  waiting and make itself available to kill more processes.
+	  The reaper thread reaps victims' page tables via mmap_read_trylock.
+	  If a victim's mmap_lock is held by another thread, the reaper retries
+	  with a one-jiffy sleep. This option bounds how long the reaper retries
+	  a stuck victim before giving up (marking it OOM_SKIP and letting
+	  exit_mmap handle the teardown). Lower values unblock the reaper
+	  sooner under contention; higher values give the lock holder more time.
 
 config ANDROID_SIMPLE_LMK_PSI_WINDOW_MS
 	int "PSI polling window size in milliseconds"

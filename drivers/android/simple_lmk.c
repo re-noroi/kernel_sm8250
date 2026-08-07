@@ -23,6 +23,9 @@
 /* Kill up to this many victims per reclaim */
 #define MAX_VICTIMS 32
 
+/* Deadline in jiffies for reaping a stuck victim before giving up */
+#define REAP_RETRY_JIFFIES msecs_to_jiffies(CONFIG_ANDROID_SIMPLE_LMK_TIMEOUT_MSEC)
+
 /* Android oom_score_adj range is 0 to 1000 */
 #define ADJ_MAX 1000
 
@@ -463,7 +466,7 @@ static int simple_lmk_reclaim_thread(void *data)
 	return 0;
 }
 
-static struct mm_struct *next_reap_victim(void)
+static struct mm_struct *next_reap_victim(bool force)
 {
 	struct mm_struct *mm = NULL;
 	bool should_retry = false;
@@ -482,10 +485,23 @@ static struct mm_struct *next_reap_victim(void)
 		if (!mmget_not_zero(mm))
 			continue;
 
-		/* Do a trylock so the reaper thread doesn't sleep */
+		/*
+		 * Do a trylock so the reaper thread doesn't sleep. If the
+		 * trylock fails and we've exhausted the retry deadline (force
+		 * == true), give up on this victim: mark it OOM_SKIP, clear
+		 * it from the array, and drop our mm_count reference. The
+		 * victim already has SIGKILL + TIF_MEMDIE, so it will exit
+		 * and its pages will be freed by exit_mmap() without us.
+		 */
 		if (!down_read_trylock(&mm->mmap_sem)) {
 			mmput(mm);
-			should_retry = true;
+			if (force) {
+				set_bit(MMF_OOM_SKIP, &mm->flags);
+				if (cmpxchg(&victims[i].mm, mm, NULL) == mm)
+					mmdrop(mm);
+			} else {
+				should_retry = true;
+			}
 			continue;
 		}
 
@@ -524,13 +540,32 @@ static struct mm_struct *next_reap_victim(void)
 static void reap_victims(void)
 {
 	struct mm_struct *mm;
+	unsigned long retry_deadline = 0;
+	bool force = false;
 
-	while ((mm = next_reap_victim())) {
+	while ((mm = next_reap_victim(force))) {
 		if (IS_ERR(mm)) {
+			/*
+			 * A victim's mmap_read_trylock failed. Retry with a
+			 * bounded deadline derived from
+			 * CONFIG_ANDROID_SIMPLE_LMK_TIMEOUT_MSEC. If the
+			 * deadline expires, force-give-up on stuck victims
+			 * instead of spinning forever.
+			 */
+			if (!retry_deadline) {
+				retry_deadline = jiffies + REAP_RETRY_JIFFIES;
+			} else if (time_after(jiffies, retry_deadline)) {
+				force = true;
+				retry_deadline = 0;
+			}
 			/* Wait one jiffy before trying to reap again */
 			schedule_timeout_uninterruptible(1);
 			continue;
 		}
+
+		/* Successfully acquired mmap_lock; reset retry state */
+		retry_deadline = 0;
+		force = false;
 
 		/*
 		 * Try to reap the victim. Unflag the mm for exit_mmap() reaping
