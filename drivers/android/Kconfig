@@ -134,6 +134,34 @@ config ANDROID_SIMPLE_LMK_PSI_THRESHOLD_HIGH_US
 	help
 	  Stall threshold (µs/window) for tier-2 kills (adj >= 1).
 
+config ANDROID_SIMPLE_LMK_DECAY_FULL_SEC
+	int "Time-decay threshold for full (100%) anon-page weight"
+	range 10 600
+	default 60
+	help
+	  Time in seconds an app must remain backgrounded (adj >= 800) before
+	  its anonymous pages are counted at 100% weight for victim sizing.
+	  Apps backgrounded longer than this threshold are considered cold.
+
+config ANDROID_SIMPLE_LMK_DECAY_HALF_SEC
+	int "Time-decay threshold for half (50%) anon-page weight"
+	range 5 300
+	default 30
+	help
+	  Time in seconds an app must remain backgrounded (adj >= 800) before
+	  its anonymous pages are counted at 50% weight. Must be less than
+	  DECAY_FULL_SEC. Apps backgrounded between this and DECAY_FULL_SEC
+	  are counted at 50%; below this, at 25%.
+
+config ANDROID_SIMPLE_LMK_DECAY_HOT_SHIFT
+	int "Right-shift for hot (recently cached) anon-page weight"
+	range 1 4
+	default 2
+	help
+	  Right-shift applied to anonymous pages for apps that were recently
+	  backgrounded (below the DECAY_HALF_SEC threshold) or have no
+	  cache_time. A shift of 2 gives 25% weight, 3 gives 12.5%, etc.
+
 endif
 
 config ANDROID_KABI_RESERVE
