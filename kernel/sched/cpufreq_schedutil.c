@@ -250,8 +250,10 @@ static inline unsigned long apply_dvfs_headroom(unsigned long util, int cpu)
 	/* Quadratic taper */
 	delta = capacity - util;
 	headroom = (delta * delta) / (6 * 1024);
-	if (!cpumask_test_cpu(cpu, cpu_prime_mask))
-		headroom *= 2;
+	if (cpumask_test_cpu(cpu, cpu_lp_mask))
+		headroom = headroom * 150 / 100;
+	else if (!cpumask_test_cpu(cpu, cpu_prime_mask))
+		headroom = headroom * 120 / 100;
 
 	/* Scale it if enabled*/
 	if (sysctl_hr_scaling)
