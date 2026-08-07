@@ -309,6 +309,14 @@ static void scan_and_kill(void)
 	unsigned long pages_found;
 	int num_drop;
 
+	/*
+	 * If the reaper is still processing the previous victim set, do not
+	 * overwrite the shared victims array. Skip this cycle; PSI will
+	 * re-fire if memory pressure persists.
+	 */
+	if (READ_ONCE(reclaim_active))
+		return;
+
 	/* Populate the victims array with tasks sorted by adj and then size */
 	pages_found = find_victims(&nr_found);
 	if (unlikely(!nr_found)) {
@@ -421,12 +429,16 @@ static void scan_and_kill(void)
 	/*
 	 * Sort the victims by descending order of anonymous pages so the reaper
 	 * thread can prioritize reaping the victims with the most anonymous
-	 * pages first. Then wake the reaper thread if it's asleep. The lock
-	 * orders the needs_reap store before waitqueue_active().
+	 * pages first. Then wake the reaper thread if it's asleep.
+	 *
+	 * reclaim_active stays true until the reaper confirms all victims are
+	 * done (see next_reap_victim). The smp_wmb() ensures the reaper sees
+	 * the fully-populated victims array and nr_victims before it observes
+	 * needs_reap == 1.
 	 */
 	sort(victims, nr_to_kill, sizeof(*victims), victim_cmp, victim_swap);
+	smp_wmb();
 	atomic_set(&needs_reap, 1);
-	WRITE_ONCE(reclaim_active, false);
 	if (waitqueue_active(&reaper_waitq))
 		wake_up(&reaper_waitq);
 }
@@ -458,8 +470,8 @@ static struct mm_struct *next_reap_victim(void)
 	int i;
 
 	/*
-	 * We no longer take mm_free_lock here because cmpxchg protects victims[i].mm
-	 * in simple_lmk_mm_freed. We take a reference instead.
+	 * cmpxchg in simple_lmk_mm_freed() protects victims[i].mm. We take an
+	 * mmget reference so the mm struct can't be freed while we reap it.
 	 */
 	for (i = 0; i < nr_victims; i++, mm = NULL) {
 		/* Check if this victim is alive and hasn't been reaped yet */
@@ -492,13 +504,18 @@ static struct mm_struct *next_reap_victim(void)
 		if (should_retry)
 			/* Return ERR_PTR(-EAGAIN) to try reaping again later */
 			mm = ERR_PTR(-EAGAIN);
-		else if (!READ_ONCE(reclaim_active))
+		else
 			/*
-			 * Nothing left to reap, so stop simple_lmk_mm_freed()
-			 * from iterating over the victims array since reclaim
-			 * is no longer active. Return NULL to stop reaping.
+			 * Nothing left to reap. Clear reclaim_active so
+			 * simple_lmk_mm_freed() stops searching the victims
+			 * array, and so scan_and_kill() can start a new cycle.
+			 * The smp_mb() pairs with the smp_wmb() in
+			 * scan_and_kill() to ensure all prior victim mm
+			 * pointers are visible as NULL before we declare
+			 * reclaim inactive.
 			 */
-			nr_victims = 0;
+			smp_mb();
+			WRITE_ONCE(reclaim_active, false);
 	}
 
 	return mm;
@@ -559,10 +576,12 @@ void simple_lmk_mm_freed(struct mm_struct *mm)
 		return;
 
 	/*
-	 * Fast path: if no reclaim is active and the reaper is done, then
-	 * there's no need to search the victims array.
+	 * Fast path: if reclaim is not active, the victims array is not live
+	 * and there is nothing to search. reclaim_active stays true from
+	 * scan_and_kill() until the reaper confirms all victims are reaped,
+	 * so a late mm_freed for a dying victim will always find it true.
 	 */
-	if (!READ_ONCE(reclaim_active) && !atomic_read(&needs_reap))
+	if (!READ_ONCE(reclaim_active))
 		return;
 
 	for (i = 0; i < nr_victims; i++) {
