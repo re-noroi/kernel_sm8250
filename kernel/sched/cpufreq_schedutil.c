@@ -41,6 +41,9 @@ struct sugov_policy {
 
 	bool			limits_changed;
 	bool			need_freq_update;
+
+	unsigned long		dvfs_capacity;
+	u16				dvfs_headroom_lut[SCHED_CAPACITY_SCALE + 1];
 };
 
 struct sugov_cpu {
@@ -53,6 +56,8 @@ struct sugov_cpu {
 	u64			last_update;
 
 	unsigned long		util;
+	u16			*dvfs_headroom_lut;
+
 	unsigned long		bw_min;
 };
 
@@ -228,45 +233,76 @@ static unsigned int get_next_freq(struct sugov_policy *sg_policy,
 	return l_freq;
 }
 
+static void sugov_build_dvfs_headroom_lut(struct sugov_policy *sg_policy)
+{
+	struct cpufreq_policy *policy = sg_policy->policy;
+	unsigned long capacity = capacity_orig_of(policy->cpu);
+	unsigned long util;
+	unsigned long delta;
+	unsigned long headroom;
+	unsigned long max_boost;
+	unsigned int cluster_scale = 100;
+
+	if (sg_policy->dvfs_capacity == capacity)
+		return;
+
+	sg_policy->dvfs_capacity = capacity;
+
+	if (cpumask_test_cpu(policy->cpu, cpu_lp_mask))
+		cluster_scale = 150;
+	else if (!cpumask_test_cpu(policy->cpu, cpu_prime_mask))
+		cluster_scale = 120;
+
+	max_boost = capacity * 15 / 100;
+
+	for (util = 0; util <= SCHED_CAPACITY_SCALE; util++) {
+
+		unsigned long capped = min(util, capacity);
+
+		delta = capacity - capped;
+
+		headroom = (delta * delta) / (6 * 1024);
+
+		headroom = headroom * cluster_scale / 100;
+
+		if (headroom > max_boost)
+			headroom = max_boost;
+
+		if (headroom > capped / 2)
+			headroom = capped / 2;
+
+		sg_policy->dvfs_headroom_lut[util] = headroom;
+	}
+}
+
 static inline unsigned long apply_dvfs_headroom(unsigned long util, int cpu)
 {
+	struct sugov_cpu *sg_cpu = &per_cpu(sugov_cpu, cpu);
 	unsigned long capacity = capacity_orig_of(cpu);
-	unsigned long delta, headroom;
-	unsigned long max_boost;
-	unsigned int scale;
+	unsigned long headroom;
+	unsigned int scale = 0;
 
 	util = min(util, capacity);
 
-	/* Headroom scaling */
+	headroom = sg_cpu->dvfs_headroom_lut[util];
+
 	if (sysctl_hr_scaling) {
+
 		if (cpumask_test_cpu(cpu, cpu_lp_mask))
 			scale = sysctl_hr_scale_lp;
 		else if (cpumask_test_cpu(cpu, cpu_prime_mask))
 			scale = sysctl_hr_scale_prime;
 		else
 			scale = sysctl_hr_scale_big;
-	}
 
-	/* Quadratic taper */
-	delta = capacity - util;
-	headroom = (delta * delta) / (6 * 1024);
-	if (cpumask_test_cpu(cpu, cpu_lp_mask))
-		headroom = headroom * 150 / 100;
-	else if (!cpumask_test_cpu(cpu, cpu_prime_mask))
-		headroom = headroom * 120 / 100;
-
-	/* Scale it if enabled*/
-	if (sysctl_hr_scaling)
 		headroom = headroom * (100 + scale) / 100;
 
-	/* Headroom absolute cap: 15% */
-	max_boost = capacity * 15 / 100;
-	if (headroom > max_boost)
-		headroom = max_boost;
+		if (headroom > capacity * 15 / 100)
+			headroom = capacity * 15 / 100;
 
-	/* Cap it to 50% of util */
-	if (headroom > util / 2)
-		headroom = util / 2;
+		if (headroom > util / 2)
+			headroom = util / 2;
+	}
 
 	return min(util + headroom, capacity);
 }
@@ -768,6 +804,8 @@ static int sugov_init(struct cpufreq_policy *policy)
 		goto disable_fast_switch;
 	}
 
+	sugov_build_dvfs_headroom_lut(sg_policy);
+
 	ret = sugov_kthread_create(sg_policy);
 	if (ret)
 		goto free_sg_policy;
@@ -874,6 +912,8 @@ static int sugov_start(struct cpufreq_policy *policy)
 		memset(sg_cpu, 0, sizeof(*sg_cpu));
 		sg_cpu->cpu = cpu;
 		sg_cpu->sg_policy = sg_policy;
+		sg_cpu->dvfs_headroom_lut = sg_policy->dvfs_headroom_lut;
+
 		cpufreq_add_update_util_hook(cpu, &sg_cpu->update_util, uu);
 	}
 	return 0;
@@ -900,6 +940,8 @@ static void sugov_limits(struct cpufreq_policy *policy)
 	struct sugov_policy *sg_policy = policy->governor_data;
 	unsigned long flags, now;
 	unsigned int freq;
+
+	sugov_build_dvfs_headroom_lut(sg_policy);
 
 	if (!policy->fast_switch_enabled) {
 		mutex_lock(&sg_policy->work_lock);
