@@ -23,9 +23,6 @@
 /* Kill up to this many victims per reclaim */
 #define MAX_VICTIMS 32
 
-/* Timeout in jiffies for each reclaim */
-#define RECLAIM_EXPIRES msecs_to_jiffies(CONFIG_ANDROID_SIMPLE_LMK_TIMEOUT_MSEC)
-
 /* Android oom_score_adj range is 0 to 1000 */
 #define ADJ_MAX 1000
 
