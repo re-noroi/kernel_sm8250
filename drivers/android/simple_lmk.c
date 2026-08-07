@@ -50,7 +50,6 @@ static const short tier_min_adj[LMK_TIERS] = { 800, 200, 1 };
 
 static atomic_t needs_reclaim = ATOMIC_INIT(0);
 static atomic_t needs_reap = ATOMIC_INIT(0);
-static atomic_t nr_killed = ATOMIC_INIT(0);
 static atomic_t target_min_adj = ATOMIC_INIT(tier_min_adj[0]);
 
 static unsigned long get_target_free_pages(void)
@@ -358,7 +357,6 @@ static void scan_and_kill(void)
 		if (mm && test_bit(MMF_OOM_SKIP, &mm->flags)) {
 			victims[i].mm = NULL;
 			drop_mms[num_drop++] = mm;
-			atomic_inc(&nr_killed);
 		}
 	}
 
@@ -432,7 +430,6 @@ static void scan_and_kill(void)
 	sort(victims, nr_to_kill, sizeof(*victims), victim_cmp, victim_swap);
 	atomic_set(&needs_reap, 1);
 	WRITE_ONCE(reclaim_active, false);
-	atomic_set(&nr_killed, 0);
 	if (waitqueue_active(&reaper_waitq))
 		wake_up(&reaper_waitq);
 }
@@ -579,8 +576,6 @@ void simple_lmk_mm_freed(struct mm_struct *mm)
 	for (i = 0; i < nr_victims; i++) {
 		if (READ_ONCE(victims[i].mm) == mm) {
 			if (cmpxchg(&victims[i].mm, mm, NULL) == mm) {
-				if (READ_ONCE(reclaim_active))
-					atomic_inc(&nr_killed);
 				matched = true;
 				break;
 			}
