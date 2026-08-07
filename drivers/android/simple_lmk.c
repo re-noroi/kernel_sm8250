@@ -53,7 +53,7 @@ static atomic_t needs_reap = ATOMIC_INIT(0);
 static atomic_t nr_killed = ATOMIC_INIT(0);
 static atomic_t target_min_adj = ATOMIC_INIT(tier_min_adj[0]);
 
-static unsigned long get_target_free_pages(short limit_adj)
+static unsigned long get_target_free_pages(void)
 {
 	unsigned long deficit;
 
@@ -129,7 +129,7 @@ static unsigned long find_victims(int *vindex)
 	short i, min_adj = ADJ_MAX, max_adj = 0;
 	short limit_adj = atomic_read(&target_min_adj);
 	unsigned long pages_found = 0;
-	unsigned long target_pages = get_target_free_pages(limit_adj);
+	unsigned long target_pages = get_target_free_pages();
 	struct task_struct *tsk;
 
 	/*
@@ -271,8 +271,7 @@ drain_remaining:
 static int process_victims(int vlen)
 {
 	unsigned long pages_found = 0;
-	short limit_adj = atomic_read(&target_min_adj);
-	unsigned long target_pages = get_target_free_pages(limit_adj);
+	unsigned long target_pages = get_target_free_pages();
 	int i, nr_to_kill = 0;
 
 	/*
@@ -324,7 +323,7 @@ static void scan_and_kill(void)
 		 * gets stuck at Tier 0 forever when all cached apps are
 		 * already dead but memory pressure continues.
 		 */
-		if (get_target_free_pages(atomic_read(&target_min_adj)) > 0) {
+		if (get_target_free_pages() > 0) {
 			int current_adj = atomic_read(&target_min_adj);
 			if (current_adj == tier_min_adj[0]) {
 				atomic_set(&target_min_adj, tier_min_adj[1]);
