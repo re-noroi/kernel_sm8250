@@ -249,9 +249,9 @@ static void sugov_build_dvfs_headroom_lut(struct sugov_policy *sg_policy)
 	sg_policy->dvfs_capacity = capacity;
 
 	if (cpumask_test_cpu(policy->cpu, cpu_lp_mask))
-		cluster_scale = 150;
+		cluster_scale = 130;
 	else if (!cpumask_test_cpu(policy->cpu, cpu_prime_mask))
-		cluster_scale = 120;
+		cluster_scale = 110;
 
 	max_boost = capacity * 15 / 100;
 

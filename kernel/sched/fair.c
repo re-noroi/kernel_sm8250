@@ -67,7 +67,7 @@ DEFINE_PER_CPU_READ_MOSTLY(int, sched_load_boost);
 /*
  * Headroom manual boost value += boost * util / 100
  */
-unsigned int sysctl_hr_scale_lp __read_mostly = 10;
+unsigned int sysctl_hr_scale_lp __read_mostly = 15;
 unsigned int sysctl_hr_scale_big __read_mostly = 20;
 unsigned int sysctl_hr_scale_prime __read_mostly = 3;
 unsigned int sysctl_hr_scaling __read_mostly = 1;
