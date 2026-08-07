@@ -235,8 +235,7 @@ static inline unsigned long apply_dvfs_headroom(unsigned long util, int cpu)
 	unsigned long base_boost = 0, max_boost, final_hr;
 	unsigned int pct;
 
-	if (util >= capacity)
-		return capacity;
+	util = min(util, capacity);
 
 	/* Manual boost (optional) */
 	if (sysctl_manual_boost) {
