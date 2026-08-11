@@ -297,7 +297,7 @@ static int cass_best_cpu(struct task_struct *p, int prev_cpu, bool sync, bool rt
 		 * overloaded, since the relative utilization calculation
 		 * disregards thermal pressure.
 		 */
-		curr->eff_util = min(max(curr->util + curr->hard_util, uc_min), uc_max);
+		curr->eff_util = uclamp_rq_util_with(rq, curr->util, p) + curr->hard_util;
 
 		/* Clamp the utilization to the minimum performance threshold */
 		if (curr->util < uc_min)
