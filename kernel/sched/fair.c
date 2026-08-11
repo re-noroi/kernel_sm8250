@@ -4534,8 +4534,6 @@ static inline void util_est_update(struct sched_entity *se)
 done:
 	ewma |= UTIL_AVG_UNCHANGED;
 	WRITE_ONCE(se->avg.util_est, ewma);
-
-	trace_sched_util_est_se_tp(se);
 }
 
 /*
