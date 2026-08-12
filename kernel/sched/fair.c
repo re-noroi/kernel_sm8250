@@ -6482,8 +6482,6 @@ requeue_delayed_entity(struct cfs_rq *cfs_rq, struct sched_entity *se, int flags
 	WARN_ON_ONCE(!se->sched_delayed);
 	WARN_ON_ONCE(!se->on_rq);
 
-	update_curr(cfs_rq);
-
 	if (update_entity_lag(cfs_rq, se)) {
 		cfs_rq->h_nr_queued--;
 		if (se != cfs_rq->curr)
@@ -6537,6 +6535,15 @@ static unsigned long enqueue_hierarchy(struct task_struct *p, int flags)
 	return weight;
 }
 
+/* Update curr's vruntime before placing entity or updating lag */
+static inline void update_curr_eevdf(struct cfs_rq *cfs_rq)
+{
+	if (!cfs_rq->curr)
+		return;
+
+	update_curr(cfs_rq_of(cfs_rq->curr));
+}
+
 /*
  * The enqueue_task method is called before nr_running is
  * increased. Here we update the fair scheduling stats and
@@ -6559,6 +6566,8 @@ enqueue_task_fair(struct rq *rq, struct task_struct *p, int flags)
 	 */
 	if (!p->se.sched_delayed || (flags & ENQUEUE_DELAYED))
 		util_est_enqueue(cfs_rq, p);
+
+	update_curr_eevdf(cfs_rq);
 
 	if (flags & ENQUEUE_DELAYED) {
 		requeue_delayed_entity(cfs_rq, se, flags);
@@ -6673,7 +6682,7 @@ static bool __dequeue_task(struct rq *rq, struct task_struct *p, int flags)
 
 	clear_buddies(cfs_rq, se);
 
-	update_curr(cfs_rq_of(se));
+	update_curr_eevdf(cfs_rq);
 	update_entity_lag(cfs_rq, se);
 
 	if (flags & DEQUEUE_DELAYED) {
