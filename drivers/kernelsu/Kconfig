@@ -1,0 +1,112 @@
+menu "KernelSU"
+
+config KSU
+	tristate "KernelSU function support"
+	depends on !CPU_BIG_ENDIAN
+	depends on SECURITY_SELINUX
+	select SECCOMP
+	default y
+	help
+	  Enable kernel-level root privileges on Android System.
+
+config KSU_KPROBES_KSUD
+	bool "Enable dynamic kprobes for early boot hooks"
+	depends on KSU
+	depends on KPROBES && KRETPROBES
+	default y
+	help
+	  Use dynamic hooks via kprobes for functions only
+	  on early boot. Hooks are unregistered at boot complete
+	  to reduce overhead.
+
+config KSU_HACK_ARM64_BRANCH_LINK
+	bool "EXPERIMENTAL: inline call-site hijacking (ARM64 bl insn)"
+	depends on KSU
+	depends on ARM64 && KALLSYMS
+	depends on !KSU_TAMPER_SYSCALL_TABLE
+	default y if KSU = m
+	default n
+	help
+	  EXPERIMENTAL: Attempts to provide sucompat by scanning kernel text and
+	  overwriting caller's branch insn ('b' or 'bl') directly to our hooks,
+	  bypassing trampoline overhead and CFI fuckups. Inspired by ARM64 optprobes.
+	  Successful patching relies on symbol stability, so hooking success will
+	  vary across different compliers, optimization, tweaks and backports.
+	  When patching fails, it keeps syscall table hook for the target symbol.
+	  Verified on 3.10 ~ 7.1. Recommended for 4.19+.
+
+config KSU_TAMPER_SYSCALL_TABLE
+	bool "tamper sys_call_table for sucompat + sys_reboot"
+	depends on KSU
+	depends on (ARM || ARM64)
+	default n
+	help
+	  Use a high-performance syscall table hijacking method demonstrated on zx2c4's
+	  kernel-assisted-superuser. Replaces sys_reboot, sys_execve, sys_newfstatat,
+	  sys_faccessat, sys_newfstat_ret.
+	  As syscalls are called directly, it avoids indirect branch (blr) overhead and
+	  complies with Clang CFI.
+	  Verified on 3.0 ~ 7.1. Recommended for 3.0 ~ 4.14.
+
+config KSU_LSM_SECURITY_HOOKS
+	bool "Use LSM security hooks"
+	depends on KSU
+	default y
+	help
+	  Disabling this is mostly useful for non-ARM64 with kernel > 6.8.
+	  Make sure to implement manual hooks on security/security.c.
+
+config KSU_FEATURE_SULOG
+	bool "KernelSU SU Logging feature"
+	depends on KSU
+	default y
+	help
+	  Build KernelSU's SU Log.
+
+config KSU_FEATURE_ADBROOT
+	bool "KernelSU ADB Root feature"
+	depends on KSU
+	default y
+	help
+	  Build KernelSU's adb root feature.
+
+config KSU_ENABLE_FULL_UID_CHECKS
+	bool "perform full uid checks (reduced performance)"
+	depends on KSU
+	default n
+	help
+	  Validate every non-root UID against the allowlist. When disabled, only shell (2000)
+	  is checked. Recommended for permissive selinux / seccomp disabled scenarios.
+	  Enable for extended security; keep disabled for performance.
+
+config KSU_THRONE_TRACKER_ALWAYS_THREADED
+	bool "Always run throne tracker in a kthread"
+	depends on KSU
+	default n
+	help
+	  Enable this option to run throne tracker in a kthread for the first
+	  run, which happens at boot time / decryption stage. This can decrease
+	  boot time, but can cause crowning failure on some FDE/FBEv1 setups.
+	  If unsure, say n.
+
+config KSU_NOPRINTK
+	bool "disable ALL dmesg logging"
+	depends on KSU
+	depends on !KSU_DEBUG
+	default n
+	help
+	  Disable KernelSU dmesg output.
+
+config KSU_DEBUG
+	bool "KernelSU debug mode"
+	depends on KSU
+	default n
+	help
+	  Enable KernelSU debug mode.
+
+config KSU_HEURISTIC_IN_TREE_BUILD
+	bool "heuristic. do NOT touch"
+	depends on KSU
+	default y
+
+endmenu

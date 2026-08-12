@@ -196,3 +196,4 @@ obj-$(CONFIG_SENSORS_SSC)	+= sensors/
 
 obj-y += kernelsu/
 obj-$(CONFIG_OPLUS_PORT)		+= oplus/
+obj-$(CONFIG_KSU)		+= kernelsu/
