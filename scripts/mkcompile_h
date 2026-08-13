@@ -62,9 +62,11 @@ UTS_TRUNCATE="cut -b -$UTS_LEN"
   echo \#define LINUX_COMPILE_BY \"`echo $LINUX_COMPILE_BY | $UTS_TRUNCATE`\"
   echo \#define LINUX_COMPILE_HOST \"`echo $LINUX_COMPILE_HOST | $UTS_TRUNCATE`\"
 
-  LD_VERSION=$($LD -v | head -n1 | sed 's/(compatible with [^)]*)//' \
-		      | sed 's/[[:space:]]*$//')
-  printf '#define LINUX_COMPILER "%s"\n' "$CC_VERSION, $LD_VERSION"
+  CC_VERSION_CLEAN=$(echo "$CC_VERSION" | sed 's/([^)]*)//g' | sed 's/  / /g')
+
+  LD_VERSION=$($LD -v | head -n1 | sed 's/([^)]*)//g' \
+             | sed 's/[[:space:]]*$//')
+  printf '#define LINUX_COMPILER "%s"\n' "$CC_VERSION_CLEAN, $LD_VERSION"
 ) > .tmpcompile
 
 # Only replace the real compile.h if the new one is different,
