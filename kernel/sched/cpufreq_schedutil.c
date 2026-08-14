@@ -57,6 +57,10 @@ struct sugov_cpu {
 
 	unsigned long		util;
 	u16			*dvfs_headroom_lut;
+	unsigned long capacity;
+	unsigned long headroom_max;
+	unsigned int base_mult;
+	int *sysctl_scale;
 
 	unsigned long		bw_min;
 };
@@ -257,39 +261,27 @@ static inline unsigned long calc_dvfs_headroom(unsigned long util,
 static inline unsigned long apply_dvfs_headroom(unsigned long util, int cpu)
 {
 	struct sugov_cpu *sg_cpu = &per_cpu(sugov_cpu, cpu);
-	unsigned long capacity = capacity_orig_of(cpu);
 	unsigned long headroom;
 	unsigned int scale = 0;
+	unsigned int mult = sg_cpu->base_mult;
 
-	util = min(util, capacity);
+	util = min(util, sg_cpu->capacity);
 	headroom = sg_cpu->dvfs_headroom_lut[util];
 
-	/* Cluster initial scaling */
-	if (cpumask_test_cpu(cpu, cpu_lp_mask))
-		headroom = headroom * 130 / 100;
-	else if (!cpumask_test_cpu(cpu, cpu_prime_mask))
-		headroom = headroom * 110 / 100;
-
 	/* User-configurable scaling */
-	if (sysctl_hr_scaling) {
-
-		if (cpumask_test_cpu(cpu, cpu_lp_mask))
-			scale = sysctl_hr_scale_lp;
-		else if (cpumask_test_cpu(cpu, cpu_prime_mask))
-			scale = sysctl_hr_scale_prime;
-		else
-			scale = sysctl_hr_scale_big;
-
-		headroom = headroom * (100 + scale) / 100;
+	if (READ_ONCE(sysctl_hr_scaling)) {
+		scale = READ_ONCE(*sg_cpu->sysctl_scale);
+		if (scale)
+			mult = (mult * (100 + scale)) / 100;
 	}
 
-	/* Cap it at 20% Capacity */
-	headroom = min(headroom, capacity * 20 / 100);
+	headroom = (headroom * mult) / 100;
 
-	/* Limit headroom boost at low util */
-	headroom = min(headroom, util * 60 / 100);
+	/* Limit headroom boost */
+	headroom = min(headroom, sg_cpu->headroom_max);
+	headroom = min(headroom, (util * 3) / 5);
 
-	return min(util + headroom, capacity);
+	return min(util + headroom, sg_cpu->capacity);
 }
 
 unsigned long sugov_effective_cpu_perf(int cpu, unsigned long actual,
@@ -915,6 +907,20 @@ static int sugov_start(struct cpufreq_policy *policy)
 		sg_cpu->cpu = cpu;
 		sg_cpu->sg_policy = sg_policy;
 		sg_cpu->dvfs_headroom_lut = sg_policy->dvfs_headroom_lut;
+
+		sg_cpu->capacity = capacity_orig_of(cpu);
+		sg_cpu->headroom_max = (sg_cpu->capacity * 20) / 100;
+
+		if (cpumask_test_cpu(cpu, cpu_lp_mask)) {
+			sg_cpu->base_mult = 130;
+			sg_cpu->sysctl_scale = &sysctl_hr_scale_lp;
+		} else if (cpumask_test_cpu(cpu, cpu_prime_mask)) {
+			sg_cpu->base_mult = 100;
+			sg_cpu->sysctl_scale = &sysctl_hr_scale_prime;
+		} else {
+			sg_cpu->base_mult = 110;
+			sg_cpu->sysctl_scale = &sysctl_hr_scale_big;
+		}
 	}
 
 	/*
