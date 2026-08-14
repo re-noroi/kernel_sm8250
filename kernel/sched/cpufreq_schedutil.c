@@ -290,15 +290,12 @@ unsigned long sugov_effective_cpu_perf(int cpu, unsigned long actual,
 {
 	/* Add dvfs headroom to actual utilization */
 	actual = apply_dvfs_headroom(actual, cpu);
-	/* Actually we don't need to target the max performance */
-	if (actual < max)
-		max = actual;
 
 	/*
 	 * Ensure at least minimum performance while providing more compute
-	 * capacity when possible.
+	 * capacity when possible, clamped to the maximum allowed.
 	 */
-	return max(min, max);
+	return clamp(actual, min, max);
 }
 
 static void sugov_get_util(struct sugov_cpu *sg_cpu, unsigned long boost)
