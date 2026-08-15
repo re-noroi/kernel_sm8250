@@ -262,7 +262,7 @@ static inline unsigned long apply_dvfs_headroom(unsigned long util, int cpu)
 {
 	struct sugov_cpu *sg_cpu = &per_cpu(sugov_cpu, cpu);
 	unsigned long headroom;
-	unsigned int scale = 0;
+	int scale = 0;
 	unsigned int mult = sg_cpu->base_mult;
 
 	if (!util)
