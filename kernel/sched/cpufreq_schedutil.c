@@ -265,6 +265,9 @@ static inline unsigned long apply_dvfs_headroom(unsigned long util, int cpu)
 	unsigned int scale = 0;
 	unsigned int mult = sg_cpu->base_mult;
 
+	if (!util)
+		return 0;
+
 	util = min(util, sg_cpu->capacity);
 	headroom = sg_cpu->dvfs_headroom_lut[util];
 
