@@ -65,16 +65,17 @@ const_debug unsigned int sysctl_sched_migration_cost	= 0UL;
 DEFINE_PER_CPU_READ_MOSTLY(int, sched_load_boost);
 
 /*
- * Headroom manual boost value += boost * util / 100
+ * DVFS headroom cluster scaling
  */
-unsigned int sysctl_hr_scale_lp __read_mostly = 15;
-unsigned int sysctl_hr_scale_big __read_mostly = 20;
-unsigned int sysctl_hr_scale_prime __read_mostly = 3;
+int sysctl_hr_scale_lp __read_mostly = 15;
+int sysctl_hr_scale_big __read_mostly = 20;
+int sysctl_hr_scale_prime __read_mostly = 3;
 unsigned int sysctl_hr_scaling __read_mostly = 1;
 static int zero		= 0;
 static int n_one	= 1;
 static int thirty	= 30;
 static int hundred	= 100;
+static int minus_fifty = -50;
 
 int sched_thermal_decay_shift;
 static int __init setup_sched_thermal_decay_shift(char *str)
@@ -133,28 +134,28 @@ static struct ctl_table sched_headroom_sysctls[] = {
 	{
 		.procname       = "sched_boost_hr_lp",
 		.data           = &sysctl_hr_scale_lp,
-		.maxlen         = sizeof(unsigned int),
+		.maxlen         = sizeof(int),
 		.mode           = 0644,
 		.proc_handler   = proc_dointvec_minmax,
-		.extra1         = &zero,
+		.extra1         = &minus_fifty,
 		.extra2         = &hundred,
 	},
 	{
 		.procname       = "sched_boost_hr_big",
 		.data           = &sysctl_hr_scale_big,
-		.maxlen         = sizeof(unsigned int),
+		.maxlen         = sizeof(int),
 		.mode           = 0644,
 		.proc_handler   = proc_dointvec_minmax,
-		.extra1         = &zero,
+		.extra1         = &minus_fifty,
 		.extra2         = &hundred,
 	},
 	{
 		.procname       = "sched_boost_hr_prime",
 		.data           = &sysctl_hr_scale_prime,
-		.maxlen         = sizeof(unsigned int),
+		.maxlen         = sizeof(int),
 		.mode           = 0644,
 		.proc_handler   = proc_dointvec_minmax,
-		.extra1         = &zero,
+		.extra1         = &minus_fifty,
 		.extra2         = &thirty,
 	},
 	{
