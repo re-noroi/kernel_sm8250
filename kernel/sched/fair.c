@@ -4657,7 +4657,6 @@ static inline void update_load_avg(struct cfs_rq *cfs_rq, struct sched_entity *s
 
 	if (flags & UPDATE_UTIL_EST)
 		util_est_update(se);
-	cfs_rq_util_change(cfs_rq, 0);
 }
 
 /*
