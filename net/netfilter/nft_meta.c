@@ -451,8 +451,10 @@ static int nft_meta_set_init(const struct nft_ctx *ctx,
 	if (err < 0)
 		return err;
 
+#ifdef CONFIG_DEBUG_KERNEL
 	if (priv->key == NFT_META_NFTRACE)
 		static_branch_inc(&nft_trace_enabled);
+#endif
 
 	return 0;
 }
@@ -490,10 +492,12 @@ nla_put_failure:
 static void nft_meta_set_destroy(const struct nft_ctx *ctx,
 				 const struct nft_expr *expr)
 {
+#ifdef CONFIG_DEBUG_KERNEL
 	const struct nft_meta *priv = nft_expr_priv(expr);
 
 	if (priv->key == NFT_META_NFTRACE)
 		static_branch_dec(&nft_trace_enabled);
+#endif
 }
 
 static const struct nft_expr_ops nft_meta_get_ops = {
