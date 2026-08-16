@@ -4650,14 +4650,14 @@ static inline void update_load_avg(struct cfs_rq *cfs_rq, struct sched_entity *s
 		detach_entity_load_avg(cfs_rq, se);
 		update_tg_load_avg(cfs_rq);
 	} else if (decayed) {
-		cfs_rq_util_change(cfs_rq, 0);
-
 		if (flags & UPDATE_TG)
 			update_tg_load_avg(cfs_rq);
 	}
 
 	if (flags & UPDATE_UTIL_EST)
 		util_est_update(se);
+
+	cfs_rq_util_change(cfs_rq, 0);
 }
 
 /*
