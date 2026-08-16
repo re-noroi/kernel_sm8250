@@ -3616,7 +3616,7 @@ static int nf_tables_newset(struct net *net, struct sock *nlsk,
 	const struct nft_set_ops *ops;
 	struct nft_table *table;
 	struct nft_set *set;
-	struct nft_ctx ctx;
+	struct nft_ctx ctx = {};
 	char *name;
 	u64 size;
 	u64 timeout;
