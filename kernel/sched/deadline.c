@@ -993,7 +993,7 @@ static int start_dl_timer(struct task_struct *p)
 	 * chosen as the deadline is too small, don't even try to
 	 * start the timer in the past!
 	 */
-	if (ktime_us_delta(act, now) < 0)
+	if (ktime_before(act, now))
 		return 0;
 
 	/*
