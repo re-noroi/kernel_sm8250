@@ -954,7 +954,7 @@ bool update_entity_lag(struct cfs_rq *cfs_rq, struct sched_entity *se)
 	u64 avruntime = avg_vruntime(cfs_rq);
 	s64 vlag = entity_lag(cfs_rq, se, avruntime);
 
-	SCHED_WARN_ON(!se->on_rq);
+	WARN_ON_ONCE(!se->on_rq);
 
 	if (se->sched_delayed) {
 		/* previous vlag < 0 otherwise se would not be delayed */
@@ -1256,7 +1256,7 @@ static struct sched_entity *pick_eevdf(struct cfs_rq *cfs_rq, bool protect)
 	if (sched_feat(PICK_BUDDY) && protect &&
 	    cfs_rq->next && entity_eligible(cfs_rq, cfs_rq->next)) {
 		/* ->next will never be delayed */
-		SCHED_WARN_ON(cfs_rq->next->sched_delayed);
+		WARN_ON_ONCE(cfs_rq->next->sched_delayed);
 		return cfs_rq->next;
 	}
 
@@ -12804,7 +12804,7 @@ static void __set_next_task_fair(struct rq *rq, struct task_struct *p, bool firs
 	if (!first)
 		return;
 
-	SCHED_WARN_ON(se->sched_delayed);
+	WARN_ON_ONCE(se->sched_delayed);
 
 	if (hrtick_enabled(rq))
 		hrtick_start_fair(rq, p);
