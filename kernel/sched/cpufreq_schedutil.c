@@ -280,9 +280,9 @@ static inline unsigned long apply_dvfs_headroom(unsigned long util, int cpu)
 
 	headroom = (headroom * mult) / 100;
 
-	/* Limit headroom boost (60% of util)*/
+	/* Limit headroom boost (75% of util)*/
 	headroom = min(headroom, sg_cpu->headroom_max);
-	headroom = min(headroom, (util * 614) >> SCHED_CAPACITY_SHIFT);
+	headroom = min(headroom, (util * 768) >> SCHED_CAPACITY_SHIFT);
 
 	return min(util + headroom, sg_cpu->capacity);
 }
