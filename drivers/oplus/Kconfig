@@ -65,7 +65,7 @@ config OPLUS_POWERINFO_FTM
 
 config OPLUS_STUB_NODES
 	bool "oplus missing nodes stubs"
-	depends on OPLUS
+	depends on OPLUS_PORT
 	default y
 	help
 	 Select this to enable dummy stubs for missing oplus procfs and sysfs nodes
