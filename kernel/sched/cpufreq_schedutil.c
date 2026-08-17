@@ -263,11 +263,13 @@ static inline unsigned long apply_dvfs_headroom(unsigned long util, int cpu)
 	struct sugov_cpu *sg_cpu = &per_cpu(sugov_cpu, cpu);
 	unsigned long headroom;
 	int scale = 0;
-	unsigned int mult = sg_cpu->base_mult;
-	unsigned int level_limit = READ_ONCE(sysctl_hr_limit_level);
+	unsigned int mult, level_limit;
 
 	if (!util)
 		return 0;
+
+	mult = sg_cpu->base_mult;
+	level_limit = READ_ONCE(sysctl_hr_limit_level);
 
 	util = min(util, sg_cpu->capacity);
 	headroom = sg_cpu->dvfs_headroom_lut[util];
