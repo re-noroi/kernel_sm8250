@@ -71,8 +71,10 @@ int sysctl_hr_scale_lp __read_mostly = 15;
 int sysctl_hr_scale_big __read_mostly = 20;
 int sysctl_hr_scale_prime __read_mostly = 3;
 unsigned int sysctl_hr_scaling __read_mostly = 1;
+unsigned int sysctl_hr_limit_level __read_mostly = 2;
 static int zero		= 0;
 static int n_one	= 1;
+static int n_two	= 2;
 static int thirty	= 30;
 static int hundred	= 100;
 static int minus_fifty = -50;
@@ -166,6 +168,15 @@ static struct ctl_table sched_headroom_sysctls[] = {
 		.proc_handler   = proc_dointvec_minmax,
 		.extra1         = &zero,
 		.extra2         = &n_one,
+	},
+	{
+		.procname       = "sched_hr_limit_level",
+		.data           = &sysctl_hr_limit_level,
+		.maxlen         = sizeof(unsigned int),
+		.mode           = 0644,
+		.proc_handler   = proc_dointvec_minmax,
+		.extra1         = &zero,
+		.extra2         = &n_two,
 	},
 	{}
 };

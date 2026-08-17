@@ -264,6 +264,7 @@ static inline unsigned long apply_dvfs_headroom(unsigned long util, int cpu)
 	unsigned long headroom;
 	int scale = 0;
 	unsigned int mult = sg_cpu->base_mult;
+	unsigned int level_limit = READ_ONCE(sysctl_hr_limit_level);
 
 	if (!util)
 		return 0;
@@ -280,9 +281,13 @@ static inline unsigned long apply_dvfs_headroom(unsigned long util, int cpu)
 
 	headroom = (headroom * mult) / 100;
 
-	/* Limit headroom boost (75% of util)*/
-	headroom = min(headroom, sg_cpu->headroom_max);
-	headroom = min(headroom, (util * 768) >> SCHED_CAPACITY_SHIFT);
+	/* Limit headroom boost */
+	if (level_limit) {
+		headroom = min(headroom, sg_cpu->headroom_max);
+		if (level_limit == 2) {
+			headroom = min(headroom, (util * 768) >> SCHED_CAPACITY_SHIFT);
+		}
+	}
 
 	return min(util + headroom, sg_cpu->capacity);
 }
