@@ -357,7 +357,7 @@ static void scan_and_kill(void)
 	 * reaper thread, and indicate that reclaim is active.
 	 */
 	num_drop = 0;
-	nr_victims = nr_to_kill;
+	WRITE_ONCE(nr_victims, nr_to_kill);
 	WRITE_ONCE(reclaim_active, true);
 	for (i = 0; i < nr_to_kill; i++) {
 		struct mm_struct *mm = victims[i].mm;
@@ -476,7 +476,7 @@ static struct mm_struct *next_reap_victim(bool force)
 	 * cmpxchg in simple_lmk_mm_freed() protects victims[i].mm. We take an
 	 * mmget reference so the mm struct can't be freed while we reap it.
 	 */
-	for (i = 0; i < nr_victims; i++, mm = NULL) {
+	for (i = 0; i < READ_ONCE(nr_victims); i++, mm = NULL) {
 		/* Check if this victim is alive and hasn't been reaped yet */
 		mm = READ_ONCE(victims[i].mm);
 		if (!mm || test_bit(MMF_OOM_SKIP, &mm->flags))
@@ -494,14 +494,23 @@ static struct mm_struct *next_reap_victim(bool force)
 		 * and its pages will be freed by exit_mmap() without us.
 		 */
 		if (!down_read_trylock(&mm->mmap_sem)) {
-			mmput(mm);
 			if (force) {
+				/*
+				 * Operate on the mm's flags and drop our mmgrab()
+				 * reference *before* mmput(). mmput() can drop the
+				 * last mm_users reference, which synchronously runs
+				 * __mmput() -> exit_mmap() -> simple_lmk_mm_freed(),
+				 * and the latter can mmdrop() the mmgrab() reference
+				 * we hold here, freeing the mm. Dereferencing mm
+				 * after mmput() would therefore be a use-after-free.
+				 */
 				set_bit(MMF_OOM_SKIP, &mm->flags);
 				if (cmpxchg(&victims[i].mm, mm, NULL) == mm)
 					mmdrop(mm);
 			} else {
 				should_retry = true;
 			}
+			mmput(mm);
 			continue;
 		}
 
@@ -619,7 +628,7 @@ void simple_lmk_mm_freed(struct mm_struct *mm)
 	if (!READ_ONCE(reclaim_active))
 		return;
 
-	for (i = 0; i < nr_victims; i++) {
+	for (i = 0; i < READ_ONCE(nr_victims); i++) {
 		if (READ_ONCE(victims[i].mm) == mm) {
 			if (cmpxchg(&victims[i].mm, mm, NULL) == mm) {
 				matched = true;
@@ -725,18 +734,22 @@ static int simple_lmk_init_set(const char *val, const struct kernel_param *kp)
 		CONFIG_ANDROID_SIMPLE_LMK_PSI_THRESHOLD_MED_US,
 		CONFIG_ANDROID_SIMPLE_LMK_PSI_THRESHOLD_HIGH_US
 	};
-	int i;
+	int i, ret = 0;
 
 	if (!atomic_cmpxchg(&init_done, 0, 1)) {
 		thread = kthread_run(simple_lmk_reaper_thread, NULL,
 				     "simple_lmkd_reaper");
-		if (WARN_ON(IS_ERR(thread)))
-			return PTR_ERR(thread);
+		if (IS_ERR(thread)) {
+			ret = PTR_ERR(thread);
+			goto fail;
+		}
 
 		thread = kthread_run(simple_lmk_reclaim_thread, NULL,
 				     "simple_lmkd");
-		if (WARN_ON(IS_ERR(thread)))
-			return PTR_ERR(thread);
+		if (IS_ERR(thread)) {
+			ret = PTR_ERR(thread);
+			goto fail;
+		}
 
 		/*
 		 * Create PSI triggers before the PSI monitor thread so
@@ -747,15 +760,20 @@ static int simple_lmk_init_set(const char *val, const struct kernel_param *kp)
 			snprintf(buf, sizeof(buf), "full %d %d", thresholds[i],
 				 CONFIG_ANDROID_SIMPLE_LMK_PSI_WINDOW_MS * 1000);
 			psi_triggers[i] = psi_trigger_create(&psi_system, buf, PSI_MEM);
-			if (WARN_ON(IS_ERR(psi_triggers[i])))
-				return PTR_ERR(psi_triggers[i]);
+			if (IS_ERR(psi_triggers[i])) {
+				ret = PTR_ERR(psi_triggers[i]);
+				psi_triggers[i] = NULL;
+				goto fail;
+			}
 			psi_trigger_set_waitq(psi_triggers[i], &psi_waitq);
 		}
 
 		thread = kthread_run(simple_lmk_psi_thread, NULL,
 				     "simple_lmkd_psi");
-		if (WARN_ON(IS_ERR(thread)))
-			return PTR_ERR(thread);
+		if (IS_ERR(thread)) {
+			ret = PTR_ERR(thread);
+			goto fail;
+		}
 
 		WARN_ON(register_oom_notifier(&simple_lmk_oom_nb));
 
@@ -763,6 +781,20 @@ static int simple_lmk_init_set(const char *val, const struct kernel_param *kp)
 	}
 
 	return 0;
+
+fail:
+	/*
+	 * Roll back any partially created state and allow lmkd to retry
+	 * initialization on a subsequent write to the minfree parameter.
+	 */
+	for (i = 0; i < LMK_TIERS; i++) {
+		if (psi_triggers[i]) {
+			psi_trigger_destroy(psi_triggers[i]);
+			psi_triggers[i] = NULL;
+		}
+	}
+	atomic_set(&init_done, 0);
+	return ret;
 }
 
 static const struct kernel_param_ops simple_lmk_init_ops = {
