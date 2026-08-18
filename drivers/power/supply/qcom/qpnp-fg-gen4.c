@@ -2114,6 +2114,16 @@ static int fg_gen4_get_batt_profile(struct fg_dev *fg)
 	} else {
 #ifdef CONFIG_BATT_VERIFY_BY_DS28E16
 		profile_node = ERR_PTR(-ENXIO);
+
+		if (of_property_read_bool(node, "qcom,j3s-batt-profile") && !fg->profile_already_find) {
+			pr_alert("DTBO Flag found: Forcing j3ssun_5000mah profile\n");
+			fg->profile_already_find = true;
+			/* Avoid retry queueing if verify/retry path exists */
+			retry_batt_profile = BATT_PROFILE_RETRY_COUNT_MAX;
+			profile_node = of_batterydata_get_best_profile(batt_node,
+				fg->batt_id_ohms / 1000, "j3ssun_5000mah");
+        }
+
 		/* if cmdline battery profile vendor is passed to fg driver, use cmdline result */
 		if (is_batt_vendor_gyb && !fg->profile_already_find) {
 			pr_err("is_batt_vendor_gyb is %d\n", is_batt_vendor_gyb);
