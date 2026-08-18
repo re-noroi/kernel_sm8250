@@ -55,7 +55,15 @@ int smpcfd_prepare_cpu(unsigned int cpu)
 		free_cpumask_var(cfd->cpumask);
 		return -ENOMEM;
 	}
-	cfd->csd = alloc_percpu(call_single_data_t);
+	/*
+	 * Allocate the per-CPU CSDs the first time this CPU comes up, and never
+	 * free them again. A task which dispatched IPIs from this CPU may still
+	 * be polling those CSDs after it re-enabled preemption and migrated
+	 * away, so both the array and its address have to survive this CPU
+	 * going offline and coming back. See smp_call_function_many().
+	 */
+	if (!cfd->csd)
+		cfd->csd = alloc_percpu(call_single_data_t);
 	if (!cfd->csd) {
 		free_cpumask_var(cfd->cpumask);
 		free_cpumask_var(cfd->cpumask_ipi);
@@ -71,7 +79,7 @@ int smpcfd_dead_cpu(unsigned int cpu)
 
 	free_cpumask_var(cfd->cpumask);
 	free_cpumask_var(cfd->cpumask_ipi);
-	free_percpu(cfd->csd);
+	/* cfd->csd is intentionally never freed, see smpcfd_prepare_cpu(). */
 	return 0;
 }
 
@@ -380,10 +388,16 @@ int smp_call_function_single(int cpu, smp_call_func_t func, void *info,
 
 	err = generic_exec_single(cpu, csd);
 
+	/*
+	 * When @wait is set the CSD lives on this task's stack, and when it is
+	 * not set the per-CPU csd_data is never waited on. Either way nothing
+	 * below needs this CPU pinned, so re-enable preemption before the
+	 * potentially long wait for the target CPU to run the callback.
+	 */
+	put_cpu();
+
 	if (wait)
 		csd_lock_wait(csd);
-
-	put_cpu();
 
 	return err;
 }
@@ -468,6 +482,26 @@ call:
 }
 EXPORT_SYMBOL_GPL(smp_call_function_any);
 
+/*
+ * A cpumask that fits in a single word is small enough to keep on the stack,
+ * which makes the set of CPUs to wait for private to one invocation instead of
+ * shared per-CPU state. That in turn allows preemption to be re-enabled before
+ * waiting for the target CPUs to run their callbacks, rather than spinning with
+ * preemption disabled for as long as the slowest target takes to respond.
+ *
+ * Upstream solves this with a mask hanging off task_struct because NR_CPUS can
+ * be very large there; here sizeof(cpumask_t) is a single word, so the stack is
+ * cheaper and is immune to being clobbered by a nested call on the same task.
+ *
+ * Configurations with a larger NR_CPUS keep using the per-CPU mask and must
+ * therefore continue to hold preemption across the wait.
+ */
+#if NR_CPUS <= BITS_PER_LONG
+#define SCF_PRIVATE_WAIT_MASK	1
+#else
+#define SCF_PRIVATE_WAIT_MASK	0
+#endif
+
 /**
  * smp_call_function_many(): Run a function on a set of other CPUs.
  * @mask: The set of cpus to run on (only runs on online subset).
@@ -479,14 +513,25 @@ EXPORT_SYMBOL_GPL(smp_call_function_any);
  * If @wait is true, then returns once @func has returned.
  *
  * You must not call this function with disabled interrupts or from a
- * hardware interrupt handler or from a bottom half handler. Preemption
- * must be disabled when calling this function.
+ * hardware interrupt handler or from a bottom half handler.
+ *
+ * Target CPU selection and IPI dispatch run with preemption disabled, which
+ * protects against CPUs going offline but not against CPUs coming online; a CPU
+ * that comes online during the call is not seen and is not sent an IPI. When
+ * @wait is true the wait for remote completion happens after preemption has
+ * been re-enabled.
  */
 void smp_call_function_many(const struct cpumask *mask,
 			    smp_call_func_t func, void *info, bool wait)
 {
 	struct call_function_data *cfd;
-	int cpu, next_cpu, this_cpu = smp_processor_id();
+	int cpu, next_cpu, this_cpu;
+	struct cpumask *wait_mask;
+#if SCF_PRIVATE_WAIT_MASK
+	cpumask_t wait_mask_stack;
+#endif
+
+	this_cpu = get_cpu();
 
 	/*
 	 * Can deadlock when called with interrupts disabled.
@@ -504,7 +549,7 @@ void smp_call_function_many(const struct cpumask *mask,
 
 	/* No online cpus?  We're done. */
 	if (cpu >= nr_cpu_ids)
-		return;
+		goto out;
 
 	/* Do we have another CPU which isn't us? */
 	next_cpu = cpumask_next_and(cpu, mask, cpu_online_mask);
@@ -513,21 +558,27 @@ void smp_call_function_many(const struct cpumask *mask,
 
 	/* Fastpath: do that cpu by itself. */
 	if (next_cpu >= nr_cpu_ids) {
+		put_cpu();
 		smp_call_function_single(cpu, func, info, wait);
 		return;
 	}
 
 	cfd = this_cpu_ptr(&cfd_data);
+#if SCF_PRIVATE_WAIT_MASK
+	wait_mask = &wait_mask_stack;
+#else
+	wait_mask = cfd->cpumask;
+#endif
 
-	cpumask_and(cfd->cpumask, mask, cpu_online_mask);
-	__cpumask_clear_cpu(this_cpu, cfd->cpumask);
+	cpumask_and(wait_mask, mask, cpu_online_mask);
+	__cpumask_clear_cpu(this_cpu, wait_mask);
 
 	/* Some callers race with other cpus changing the passed mask */
-	if (unlikely(!cpumask_weight(cfd->cpumask)))
-		return;
+	if (unlikely(!cpumask_weight(wait_mask)))
+		goto out;
 
 	cpumask_clear(cfd->cpumask_ipi);
-	for_each_cpu(cpu, cfd->cpumask) {
+	for_each_cpu(cpu, wait_mask) {
 		call_single_data_t *csd = per_cpu_ptr(cfd->csd, cpu);
 
 		csd_lock(csd);
@@ -542,14 +593,31 @@ void smp_call_function_many(const struct cpumask *mask,
 	/* Send a message to all CPUs in the map */
 	arch_send_call_function_ipi_mask(cfd->cpumask_ipi);
 
+	/*
+	 * The IPIs are on their way and @wait_mask is private to this call, so
+	 * this CPU no longer needs to be pinned. @cfd itself addresses static
+	 * per-CPU memory and cfd->csd is allocated once and never freed (see
+	 * smpcfd_prepare_cpu()), so both stay valid below even if this CPU is
+	 * taken offline while we wait.
+	 */
+	if (SCF_PRIVATE_WAIT_MASK)
+		put_cpu();
+
 	if (wait) {
-		for_each_cpu(cpu, cfd->cpumask) {
+		for_each_cpu(cpu, wait_mask) {
 			call_single_data_t *csd;
 
 			csd = per_cpu_ptr(cfd->csd, cpu);
 			csd_lock_wait(csd);
 		}
 	}
+
+	if (!SCF_PRIVATE_WAIT_MASK)
+		put_cpu();
+	return;
+
+out:
+	put_cpu();
 }
 EXPORT_SYMBOL(smp_call_function_many);
 
@@ -570,9 +638,7 @@ EXPORT_SYMBOL(smp_call_function_many);
  */
 int smp_call_function(smp_call_func_t func, void *info, int wait)
 {
-	preempt_disable();
 	smp_call_function_many(cpu_online_mask, func, info, wait);
-	preempt_enable();
 
 	return 0;
 }
