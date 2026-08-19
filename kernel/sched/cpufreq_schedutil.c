@@ -43,7 +43,16 @@ struct sugov_policy {
 	bool			need_freq_update;
 
 	unsigned long		dvfs_capacity;
-	u16				dvfs_headroom_lut[SCHED_CAPACITY_SCALE + 1];
+	/*
+	 * Double-buffered headroom LUT: sugov_build_dvfs_headroom_lut()
+	 * always builds into the currently-inactive buffer and only
+	 * publishes it (via dvfs_headroom_lut_cur) once it is fully
+	 * populated, so readers on other CPUs never observe a table that
+	 * is torn between old- and new-capacity values.
+	 */
+	u16			dvfs_headroom_lut[2][SCHED_CAPACITY_SCALE + 1];
+	u16			*dvfs_headroom_lut_cur;
+	int			dvfs_headroom_lut_next;
 };
 
 struct sugov_cpu {
@@ -56,7 +65,6 @@ struct sugov_cpu {
 	u64			last_update;
 
 	unsigned long		util;
-	u16			*dvfs_headroom_lut;
 	unsigned long capacity;
 	unsigned long headroom_max;
 	unsigned int base_mult;
@@ -261,6 +269,7 @@ static inline unsigned long calc_dvfs_headroom(unsigned long util,
 static inline unsigned long apply_dvfs_headroom(unsigned long util, int cpu)
 {
 	struct sugov_cpu *sg_cpu = &per_cpu(sugov_cpu, cpu);
+	const u16 *lut;
 	unsigned long headroom;
 	int scale = 0;
 	unsigned int mult, level_limit;
@@ -272,7 +281,14 @@ static inline unsigned long apply_dvfs_headroom(unsigned long util, int cpu)
 	level_limit = READ_ONCE(sysctl_hr_limit_level);
 
 	util = min(util, sg_cpu->capacity);
-	headroom = sg_cpu->dvfs_headroom_lut[util];
+
+	/*
+	 * Pairs with the WRITE_ONCE()/smp_wmb() in
+	 * sugov_build_dvfs_headroom_lut(): guarantees we see either the
+	 * previous, fully-built table or the new, fully-built one.
+	 */
+	lut = READ_ONCE(sg_cpu->sg_policy->dvfs_headroom_lut_cur);
+	headroom = lut[util];
 
 	/* User-configurable scaling */
 	if (READ_ONCE(sysctl_hr_scaling)) {
@@ -677,15 +693,40 @@ static void sugov_build_dvfs_headroom_lut(struct sugov_policy *sg_policy)
 	struct cpufreq_policy *policy = sg_policy->policy;
 	unsigned long capacity = capacity_orig_of(policy->cpu);
 	unsigned long util;
+	unsigned int cpu;
+	int next_idx;
+	u16 *new_lut;
 
 	if (sg_policy->dvfs_capacity == capacity)
 		return;
 
+	/*
+	 * Build into the buffer that isn't currently published, so any
+	 * in-flight reader on another CPU keeps using a fully-built table.
+	 */
+	next_idx = sg_policy->dvfs_headroom_lut_next;
+	new_lut = sg_policy->dvfs_headroom_lut[next_idx];
+
+	for (util = 0; util <= SCHED_CAPACITY_SCALE; util++)
+		new_lut[util] = calc_dvfs_headroom(util, capacity);
+
+	/* Publish the fully-populated table before anyone can see it. */
+	smp_wmb();
+	WRITE_ONCE(sg_policy->dvfs_headroom_lut_cur, new_lut);
+
+	sg_policy->dvfs_headroom_lut_next = !next_idx;
 	sg_policy->dvfs_capacity = capacity;
 
-	for (util = 0; util <= SCHED_CAPACITY_SCALE; util++) {
-		sg_policy->dvfs_headroom_lut[util] =
-			calc_dvfs_headroom(util, capacity);
+	/*
+	 * Keep each CPU's clamp/limit bookkeeping in sync with the table we
+	 * just rebuilt. Previously these were only ever set once in
+	 * sugov_start().
+	 */
+	for_each_cpu(cpu, policy->cpus) {
+		struct sugov_cpu *sg_cpu = &per_cpu(sugov_cpu, cpu);
+
+		sg_cpu->capacity = capacity_orig_of(cpu);
+		sg_cpu->headroom_max = (sg_cpu->capacity * 20) / 100;
 	}
 }
 
@@ -914,7 +955,6 @@ static int sugov_start(struct cpufreq_policy *policy)
 		memset(sg_cpu, 0, sizeof(*sg_cpu));
 		sg_cpu->cpu = cpu;
 		sg_cpu->sg_policy = sg_policy;
-		sg_cpu->dvfs_headroom_lut = sg_policy->dvfs_headroom_lut;
 
 		sg_cpu->capacity = capacity_orig_of(cpu);
 		sg_cpu->headroom_max = (sg_cpu->capacity * 20) / 100;
