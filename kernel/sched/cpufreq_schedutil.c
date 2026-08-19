@@ -926,7 +926,7 @@ static int sugov_start(struct cpufreq_policy *policy)
 			sg_cpu->base_mult = 100;
 			sg_cpu->sysctl_scale = &sysctl_hr_scale_prime;
 		} else {
-			sg_cpu->base_mult = 110;
+			sg_cpu->base_mult = 100;
 			sg_cpu->sysctl_scale = &sysctl_hr_scale_big;
 		}
 	}
