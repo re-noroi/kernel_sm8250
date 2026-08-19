@@ -266,9 +266,9 @@ static inline unsigned long calc_dvfs_headroom(unsigned long util,
 	return headroom;
 }
 
-static inline unsigned long apply_dvfs_headroom(unsigned long util, int cpu)
+static inline unsigned long apply_dvfs_headroom_cpu(struct sugov_cpu *sg_cpu,
+							unsigned long util)
 {
-	struct sugov_cpu *sg_cpu = &per_cpu(sugov_cpu, cpu);
 	const u16 *lut;
 	unsigned long headroom;
 	int scale = 0;
@@ -314,8 +314,10 @@ unsigned long sugov_effective_cpu_perf(int cpu, unsigned long actual,
 				 unsigned long min,
 				 unsigned long max)
 {
+	struct sugov_cpu *sg_cpu = &per_cpu(sugov_cpu, cpu);
+
 	/* Add dvfs headroom to actual utilization */
-	actual = apply_dvfs_headroom(actual, cpu);
+	actual = apply_dvfs_headroom_cpu(sg_cpu, actual);
 
 	/*
 	 * Ensure at least minimum performance while providing more compute
@@ -331,7 +333,8 @@ static void sugov_get_util(struct sugov_cpu *sg_cpu, unsigned long boost)
 	util = effective_cpu_util(sg_cpu->cpu, util, &min, &max);
 	util = max(util, boost);
 	sg_cpu->bw_min = min;
-	sg_cpu->util = sugov_effective_cpu_perf(sg_cpu->cpu, util, min, max);
+	util = apply_dvfs_headroom_cpu(sg_cpu, util);
+	sg_cpu->util = clamp(util, min, max);
 }
 
 /**
