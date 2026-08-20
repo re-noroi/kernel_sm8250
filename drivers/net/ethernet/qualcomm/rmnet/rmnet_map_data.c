@@ -440,6 +440,7 @@ struct sk_buff *rmnet_map_deaggregate(struct sk_buff *skb,
 		if (!skbn)
 			return NULL;
 
+		skbn->dev = skb->dev;
 		skb_append_pagefrags(skbn, page, frag0->page_offset,
 				     packet_len);
 		skbn->data_len += packet_len;
@@ -450,6 +451,7 @@ struct sk_buff *rmnet_map_deaggregate(struct sk_buff *skb,
 		if (!skbn)
 			return NULL;
 
+		skbn->dev = skb->dev;
 		skb_reserve(skbn, RMNET_MAP_DEAGGR_HEADROOM);
 		skb_put(skbn, packet_len);
 		memcpy(skbn->data, data, packet_len);
