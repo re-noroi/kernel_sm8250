@@ -18,6 +18,16 @@
 #include <linux/net.h>
 #include <linux/ptr_ring.h>
 
+#ifndef DEV_STATS_INC
+#define DEV_STATS_INC(dev, field) \
+	atomic_long_inc((atomic_long_t *)&(dev)->stats.field)
+#endif
+
+#ifndef DEV_STATS_ADD
+#define DEV_STATS_ADD(dev, field, val) \
+	atomic_long_add((val), (atomic_long_t *)&(dev)->stats.field)
+#endif
+
 struct wg_device;
 
 struct multicore_worker {
