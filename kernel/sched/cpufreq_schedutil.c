@@ -256,8 +256,7 @@ static inline unsigned long calc_dvfs_headroom(unsigned long util,
 
 	delta = capacity - capped_util;
 
-	headroom = (delta * delta * delta * 5) /
-		   (delta_t * capacity * 16);
+	headroom = (delta * delta * 17) / (delta_t * 64);
 
 	if (capped_util < threshold)
 		headroom = (headroom * capped_util * capped_util) /
