@@ -48,13 +48,13 @@ static void setup_groups(struct root_profile *profile, struct cred *cred)
 	put_group_info(group_info);
 }
 
-/*
+/**
  * lets just have kernel do cleanup for us (put_seccomp_filter/seccomp_filter_release)
  * this is how the kernel does it and we dont have to do all this refcounting shit that
- * upstream does due to current->seccomp.filter = NULL;
+ * upstream does due to 'current->seccomp.filter = NULL;' which is unnecessary
  *
- * see: seccomp_assign_mode();
- * - if this has repercussions, then we can just restore all those refcounting shit
+ * see: seccomp_assign_mode, secure_computing
+ * - if this has repercussions, then we just restore all those refcounting shit
  */
 static void disable_seccomp(void)
 {
@@ -177,3 +177,5 @@ void escape_to_root_forced(void)
 	// which we likely already have on contexts where this will be used.
 	escape_to_root(true);
 }
+
+void __init ksu_app_profile_init(void) { }

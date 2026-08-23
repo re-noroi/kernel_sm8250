@@ -2,7 +2,7 @@
 
 static bool ksu_adb_root __read_mostly = false;
 
-static long is_exec_adbd(const char __user **filename_user)
+static inline long is_exec_adbd(const char __user **filename_user)
 {
 	// should be bigger than `/apex/com.android.adbd/bin/adbd`
 	char buf[40] = { 0 };
@@ -44,118 +44,120 @@ static long setup_ld_preload(void ***envp_arg)
 {
 	static const char kLdPreload[] = "LD_PRELOAD=/data/adb/ksu/lib/libadbroot.so";
 	static const char kLdLibraryPath[] = "LD_LIBRARY_PATH=/data/adb/ksu/lib";
-	static const size_t kReadEnvBatch = 16;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
-	unsigned long stackp = current_user_stack_pointer();
-#else
-	volatile unsigned long stackp = current->mm->start_stack;
-#endif
-	unsigned long envp, ld_preload_p, ld_library_path_p;
-	unsigned long *envp_p = (uintptr_t)envp_arg;
-	void *tmp_env_p = NULL, *tmp_env_p2 = NULL;
-	size_t env_count = 0, total_size;
-	long ret;
 
+	if (!envp_arg || !*envp_arg)
+		return -EINVAL;
+
+	char __user **envp = (char __user **)untagged_addr(*(void ***)envp_arg);
+
+	// we do it this way so compiler can assert and fold at compile time.
 	size_t kPtrSize = sizeof(uintptr_t);
 #ifdef CONFIG_COMPAT
 	if (is_compat_task())
 		kPtrSize = sizeof(uint32_t);
 #endif
 
-	envp = (char __user **)untagged_addr((unsigned long)*envp_p);
+	// lets do this like gtk. we have the ***envp
+	size_t env_count = 0;
+	uintptr_t val = 0;
 
-	ld_preload_p = stackp = ALIGN_DOWN(stackp - sizeof(kLdPreload), 8);
-	ret = copy_to_user(ld_preload_p, kLdPreload, sizeof(kLdPreload));
-	if (ret != 0) {
-		pr_warn("write ld_preload when adb_root_handle_execve failed: %ld\n", ret);
-		return -EFAULT;
-	}
-
-	ld_library_path_p = stackp = ALIGN_DOWN(stackp - sizeof(kLdLibraryPath), 8);
-	ret = copy_to_user(ld_library_path_p, kLdLibraryPath, sizeof(kLdLibraryPath));
-	if (ret != 0) {
-		pr_warn("write ld_library_path when adb_root_handle_execve failed: %ld\n", ret);
-		return -EFAULT;
-	}
-
-	for (;;) {
-		// increase krealloc allowance, 2->3, we add three things on TODO part
-		tmp_env_p2 = krealloc(tmp_env_p, (env_count + kReadEnvBatch + 3) * kPtrSize, GFP_KERNEL);
-		if (tmp_env_p2 == NULL) {
-			pr_err("alloc tmp env failed\n");
-			ret = -ENOMEM;
-			goto out_release_env_p;
-		}
-		tmp_env_p = tmp_env_p2;
-		ret = copy_from_user((char *)tmp_env_p + (env_count * kPtrSize), envp + env_count * kPtrSize, kReadEnvBatch * kPtrSize);
-		if (ret < 0) {
-			pr_warn("Access envp when adb_root_handle_execve failed: %ld\n", ret);
-			ret = -EFAULT;
-			goto out_release_env_p;
-		}
-		size_t read_count = kReadEnvBatch * kPtrSize - ret;
-		size_t max_new_env_count = read_count / kPtrSize, new_env_count = 0;
-		bool meet_zero = false;
-		for (; new_env_count < max_new_env_count; new_env_count++) {
-			unsigned long val;
-			if (kPtrSize == sizeof(uint32_t))
-				val = ((uint32_t *)tmp_env_p)[new_env_count + env_count];
-			else
-				val = ((uint64_t *)tmp_env_p)[new_env_count + env_count];
-			if (!val) {
-				meet_zero = true;
-				break;
-			}
-		}
-		if (!meet_zero) {
-			if (read_count % kPtrSize != 0) {
-				pr_err("unaligned envp array!\n");
-				ret = -EFAULT;
-				goto out_release_env_p;
-			} else if (ret != 0) {
-				pr_err("truncated envp array!\n");
-				ret = -EFAULT;
-				goto out_release_env_p;
-			}
-		}
-		env_count += new_env_count;
-		if (meet_zero)
-			break;
-	}
-
-	// We should have allocated enough memory
-	// TODO: handle existing LD_PRELOAD
+envp_count_loop:
 	if (kPtrSize == sizeof(uint32_t)) {
-		((uint32_t *)tmp_env_p)[env_count++] = *(uint32_t *)&ld_preload_p;
-		((uint32_t *)tmp_env_p)[env_count++] = *(uint32_t *)&ld_library_path_p;
-		((uint32_t *)tmp_env_p)[env_count++] = 0;
-	} else {
-		((uint64_t *)tmp_env_p)[env_count++] = ld_preload_p;
-		((uint64_t *)tmp_env_p)[env_count++] = ld_library_path_p;
-		((uint64_t *)tmp_env_p)[env_count++] = 0;
-	}
-	total_size = env_count * kPtrSize;
-
-	stackp -= total_size;
-	ret = copy_to_user(stackp, tmp_env_p, total_size);
-	if (ret != 0) {
-		pr_err("copy new env failed: %ld\n", ret);
-		ret = -EFAULT;
-		goto out_release_env_p;
+		uint32_t v32;
+		uint32_t __user *array = (uint32_t __user *)envp;
+		if (get_user(v32, &array[env_count] ))
+			return -EFAULT;
+		val = v32;
 	}
 
-	*envp_p = stackp;
-	ret = 0;
-
-out_release_env_p:
-	if (tmp_env_p) {
-		kfree(tmp_env_p);
+	if (kPtrSize == sizeof(uint64_t)) {
+		uint64_t v64;
+		uint64_t __user *array = (uint64_t __user *)envp;
+		if (get_user(v64, &array[env_count]))
+			return -EFAULT;
+		val = v64;
 	}
 
-	return ret;
+	if (!val)
+		goto envp_count_done;
+
+	env_count = env_count + 1;
+
+	goto envp_count_loop;
+
+envp_count_done:
+	pr_info("%s: envp_count: %u \n", __func__, env_count);
+
+	// null env, we dont care
+	if (!env_count)
+		return -EINVAL;
+
+	// this is freed once adb exits/gets replaced (sys_exit / execve->bprm), one page is no big deal, we leave it mapped
+	uintptr_t mmap_page = vm_mmap(NULL, 0, PAGE_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, 0);
+	if (IS_ERR_VALUE(mmap_page))
+		return -ENOMEM;
+
+	/**
+	 *  PLAN:
+	 * 	on 0, we put kLdPreload
+	 *	we offset by kLdPreload at +64 bytes
+	 *	we offset by new envp at +128 bytes
+	 */
+
+	_Static_assert(sizeof(kLdPreload) < 64, "fix kLdLibraryPath offset");
+	_Static_assert((sizeof(kLdPreload) + sizeof(kLdLibraryPath)) < 128, "fix envp_array offset");
+
+	void __user *kLdPreload_p = (void __user *)mmap_page;
+	void __user *kLdLibraryPath_p = (void __user *)(mmap_page + 64);
+	void __user *envp_array_p = (void __user *)(mmap_page + 128);
+
+	if (!!copy_to_user(kLdPreload_p, kLdPreload, sizeof(kLdPreload)))
+		return -EFAULT;
+
+	if (!!copy_to_user(kLdLibraryPath_p, kLdLibraryPath, sizeof(kLdLibraryPath)))
+		return -EFAULT;
+
+	// prepare uintptr_t array for new char **envp
+	// 2 entries plus a NULL
+	size_t total_ptrs = env_count + 2 + 1;
+	size_t array_bytes = total_ptrs * kPtrSize;
+
+	// well, it will overflow.
+	if (128 + array_bytes > PAGE_SIZE)
+		return -E2BIG;
+
+	void *buf __zoffstack(array_bytes);
+	if (!buf)
+		return -ENOMEM;
+
+	// copy original envp array addresses
+	if (copy_from_user(buf, envp, env_count * kPtrSize))
+		return -EFAULT;
+
+	// 32-on-64 assumes LE.
+	if (kPtrSize == sizeof(uint32_t)) {
+		uint32_t *array = (uint32_t *)buf;
+		array[env_count + 0] = *(uint32_t *)&kLdPreload_p;
+		array[env_count + 1] = *(uint32_t *)&kLdLibraryPath_p;
+		array[env_count + 2] = 0x0;
+	}
+	if (kPtrSize == sizeof(uint64_t)) {
+		uint64_t *array = (uint64_t *)buf;
+		array[env_count + 0] = *(uint64_t *)&kLdPreload_p;
+		array[env_count + 1] = *(uint64_t *)&kLdLibraryPath_p;
+		array[env_count + 2] = 0x0;
+	}
+
+	// blast new envp array to userspace
+	if (!!copy_to_user(envp_array_p, buf, array_bytes))
+		return -EFAULT;
+
+	*(void ***)envp_arg = (void **)envp_array_p;
+	pr_info("new envp array blasted to userspace\n");
+	return 0;	
 }
 
-static noinline void do_ksu_adb_root_handle_execve(void *restrict filename, void *restrict envp_in)
+static noinline void do_ksu_adb_root_execve_user(void *restrict filename, void *restrict envp_in)
 {
 	if (likely(ksu_is_seccomp_enabled()))
 		return;
@@ -182,7 +184,7 @@ static noinline void do_ksu_adb_root_handle_execve(void *restrict filename, void
 	return;
 }
 
-static noinline void do_ksu_adb_root_handle_execveat(void *restrict filename, void *restrict envp_in)
+static noinline void do_ksu_adb_root_execve_kernel(void *restrict filename, void *restrict envp_in)
 {
 	if (likely(ksu_is_seccomp_enabled()))
 		return;
@@ -230,29 +232,29 @@ static noinline void do_ksu_adb_root_handle_execveat(void *restrict filename, vo
 
 DEFINE_STATIC_KEY_FALSE(ksu_adb_root_key);
 
-static inline void ksu_adb_root_handle_execve(void *restrict filename, void *restrict envp_in)
+static inline void ksu_adb_root_execve_user(void *restrict filename, void *restrict envp_in)
 {
 	if (static_branch_unlikely(&ksu_adb_root_key))
-		do_ksu_adb_root_handle_execve(filename, envp_in);
+		do_ksu_adb_root_execve_user(filename, envp_in);
 }
-static inline void ksu_adb_root_handle_execveat(void *restrict filename, void *restrict envp_in)
+static inline void ksu_adb_root_execve_kernel(void *restrict filename, void *restrict envp_in)
 {
 	if (static_branch_unlikely(&ksu_adb_root_key))
-		do_ksu_adb_root_handle_execveat(filename, envp_in);
+		do_ksu_adb_root_execve_kernel(filename, envp_in);
 }
 
 static inline void ksu_static_branch_enable() { static_branch_enable(&ksu_adb_root_key); smp_mb(); }
 static inline void ksu_static_branch_disable() { static_branch_disable(&ksu_adb_root_key); smp_mb(); }
 #else /* ! KSU_CAN_USE_JUMP_LABEL */
-static inline void ksu_adb_root_handle_execve(void *restrict filename, void *restrict envp_in)
+static inline void ksu_adb_root_execve_user(void *restrict filename, void *restrict envp_in)
 {
 	if (unlikely(ksu_adb_root))
-		do_ksu_adb_root_handle_execve(filename, envp_in);
+		do_ksu_adb_root_execve_user(filename, envp_in);
 }
-static inline void ksu_adb_root_handle_execveat(void *restrict filename, void *restrict envp_in)
+static inline void ksu_adb_root_execve_kernel(void *restrict filename, void *restrict envp_in)
 {
 	if (unlikely(ksu_adb_root))
-		do_ksu_adb_root_handle_execveat(filename, envp_in);
+		do_ksu_adb_root_execve_kernel(filename, envp_in);
 }
 static inline void ksu_static_branch_enable() { } // no-op
 static inline void ksu_static_branch_disable() { } // no-op

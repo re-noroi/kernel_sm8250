@@ -225,8 +225,9 @@ bool __ksu_is_allow_uid(uid_t uid)
 		return true;
 	}
 
-	if (IS_ENABLED(CONFIG_KSU_DEBUG) && unlikely(uid == SHELL_UID))
+	if (allow_shell && uid == SHELL_UID) {
 		return true;
+	}
 
 	rcu_read_lock();
 	hash_for_each_possible_rcu (allow_list, p, list, uid) {
@@ -258,8 +259,7 @@ bool ksu_uid_should_umount(uid_t uid)
 		return false;
 	}
 	if (unlikely(uid == WEBVIEW_ZYGOTE_UID)) {
-		// we should not umount for webview zygote
-		return false;
+		return ksu_is_webview_zygote_umount_enabled();
 	}
 
 	rcu_read_lock();
@@ -301,8 +301,9 @@ struct root_profile *ksu_get_root_profile(uid_t uid)
 		goto use_default;
 	}
 
-	if (IS_ENABLED(CONFIG_KSU_DEBUG) && unlikely(uid == SHELL_UID))
+	if (allow_shell && uid == SHELL_UID) {
 		goto use_default;
+	}
 
 retry:
 	res = NULL;

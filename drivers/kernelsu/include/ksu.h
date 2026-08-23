@@ -3,9 +3,13 @@
 
 #define KERNEL_SU_VERSION KSU_VERSION
 
-#define EVENT_POST_FS_DATA 1
-#define EVENT_BOOT_COMPLETED 2
-#define EVENT_MODULE_MOUNTED 3
+struct cred* ksu_cred;
+
+#if defined(CONFIG_KSU_DEBUG) || defined(CONFIG_KSU_SHELL_HAS_SU_ALWAYS)
+static bool allow_shell = true;
+#else
+static bool allow_shell = false;
+#endif
 
 static inline int startswith(char *s, char *prefix)
 {

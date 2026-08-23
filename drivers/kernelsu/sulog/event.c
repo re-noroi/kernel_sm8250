@@ -232,7 +232,7 @@ static void ksu_sulog_emit_bprm(const char *filename)
 	size_t argv_copy_len = (arg_len > ARGV_MAX_BPRM) ? ARGV_MAX_BPRM : arg_len;
 
 	// we cant use strncpy on here, else it will truncate once it sees \0
-	if (ksu_copy_from_user_retry(args, (void __user *)arg_start, argv_copy_len))
+	if (copy_from_user_retry(args, (void __user *)arg_start, argv_copy_len))
 		return;
 
 	args[argv_copy_len - 1] = '\0';

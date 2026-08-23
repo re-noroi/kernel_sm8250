@@ -62,6 +62,64 @@ static uintptr_t ksu_read_module_blacklist()
 	return module_blacklist_pptr;
 }
 
+#if 0
+#define __AARCH64_init_module 105
+static syscall_fn_t aarch64_init_module __read_mostly = NULL;
+asmlinkage long hook_aarch64_init_module_ret(const struct pt_regs *regs)
+{
+	extern long __arm64_sys_init_module(const struct pt_regs *regs);
+	long ret = __arm64_sys_init_module(regs);
+	if (ret == -EPERM)
+		return 0;
+	return ret;
+}
+
+#define __AARCH64_finit_module 273
+static syscall_fn_t aarch64_finit_module __read_mostly = NULL;
+asmlinkage long hook_aarch64_finit_module_ret(const struct pt_regs *regs)
+{
+	extern long __arm64_sys_finit_module(const struct pt_regs *regs);
+	long ret = __arm64_sys_finit_module(regs);
+	if (ret == -EPERM)
+		return 0;
+	return ret;
+}
+
+static int ksu_unhook_syscall_init_module(void *unused)
+{
+	unsigned int i = 0;
+
+	set_user_nice(current, 19); // low prio
+	pr_info("%s: kthread init!\n", __func__);
+
+start:
+	if (*(volatile bool *)&ksu_boot_completed)
+		goto cleanup;
+
+	msleep(5000);
+
+	i++;
+
+	if (i < 12)
+		goto start;
+cleanup:
+
+	restore_syscall((void *)&aarch64_init_module, __AARCH64_init_module, (void *)hook_aarch64_init_module_ret, (void *)sys_call_table);
+	restore_syscall((void *)&aarch64_finit_module, __AARCH64_finit_module, (void *)hook_aarch64_finit_module_ret, (void *)sys_call_table);
+
+	pr_info("%s: kthread exit!\n", __func__);
+	return 0;
+}
+
+static inline void ksu_hook_syscall_init_module(void)
+{
+	read_and_replace_syscall((void *)&aarch64_init_module, __AARCH64_init_module, (void *)hook_aarch64_init_module_ret, (void *)sys_call_table);
+	read_and_replace_syscall((void *)&aarch64_finit_module, __AARCH64_finit_module, (void *)hook_aarch64_finit_module_ret, (void *)sys_call_table);
+
+	kthread_run(ksu_unhook_syscall_init_module, NULL, "kthread");
+}
+#endif
+
 static noinline void ksu_extend_module_blacklist()
 {
 	uintptr_t blacklist_pptr = ksu_read_module_blacklist();
@@ -73,6 +131,10 @@ static noinline void ksu_extend_module_blacklist()
 		pr_info("module_blackist: 0x%lx extended with %s\n", (uintptr_t)*(void **)blacklist_pptr, *(char **)blacklist_pptr);
 	else
 		pr_info("module_blackist: operation failed! ret: %d \n", ret);
+#if 0
+	ksu_hook_syscall_init_module();
+#endif
+
 
 	return;
 }

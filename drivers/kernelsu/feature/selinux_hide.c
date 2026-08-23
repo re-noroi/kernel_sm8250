@@ -89,20 +89,25 @@ static __nocfi ssize_t ksu_selinux_transaction_write(struct file *file, const ch
 	if (current_uid().val < 10000)
 		goto skip_destroy;
 
+#define SEL_CONTEXT 5
+#define SEL_ACCESS 6
+	ino_t ino = file_inode(file)->i_ino;
+	if (ino != SEL_CONTEXT && ino != SEL_ACCESS)
+		goto skip_destroy;
+
 	// two cachelines
 	char kbuf[128] = { 0 };
 	size_t len = (size < 127) ? size : 127;
 
-	if (ksu_copy_from_user_retry(kbuf, buf, len))
+	if (copy_from_user_retry(kbuf, buf, len))
 		goto skip_destroy;
 
 	if (!ksu_should_destroy_context(kbuf))
 		goto skip_destroy;
 
-	// or copy_to_user? is it writable? or we vm_mmap? or hunt for writable section on start_stack again?
-	// NOTE: if this is 'timeable', to equalize, we should call selinux_transaction_write_fn before ret EINVAL
 	pr_info("selinux_hide: selinux_transaction_write: destroy: %s \n", kbuf);
-	return -EINVAL;
+	buf = (const char __user *)current->mm->start_stack;
+	return selinux_transaction_write_fn(file, buf, size, pos);
 
 skip_destroy:
 	return selinux_transaction_write_fn(file, buf, size, pos);
