@@ -67,7 +67,6 @@ struct sugov_cpu {
 	unsigned long		util;
 	unsigned long capacity;
 	unsigned long headroom_max;
-	unsigned int base_mult;
 	int *sysctl_scale;
 
 	unsigned long		bw_min;
@@ -271,12 +270,11 @@ static inline unsigned long apply_dvfs_headroom_cpu(struct sugov_cpu *sg_cpu,
 	const u16 *lut;
 	unsigned long headroom;
 	int scale = 0;
-	unsigned int mult, level_limit;
+	unsigned int mult = 100, level_limit;
 
 	if (!util)
 		return 0;
 
-	mult = sg_cpu->base_mult;
 	level_limit = READ_ONCE(sysctl_hr_limit_level);
 
 	util = min(util, sg_cpu->capacity);
@@ -293,7 +291,7 @@ static inline unsigned long apply_dvfs_headroom_cpu(struct sugov_cpu *sg_cpu,
 	if (READ_ONCE(sysctl_hr_scaling)) {
 		scale = READ_ONCE(*sg_cpu->sysctl_scale);
 		if (scale)
-			mult = (mult * (100 + scale)) / 100;
+			mult = (100 + scale) / 100;
 	}
 
 	headroom = (headroom * mult) / 100;
@@ -962,13 +960,10 @@ static int sugov_start(struct cpufreq_policy *policy)
 		sg_cpu->headroom_max = (sg_cpu->capacity * 20) / 100;
 
 		if (cpumask_test_cpu(cpu, cpu_lp_mask)) {
-			sg_cpu->base_mult = 130;
 			sg_cpu->sysctl_scale = &sysctl_hr_scale_lp;
 		} else if (cpumask_test_cpu(cpu, cpu_prime_mask)) {
-			sg_cpu->base_mult = 100;
 			sg_cpu->sysctl_scale = &sysctl_hr_scale_prime;
 		} else {
-			sg_cpu->base_mult = 100;
 			sg_cpu->sysctl_scale = &sysctl_hr_scale_big;
 		}
 	}
