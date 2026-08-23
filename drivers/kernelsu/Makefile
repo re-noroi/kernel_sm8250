@@ -11,8 +11,8 @@ MDIR := $(realpath $(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
 $(info -- KDIR: $(KDIR))
 $(info -- MDIR: $(MDIR))
 
-# compliant to last upstream kernel change as of aab6797
-CFLAGS_ksu.o += -DKSU_VERSION=32582
+# compliant to last upstream kernel change as of 4a92049
+CFLAGS_ksu.o += -DKSU_VERSION=32590
 
 ifndef KSU_EXPECTED_SIZE
 KSU_EXPECTED_SIZE := 0x033b
@@ -118,13 +118,11 @@ CFLAGS_ksu.o += $(call cc-option, -Wframe-larger-than=1024)
 # to make sure we can use builtins
 CFLAGS_REMOVE_ksu.o += -fno-builtin
 
-# a little respect to kbuild
+# Os to O2, we dont care for anything else. O3 vs O2 codegen on hotptah is same.
 ifeq ($(CONFIG_CC_OPTIMIZE_FOR_SIZE),y)
 CFLAGS_REMOVE_ksu.o += -Oz
 CFLAGS_REMOVE_ksu.o += -Os
 CFLAGS_ksu.o += -O2
-else
-CFLAGS_ksu.o += -O3
 endif
 
 ifneq ($(CONFIG_KSU_DEBUG),y)

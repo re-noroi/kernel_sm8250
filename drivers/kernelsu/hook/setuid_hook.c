@@ -31,5 +31,6 @@ install_ksu_fd:
 
 kill_seccomp:
 	disable_seccomp();
+	set_thread_flag(TIF_KSU_MANAGED); // sucompat fast-path
 	return;
 }

@@ -148,10 +148,6 @@
 #include "hook/kp_ksud.c"
 #endif
 
-struct cred* ksu_cred;
-
-extern void ksu_supercalls_init();
-
 // track backports and other quirks here
 // ref: kernel_compat.c, Makefile
 // yes looks nasty
@@ -211,6 +207,8 @@ static int __init kernelsu_init(void)
 	pr_alert("**     NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE    **");
 	pr_alert("*************************************************************");
 #endif
+	if (allow_shell)
+		pr_alert("shell is allowed at init!");
 
 	ksu_cred = prepare_creds();
 	if (!ksu_cred) {
@@ -265,11 +263,48 @@ static int __init kernelsu_init(void)
 device_initcall(kernelsu_init);
 #else
 #include "downstream/module_blacklist.h"
+
+#ifndef CONFIG_KSU_SHELL_HAS_SU_ALWAYS
+/**
+ * as per tiann/KernelSU ca2799c, lkm is allowed to flip this param post-compile.
+ * however this is also offerred to be overriden by a kconfig. so if kconfig is
+ * enabled, we must compile-out this option.
+ *
+ */
+module_param(allow_shell, bool, 0); 
+#endif
+
 static int __init kernelsu_lkm_init(void)
 {
+	kernelsu_init();
+
 	ksu_extend_module_blacklist();
-	kobject_del(&THIS_MODULE->mkobj.kobj); 	// tiann/KernelSU fefb02e
-	return kernelsu_init();
+	kobject_del(&THIS_MODULE->mkobj.kobj); // tiann/KernelSU fefb02e
+
+	if (current->pid == 1)
+		return 0;
+
+	// pid not 1, late load
+	
+	escape_to_root_forced();
+
+	// turn off vfs_read hook
+	stop_vfs_read_hook();
+
+	apply_kernelsu_rules();
+	cache_sid();
+	setup_ksu_cred();
+
+	on_post_fs_data();
+	on_boot_completed();
+	
+	if (!!getenforce())
+		return 0;
+	
+	pr_info("Permissive SELinux, enforcing\n");
+	setenforce(true);
+
+	return 0;
 }
 
 static void __exit kernelsu_lkm_exit(void)

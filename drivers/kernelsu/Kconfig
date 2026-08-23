@@ -13,23 +13,23 @@ config KSU_KPROBES_KSUD
 	bool "Enable dynamic kprobes for early boot hooks"
 	depends on KSU
 	depends on KPROBES && KRETPROBES
-	default y
+	default n
 	help
 	  Use dynamic hooks via kprobes for functions only
 	  on early boot. Hooks are unregistered at boot complete
 	  to reduce overhead.
 
 config KSU_HACK_ARM64_BRANCH_LINK
-	bool "EXPERIMENTAL: inline call-site hijacking (ARM64 bl insn)"
+	bool "inline call-site hijacking (ARM64 bl insn)"
 	depends on KSU
 	depends on ARM64 && KALLSYMS
 	depends on !KSU_TAMPER_SYSCALL_TABLE
 	default y if KSU = m
 	default n
 	help
-	  EXPERIMENTAL: Attempts to provide sucompat by scanning kernel text and
-	  overwriting caller's branch insn ('b' or 'bl') directly to our hooks,
-	  bypassing trampoline overhead and CFI fuckups. Inspired by ARM64 optprobes.
+	  Attempts to provide sucompat by scanning kernel text and overwriting caller's
+	  branch insn ('b' or 'bl') directly to our hooks, bypassing trampoline overhead
+	  and CFI fuckups. Inspired by ARM64 optprobes.
 	  Successful patching relies on symbol stability, so hooking success will
 	  vary across different compliers, optimization, tweaks and backports.
 	  When patching fails, it keeps syscall table hook for the target symbol.
@@ -96,6 +96,13 @@ config KSU_NOPRINTK
 	default n
 	help
 	  Disable KernelSU dmesg output.
+
+config KSU_SHELL_HAS_SU_ALWAYS
+	bool "give shell su"
+	depends on KSU
+	default n
+	help
+	  Always allow shell (2000) for su. Can speedup sucompat gate as a side-effect.
 
 config KSU_DEBUG
 	bool "KernelSU debug mode"

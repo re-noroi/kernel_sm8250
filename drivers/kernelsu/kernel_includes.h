@@ -54,6 +54,7 @@
 #include <linux/lockdep.h>
 #include <linux/lsm_audit.h>
 #include <linux/mm.h>
+#include <linux/mman.h>
 #include <linux/module.h>
 #include <linux/moduleparam.h>
 #include <linux/mount.h>
@@ -205,6 +206,24 @@ static __nocfi void *memset_explicit(void *s, int c, size_t count)
 // pseudo-raii / defer on C via __attribute__((__cleanup__()))
 #ifndef __cleanup
 #define __cleanup(fn) __attribute__((__cleanup__(fn)))
+#endif
+
+// check for guaranteed inline routines
+// if unavailable, use plain builtin
+#ifndef __has_builtin
+#define __has_builtin(x) (0)
+#endif
+
+#if __has_builtin(__builtin_memcpy_inline)
+#define memcpy_inline	__builtin_memcpy_inline
+#else
+#define memcpy_inline	__builtin_memcpy
+#endif
+
+#if __has_builtin(__builtin_memset_inline)
+#define memset_inline	__builtin_memset_inline
+#else
+#define memset_inline	__builtin_memset
 #endif
 
 /**

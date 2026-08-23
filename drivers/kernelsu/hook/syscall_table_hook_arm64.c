@@ -21,6 +21,7 @@
 
 #define __AARCH64_reboot	142
 #define __AARCH64_execve	221
+#define __AARCH64_execveat	281
 #define __AARCH64_faccessat	48
 #define __AARCH64_newfstatat	79
 #define __AARCH64_newfstat	80
@@ -29,6 +30,7 @@
 // NOTE: CONFIG_COMPAT implies __ARCH_WANT_COMPAT_STAT64 (fstatat64, fstat64)
 #define __ARMEABI_reboot	88
 #define __ARMEABI_execve	11
+#define __ARMEABI_execveat	387
 #define __ARMEABI_faccessat	334
 #define __ARMEABI_fstatat64	327
 #define __ARMEABI_fstat64	197
@@ -49,7 +51,6 @@ asmlinkage long hook_aarch64_reboot(const struct pt_regs *regs)
 	void __user **arg = (void __user **)&regs->regs[3];
 
 	ksu_handle_sys_reboot(magic1, magic2, cmd, arg);
-
 	return __arm64_sys_reboot(regs);
 }
 
@@ -61,9 +62,22 @@ asmlinkage long hook_aarch64_execve(const struct pt_regs *regs)
 	void ***argv = (void ***)&regs->regs[1];
 	void ***envp = (void ***)&regs->regs[2];
 
-	ksu_handle_execve(filename, argv, envp);
-
+	ksu_handle_sys_execve(filename, argv, envp);
 	return __arm64_sys_execve(regs);
+}
+
+extern long __arm64_sys_execveat(const struct pt_regs *regs);
+static syscall_fn_t aarch64_execveat __read_mostly = NULL;
+asmlinkage long hook_aarch64_execveat(const struct pt_regs *regs)
+{
+	int *fd = (int *)&regs->regs[0];
+	const char __user **filename = (const char __user **)&regs->regs[1];
+	void ***argv = (void ***)&regs->regs[2];
+	void ***envp = (void ***)&regs->regs[3];
+	int *flags = (int *)&regs->regs[4];
+
+	ksu_handle_sys_execveat(fd, filename, argv, envp, flags);
+	return __arm64_sys_execveat(regs);
 }
 
 extern long __arm64_sys_faccessat(const struct pt_regs *regs);
@@ -73,7 +87,6 @@ asmlinkage long hook_aarch64_faccessat(const struct pt_regs *regs)
 	const char __user **filename = (const char __user **)&regs->regs[1];
 
 	ksu_handle_faccessat(NULL, filename, NULL, NULL);
-
 	return __arm64_sys_faccessat(regs);
 }
 
@@ -84,7 +97,6 @@ asmlinkage long hook_aarch64_newfstatat(const struct pt_regs *regs)
 	const char __user **filename = (const char __user **)&regs->regs[1];
 
 	ksu_handle_stat(NULL, filename, NULL);
-
 	return __arm64_sys_newfstatat(regs);
 }
 
@@ -134,8 +146,22 @@ asmlinkage long hook_armeabi_execve(const struct pt_regs *regs)
 	void ***argv = (void ***)&regs->regs[1];
 	void ***envp = (void ***)&regs->regs[2];
 
-	ksu_handle_execve(filename, argv, envp);
+	ksu_handle_sys_execve(filename, argv, envp);
 	return __arm64_compat_sys_execve(regs);
+}
+
+extern long __arm64_compat_sys_execveat(const struct pt_regs *regs);
+static syscall_fn_t armeabi_execveat __read_mostly = NULL;
+asmlinkage long hook_armeabi_execveat(const struct pt_regs *regs)
+{
+	int *fd = (int *)&regs->regs[0];
+	const char __user **filename = (const char __user **)&regs->regs[1];
+	void ***argv = (void ***)&regs->regs[2];
+	void ***envp = (void ***)&regs->regs[3];
+	int *flags = (int *)&regs->regs[4];
+
+	ksu_handle_sys_execveat(fd, filename, argv, envp, flags);
+	return __arm64_compat_sys_execveat(regs);
 }
 
 extern long __arm64_sys_faccessat(const struct pt_regs *regs);
@@ -193,12 +219,20 @@ asmlinkage long hook_aarch64_reboot(int magic1, int magic2, unsigned int cmd, vo
 }
 
 static void *aarch64_execve __read_mostly = NULL;
-asmlinkage long hook_aarch64_execve(const char __user * filename,
-				const char __user *const __user * argv,
-				const char __user *const __user * envp)
+asmlinkage long hook_aarch64_execve(const char __user * filename, const char __user *const __user * argv, const char __user *const __user * envp)
 {
-	ksu_handle_execve(&filename, (void ***)&argv, (void ***)&envp);
+	ksu_handle_sys_execve(&filename, (void ***)&argv, (void ***)&envp);
 	return sys_execve(filename, argv, envp);
+}
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0)
+__weak long sys_execveat(int fd, const char __user * filename, const char __user *const __user * argv, const char __user *const __user * envp, int flags) { return -ENOSYS; }
+#endif
+static void *aarch64_execveat __read_mostly = NULL;
+asmlinkage long hook_aarch64_execveat(int fd, const char __user * filename, const char __user *const __user * argv, const char __user *const __user * envp, int flags)
+{
+	ksu_handle_sys_execveat(&fd, &filename, (void ***)&argv, (void ***)&envp, &flags);
+	return sys_execveat(fd, filename, argv, envp, flags);
 }
 
 static void *aarch64_faccessat __read_mostly = NULL;
@@ -246,8 +280,18 @@ asmlinkage long hook_armeabi_execve(const char __user * filename,
 				const compat_uptr_t __user * argv,
 				const compat_uptr_t __user * envp)
 {
-	ksu_handle_execve(&filename, (void ***)&argv, (void ***)&envp);
+	ksu_handle_sys_execve(&filename, (void ***)&argv, (void ***)&envp);
 	return compat_sys_execve(filename, argv, envp);
+}
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0)
+__weak long compat_sys_execveat(int fd, const char __user * filename, const compat_uptr_t __user * argv, const compat_uptr_t __user * envp, int flags) { return -ENOSYS; }
+#endif
+static void *armeabi_execveat __read_mostly = NULL;
+asmlinkage long hook_armeabi_execveat(int fd, const char __user * filename, const compat_uptr_t __user * argv, const compat_uptr_t __user * envp, int flags)
+{
+	ksu_handle_sys_execveat(&fd, &filename, (void ***)&argv, (void ***)&envp, &flags);
+	return compat_sys_execveat(fd, filename, argv, envp, flags);
 }
 
 static void *armeabi_faccessat __read_mostly = NULL;
@@ -313,11 +357,13 @@ static void syscall_table_sucompat_enable()
 	mutex_lock(&sucompat_toggle_mutex);
 
 	read_and_replace_syscall((void *)&aarch64_execve, __AARCH64_execve, (void *)hook_aarch64_execve, (void *)sys_call_table);
+	read_and_replace_syscall((void *)&aarch64_execveat, __AARCH64_execveat, (void *)hook_aarch64_execveat, (void *)sys_call_table);
 	read_and_replace_syscall((void *)&aarch64_faccessat, __AARCH64_faccessat, (void *)hook_aarch64_faccessat, (void *)sys_call_table);
 	read_and_replace_syscall((void *)&aarch64_newfstatat, __AARCH64_newfstatat, (void *)hook_aarch64_newfstatat, (void *)sys_call_table);
 
 #if defined(CONFIG_COMPAT)
 	read_and_replace_syscall((void *)&armeabi_execve, __ARMEABI_execve, (void *)hook_armeabi_execve, (void *)compat_sys_call_table);
+	read_and_replace_syscall((void *)&armeabi_execveat, __ARMEABI_execveat, (void *)hook_armeabi_execveat, (void *)compat_sys_call_table);
 	read_and_replace_syscall((void *)&armeabi_faccessat, __ARMEABI_faccessat, (void *)hook_armeabi_faccessat, (void *)compat_sys_call_table);
 	read_and_replace_syscall((void *)&armeabi_fstatat64, __ARMEABI_fstatat64, (void *)hook_armeabi_fstatat64, (void *)compat_sys_call_table);
 #endif
@@ -330,11 +376,13 @@ static void syscall_table_sucompat_disable()
 	mutex_lock(&sucompat_toggle_mutex);
 
 	restore_syscall((void *)&aarch64_execve, __AARCH64_execve, (void *)hook_aarch64_execve, (void *)sys_call_table);
+	restore_syscall((void *)&aarch64_execveat, __AARCH64_execveat, (void *)hook_aarch64_execveat, (void *)sys_call_table);
 	restore_syscall((void *)&aarch64_faccessat, __AARCH64_faccessat, (void *)hook_aarch64_faccessat, (void *)sys_call_table);
 	restore_syscall((void *)&aarch64_newfstatat, __AARCH64_newfstatat, (void *)hook_aarch64_newfstatat, (void *)sys_call_table);
 
 #if defined(CONFIG_COMPAT)
 	restore_syscall((void *)&armeabi_execve, __ARMEABI_execve, (void *)hook_armeabi_execve, (void *)compat_sys_call_table);
+	restore_syscall((void *)&armeabi_execveat, __ARMEABI_execveat, (void *)hook_armeabi_execveat, (void *)compat_sys_call_table);
 	restore_syscall((void *)&armeabi_faccessat, __ARMEABI_faccessat, (void *)hook_armeabi_faccessat, (void *)compat_sys_call_table);
 	restore_syscall((void *)&armeabi_fstatat64, __ARMEABI_fstatat64, (void *)hook_armeabi_fstatat64, (void *)compat_sys_call_table);
 #endif
