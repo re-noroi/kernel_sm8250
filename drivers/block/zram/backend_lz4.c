@@ -123,8 +123,31 @@ static int lz4_decompress(struct zcomp_params *params, struct zcomp_ctx *ctx,
 	int ret;
 
 	if (!zctx->dstrm) {
+#if defined(CONFIG_ARM64) && defined(CONFIG_KERNEL_MODE_NEON)
+		/*
+		 * Use the ARM64 NEON assembly decoder, exactly as crypto/lz4.c,
+		 * f2fs, erofs and incfs already do.  zram was the only in-tree
+		 * LZ4 consumer still on the pure scalar decoder.
+		 *
+		 * Bounds safety is unchanged: the assembly stops
+		 * LZ4_FAST_MARGIN (128) bytes short of both buffer ends and the
+		 * remainder is always finished by the fully checked
+		 * __LZ4_decompress_generic().  It self-gates on may_use_simd()
+		 * and on both buffers exceeding LZ4_FAST_MARGIN, so a tiny
+		 * highly-compressible block simply takes the scalar path.
+		 *
+		 * The one kernel_neon_begin()/end() pair is amortised over the
+		 * whole page.  zcomp_decompress() runs in preemptible process
+		 * context holding only zstrm->lock (a mutex) and calls
+		 * might_sleep(), so the SIMD gate normally passes.
+		 */
+		ret = LZ4_arm64_decompress_safe(req->src, req->dst,
+						req->src_len, req->dst_len,
+						false);
+#else
 		ret = LZ4_decompress_safe(req->src, req->dst, req->src_len,
 					  req->dst_len);
+#endif
 	} else {
 		/* Dstrm needs to be reset */
 		ret = LZ4_setStreamDecode(zctx->dstrm, params->dict,
