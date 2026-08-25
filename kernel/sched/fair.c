@@ -67,8 +67,8 @@ DEFINE_PER_CPU_READ_MOSTLY(int, sched_load_boost);
 /*
  * DVFS headroom cluster scaling
  */
-int sysctl_hr_scale_lp __read_mostly = 20;
-int sysctl_hr_scale_big __read_mostly = 10;
+int sysctl_hr_scale_lp __read_mostly = 40;
+int sysctl_hr_scale_big __read_mostly = 20;
 int sysctl_hr_scale_prime __read_mostly = 3;
 unsigned int sysctl_hr_scaling __read_mostly = 1;
 unsigned int sysctl_hr_limit_level __read_mostly = 2;
