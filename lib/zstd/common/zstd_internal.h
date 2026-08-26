@@ -311,8 +311,13 @@ size_t ZSTD_decodeSeqHeaders(ZSTD_DCtx* dctx, int* nbSeqPtr,
  */
 MEM_STATIC int ZSTD_cpuSupportsBmi2(void)
 {
+#if DYNAMIC_BMI2
     ZSTD_cpuid_t cpuid = ZSTD_cpuid();
     return ZSTD_cpuid_bmi1(cpuid) && ZSTD_cpuid_bmi2(cpuid);
+#else
+    /* Nothing looks at the flag in this configuration. */
+    return 0;
+#endif
 }
 
 #endif   /* ZSTD_CCOMMON_H_MODULE */
