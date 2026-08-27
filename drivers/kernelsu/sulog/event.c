@@ -207,11 +207,8 @@ static int ksu_sulog_emit(__u16 event_type, const char *bprm_argv, size_t bprm_a
 	return 0;
 }
 
-static void ksu_sulog_emit_bprm(const char *filename)
+static noinline void do_ksu_sulog_emit_bprm(const char *filename)
 {
-	if (!ksu_sulog_is_enabled())
-		return;
-
 	// maybe tag the process instead?
 	if (!is_ksu_domain())
 		return;

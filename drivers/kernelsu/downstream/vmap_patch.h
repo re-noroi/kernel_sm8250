@@ -33,17 +33,11 @@ __weak void kick_all_cpus_sync(void)
  *
  * then we can just kick all the cpus, so they see the change and refetch.
  */
-static noinline void patch_ptr_slot_kick_cpu(void **target_slot, void *new_ptr)
+static inline void patch_ptr_slot_kick_cpu(void **target_slot, void *new_ptr)
 {
-	preempt_disable();
-	local_irq_disable();	
-
+	// __atomic_store_n((uintptr_t *)target_slot, (uintptr_t)new_ptr, __ATOMIC_RELAXED);
 	WRITE_ONCE(*target_slot, new_ptr);
 
-	local_irq_enable();
-	preempt_enable();
-
-	barrier();
 	kick_all_cpus_sync();
 }
 

@@ -85,6 +85,10 @@
 #include "downstream/tiny_sulog.h"
 #include "downstream/vmap_patch.h"
 
+#ifdef CONFIG_KSU_HOSTSREDIRECT
+#include "downstream/ksu_hostsredirect.h"
+#endif
+
 // unity build
 #include "policy/allowlist.c"
 #include "policy/app_profile.c"
@@ -262,6 +266,9 @@ static int __init kernelsu_init(void)
 #if !defined(MODULE)
 device_initcall(kernelsu_init);
 #else
+
+char ksu_block_modules[256];
+module_param_string(block_modules, ksu_block_modules, sizeof(ksu_block_modules), 0);
 #include "downstream/module_blacklist.h"
 
 #ifndef CONFIG_KSU_SHELL_HAS_SU_ALWAYS

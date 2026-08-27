@@ -14,20 +14,20 @@
 #ifndef __KSU_H_TINY_SULOG
 #define __KSU_H_TINY_SULOG
 
-// half assed ringbuffer
+// fast, lockless, partially inconsistent, half assed event-ringbuffer for su_compat
+// more than good enough w/ all teh atomic drama happening
+
 // 8 bytes
 struct sulog_entry {
-	uint32_t s_time; // uptime in seconds
-	uint32_t data; // uint8_t[0,1,2] = uid, basically uint24_t, uint8_t[3] = symbol
-} __attribute__((packed));
+	uint32_t s_time;	// uptime in seconds
+	uint32_t data;		// uint8_t[0,1,2] = uid, basically uint24_t, uint8_t[3] = symbol
+} __attribute__((aligned(8)));
 
 #define SULOG_ENTRY_MAX 250
 #define SULOG_BUFSIZ SULOG_ENTRY_MAX * (sizeof (struct sulog_entry))
 
 static void *sulog_buf_ptr = NULL;
-static uint8_t sulog_index_next = 0;
-
-static DEFINE_MUTEX(sulog_lock);
+static uint32_t sulog_index_next = 0;
 
 static void tiny_sulog_init_heap()
 {
@@ -64,6 +64,15 @@ static inline uint32_t boottime_s_get()
 	return (uint32_t)boottime_s;
 }
 
+/**
+ * NOTE: C11 atomics
+ *
+ *	__ATOMIC_RELAXED non-barrier'd atomic op
+ *	__ATOMIC_RELEASE writer publish, barrier'd
+ *	__ATOMIC_ACQUIRE reader consume, barrier'd
+ *	__ATOMIC_SEQ_CST full barrier, atomic op
+ *
+ */
 static noinline void write_sulog(uint8_t sym)
 {
 	if (!sulog_buf_ptr)
@@ -76,24 +85,27 @@ static noinline void write_sulog(uint8_t sym)
 	entry.data = (uint32_t)current_uid().val;
 	*((char *)&entry.data + 3) = sym;
 
-	// we can perform this write atomic on 64-bit
-	// however this still has to be locked for exclusion as theres a reader
+	// reserve slot
+	uint32_t slot = __atomic_load_n(&sulog_index_next, __ATOMIC_RELAXED);
+	uint32_t next_slot;
 
-	mutex_lock(&sulog_lock);
+retry:
+	if (slot + 1 >= SULOG_ENTRY_MAX)
+		next_slot = 0;
+	else
+		next_slot = slot + 1;
 
-	unsigned int offset = sulog_index_next * sizeof(struct sulog_entry);
+	// if sulog_index_next == slot, set sulog_index_next = next_slot (increment) then ret true
+	// if it isn't, ret false and we just update &slot, it should be equal on the next loop
+	bool success = __atomic_compare_exchange(&sulog_index_next, &slot, &next_slot,
+							true,			// weak seems fine
+							__ATOMIC_RELEASE,	// writer publish + barrier
+							__ATOMIC_RELAXED);
+	if (!success)
+		goto retry; // another cpu overwrote slot, try grab another again
 
-	memcpy_inline(sulog_buf_ptr + offset, &entry, sizeof(entry));
-
-	// move ptr for next iteration
-	sulog_index_next = sulog_index_next + 1;
-
-	if (sulog_index_next >= SULOG_ENTRY_MAX)
-		sulog_index_next = 0;
-
-	mutex_unlock(&sulog_lock);
-
-	return;
+	// also atomic on armv7 via ldrexd + strexd, https://godbolt.org/z/M1ecYYEsn
+	__atomic_store_n((uint64_t *)sulog_buf_ptr + slot, *(uint64_t *)&entry, __ATOMIC_RELEASE);
 }
 
 struct sulog_entry_rcv_ptr {
@@ -115,28 +127,24 @@ static noinline int send_sulog_dump(void __user *uptr)
 	if (!sbuf.index_ptr || !sbuf.buf_ptr || !sbuf.uptime_ptr )
 		return 1;
 
-	// send uptime
+	// index can be a bit late but this doesnt matter in the grand scheme of things.
+	// we'll take the discrepancy, its not as important anyway.
+	void *memory __offstack(SULOG_BUFSIZ);
+	if (!memory)
+		return -ENOMEM;
 
-	uint32_t uptime =  boottime_s_get();
+	uint32_t uptime = boottime_s_get();
+	uint32_t current_idx = __atomic_load_n(&sulog_index_next, __ATOMIC_ACQUIRE); // reader consume + barrier
+	memcpy(memory, sulog_buf_ptr, SULOG_BUFSIZ); // take a snapshot
 
 	if (copy_to_user((void __user *)(uintptr_t)sbuf.uptime_ptr, &uptime, sizeof(uptime) ))
 		return 1;
 
-	mutex_lock(&sulog_lock);
-
-	// send index
-	if (copy_to_user((void __user *)(uintptr_t)sbuf.index_ptr, &sulog_index_next, sizeof(sulog_index_next) )) {
-		mutex_unlock(&sulog_lock);
+	if (copy_to_user((void __user *)(uintptr_t)sbuf.index_ptr, &current_idx, sizeof(current_idx) ))
 		return 1;
-	}
 
-	// send buffer data
-	if (copy_to_user((void __user *)(uintptr_t)sbuf.buf_ptr, sulog_buf_ptr, SULOG_BUFSIZ )) {
-		mutex_unlock(&sulog_lock);
+	if (copy_to_user((void __user *)(uintptr_t)sbuf.buf_ptr, memory, SULOG_BUFSIZ ))
 		return 1;
-	}
-
-	mutex_unlock(&sulog_lock);
 
 	return 0;
 }

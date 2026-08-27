@@ -191,19 +191,37 @@
 #endif
 
 /**
+ * static_assert is C23
+ * this has an alternative available on C11 capable compilers.
+ * ref: https://elixir.bootlin.com/linux/v5.1/source/include/linux/build_bug.h
+ *
+ * static_assert(condition); - condition becomes the comment
+ * static_assert(condition, "comment");
+ */
+#ifndef static_assert
+#define __static_assert(expr, msg, ...) _Static_assert(expr, msg)
+#define static_assert(expr, ...) __static_assert(expr, ##__VA_ARGS__, #expr)
+#endif
+
+/**
  * we do NOT have memset_explicit on the linux kernel
  *
  * from: OPENSSL_cleanse, volatile function pointer prevents memset optimization
  * https://github.com/openssl/openssl/blob/master/crypto/mem_clr.c
  * 
  */
-static __nocfi void *memset_explicit(void *s, int c, size_t count)
+static __nocfi __always_inline void *memset_explicit(void *s, int c, size_t count)
 {
 	static typeof(memset) *volatile memset_fnptr = memset;
 	return memset_fnptr(s, c, count);
 }
 
-// pseudo-raii / defer on C via __attribute__((__cleanup__()))
+/**
+ * __attribute__((__cleanup__()))
+ * - pseudo-raii / defer / scoped cleanup on C 
+ *
+ * NOTE: passes address of variable attributed to fn()
+ */
 #ifndef __cleanup
 #define __cleanup(fn) __attribute__((__cleanup__(fn)))
 #endif
@@ -214,13 +232,15 @@ static __nocfi void *memset_explicit(void *s, int c, size_t count)
 #define __has_builtin(x) (0)
 #endif
 
-#if __has_builtin(__builtin_memcpy_inline)
+// memcpy_inline IR generation tends to fail on older clang
+#if __has_builtin(__builtin_memcpy_inline) && defined(__clang__) && (__clang_major__ >= 17)
 #define memcpy_inline	__builtin_memcpy_inline
 #else
 #define memcpy_inline	__builtin_memcpy
 #endif
 
-#if __has_builtin(__builtin_memset_inline)
+// memset_inline IR generation tends to fail on older clang
+#if __has_builtin(__builtin_memset_inline) && defined(__clang__) && (__clang_major__ >= 17)
 #define memset_inline	__builtin_memset_inline
 #else
 #define memset_inline	__builtin_memset
