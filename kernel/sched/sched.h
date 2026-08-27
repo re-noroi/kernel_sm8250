@@ -611,7 +611,6 @@ struct cfs_rq {
 	 */
 	unsigned long		h_load;
 	u64			last_h_load_update;
-	struct sched_entity	*h_load_next;
 #endif /* CONFIG_FAIR_GROUP_SCHED */
 #endif /* CONFIG_SMP */
 
