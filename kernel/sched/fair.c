@@ -4393,6 +4393,50 @@ static inline bool skip_blocked_update(struct sched_entity *se)
 	return true;
 }
 
+static inline void __update_cfs_rq_h_load(struct cfs_rq *cfs_rq,
+					  struct sched_entity *se,
+					  struct cfs_rq *p_cfs_rq)
+{
+	unsigned long load = cfs_rq->avg.load_avg;
+
+	if (cfs_rq != &cfs_rq->rq->cfs) {
+		/*
+		 * These last two arguments can be NULL when used outside of
+		 * the for_each_sched_entity() hierarchy iteration. Like in
+		 * __update_blocked_fair() where leaf_cfs_rq_list is iterated
+		 * instead.
+		 */
+		if (!se)
+			se = cfs_rq->tg->se[cpu_of(rq_of(cfs_rq))];
+		if (!p_cfs_rq)
+			p_cfs_rq = cfs_rq_of(se);
+
+		load = p_cfs_rq->h_load;
+		load = div64_ul(load * se->avg.load_avg,
+				p_cfs_rq->avg.load_avg + 1);
+	}
+
+	WRITE_ONCE(cfs_rq->h_load, load);
+}
+
+static inline bool update_cfs_rq_h_load(struct cfs_rq *cfs_rq,
+					struct sched_entity *se,
+					struct cfs_rq *p_cfs_rq)
+{
+	/*
+	 * Mask out the segment bits, if the remaining bits match, then there
+	 * hasn't been a decay since the last time.
+	 */
+	if ((cfs_rq->last_h_load_update & ~PELT_SEGMENT_MASK) ==
+	    (cfs_rq->avg.last_update_time & ~PELT_SEGMENT_MASK))
+		return false;
+
+	__update_cfs_rq_h_load(cfs_rq, se, p_cfs_rq);
+
+	cfs_rq->last_h_load_update = cfs_rq->avg.last_update_time;
+	return true;
+}
+
 #else /* CONFIG_FAIR_GROUP_SCHED */
 
 static inline void update_tg_load_avg(struct cfs_rq *cfs_rq) {}
@@ -4401,6 +4445,10 @@ static inline int propagate_entity_load_avg(struct sched_entity *se)
 {
 	return 0;
 }
+
+static inline bool update_cfs_rq_h_load(struct cfs_rq *cfs_rq,
+					struct sched_entity *se,
+					struct cfs_rq *p_cfs_rq) { return false; }
 
 static inline void add_tg_cfs_propagate(struct cfs_rq *cfs_rq, long runnable_sum) {}
 
@@ -6548,6 +6596,9 @@ static unsigned long enqueue_hierarchy(struct task_struct *p, int flags)
 		flags = ENQUEUE_WAKEUP;
 	}
 
+	for_each_sched_entity_bl(se, cfs_rq)
+		update_cfs_rq_h_load(group_cfs_rq(se), se, cfs_rq);
+
 	return weight;
 }
 
@@ -6668,6 +6719,9 @@ static void dequeue_hierarchy(struct task_struct *p, int flags)
 		flags |= DEQUEUE_SLEEP;
 		flags &= ~(DEQUEUE_DELAYED | DEQUEUE_SPECIAL);
 	}
+
+	for_each_sched_entity_bl(se, cfs_rq)
+		update_cfs_rq_h_load(group_cfs_rq(se), se, cfs_rq);
 }
 
 /*
@@ -9704,52 +9758,23 @@ static bool __update_blocked_fair(struct rq *rq, bool *done)
 			*done = false;
 	}
 
+	/*
+	 * The above (forward) leaf_cfs_rq_list traversal will have done
+	 * update_cfs_rq_load_avg() in a bottom-up fashion. Now iterate the
+	 * list backwards, such that we're ensured to have visited every
+	 * parent of the current group to update h_load in a top-down fashion.
+	 */
+	list_for_each_entry_reverse(cfs_rq, &rq->leaf_cfs_rq_list, leaf_cfs_rq_list)
+		update_cfs_rq_h_load(cfs_rq, NULL, NULL);
+
 	return decayed;
-}
-
-/*
- * Compute the hierarchical load factor for cfs_rq and all its ascendants.
- * This needs to be done in a top-down fashion because the load of a child
- * group is a fraction of its parents load.
- */
-static void update_cfs_rq_h_load(struct cfs_rq *cfs_rq)
-{
-	struct rq *rq = rq_of(cfs_rq);
-	struct sched_entity *se = cfs_rq->tg->se[cpu_of(rq)];
-	unsigned long now = jiffies;
-	unsigned long load;
-
-	if (cfs_rq->last_h_load_update == now)
-		return;
-
-	WRITE_ONCE(cfs_rq->h_load_next, NULL);
-	for_each_sched_entity(se, cfs_rq) {
-		WRITE_ONCE(cfs_rq->h_load_next, se);
-		if (cfs_rq->last_h_load_update == now)
-			break;
-	}
-
-	if (!se) {
-		cfs_rq->h_load = cfs_rq_load_avg(cfs_rq);
-		cfs_rq->last_h_load_update = now;
-	}
-
-	while ((se = READ_ONCE(cfs_rq->h_load_next)) != NULL) {
-		load = cfs_rq->h_load;
-		load = div64_ul(load * se->avg.load_avg,
-				cfs_rq_load_avg(cfs_rq) + 1);
-		cfs_rq = group_cfs_rq(se);
-		cfs_rq->h_load = load;
-		cfs_rq->last_h_load_update = now;
-	}
 }
 
 static unsigned long task_h_load(struct task_struct *p)
 {
 	struct cfs_rq *cfs_rq = task_cfs_rq(p);
 
-	update_cfs_rq_h_load(cfs_rq);
-	return div64_ul(p->se.avg.load_avg * cfs_rq->h_load,
+	return div64_ul(p->se.avg.load_avg * READ_ONCE(cfs_rq->h_load),
 			cfs_rq_load_avg(cfs_rq) + 1);
 }
 #else
@@ -12610,6 +12635,11 @@ static void task_tick_fair(struct rq *rq, struct task_struct *curr, int hrtick)
 
 		se = &curr->se;
 		reweight_eevdf(cfs_rq, se, weight, se->on_rq);
+
+		if (!hrtick) {
+			for_each_sched_entity_bl(se, cfs_rq)
+				update_cfs_rq_h_load(group_cfs_rq(se), se, cfs_rq);
+		}
 	}
 
 	if (hrtick)
@@ -12807,13 +12837,17 @@ static void set_next_task_fair(struct rq *rq, struct task_struct *p, bool first)
 		list_move(&se->group_node, &rq->cfs_tasks);
 	}
 #endif
-	if (!first)
-		return;
 
 	WARN_ON_ONCE(se->sched_delayed);
 
 	if (hrtick_enabled(rq))
 		hrtick_start_fair(rq, p);
+
+	for_each_sched_entity_bl(se, cfs_rq)
+		update_cfs_rq_h_load(group_cfs_rq(se), se, cfs_rq);
+
+	if (!first)
+		return;
 
 	update_misfit_status(p, rq);
 }
@@ -13011,6 +13045,8 @@ int sched_group_set_shares(struct task_group *tg, unsigned long shares)
 			update_load_avg(cfs_rq, se, UPDATE_TG);
 			update_cfs_group(se);
 		}
+		for_each_sched_entity_bl(se, cfs_rq)
+			update_cfs_rq_h_load(group_cfs_rq(se), se, cfs_rq);
 		rq_unlock_irqrestore(rq, &rf);
 	}
 
