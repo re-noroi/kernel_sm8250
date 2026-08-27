@@ -259,7 +259,7 @@ bool ksu_uid_should_umount(uid_t uid)
 		return false;
 	}
 	if (unlikely(uid == WEBVIEW_ZYGOTE_UID)) {
-		return ksu_is_webview_zygote_umount_enabled();
+		return ksu_webview_zygote_umount_enabled;
 	}
 
 	rcu_read_lock();

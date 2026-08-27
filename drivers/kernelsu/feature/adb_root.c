@@ -104,8 +104,8 @@ envp_count_done:
 	 *	we offset by new envp at +128 bytes
 	 */
 
-	_Static_assert(sizeof(kLdPreload) < 64, "fix kLdLibraryPath offset");
-	_Static_assert((sizeof(kLdPreload) + sizeof(kLdLibraryPath)) < 128, "fix envp_array offset");
+	static_assert(sizeof(kLdPreload) < 64, "fix kLdLibraryPath offset");
+	static_assert((sizeof(kLdPreload) + sizeof(kLdLibraryPath)) < 128, "fix envp_array offset");
 
 	void __user *kLdPreload_p = (void __user *)mmap_page;
 	void __user *kLdLibraryPath_p = (void __user *)(mmap_page + 64);
@@ -243,8 +243,8 @@ static inline void ksu_adb_root_execve_kernel(void *restrict filename, void *res
 		do_ksu_adb_root_execve_kernel(filename, envp_in);
 }
 
-static inline void ksu_static_branch_enable() { static_branch_enable(&ksu_adb_root_key); smp_mb(); }
-static inline void ksu_static_branch_disable() { static_branch_disable(&ksu_adb_root_key); smp_mb(); }
+static inline void ksu_adb_root_branch_enable() { static_branch_enable(&ksu_adb_root_key); smp_mb(); }
+static inline void ksu_adb_root_branch_disable() { static_branch_disable(&ksu_adb_root_key); smp_mb(); }
 #else /* ! KSU_CAN_USE_JUMP_LABEL */
 static inline void ksu_adb_root_execve_user(void *restrict filename, void *restrict envp_in)
 {
@@ -256,8 +256,8 @@ static inline void ksu_adb_root_execve_kernel(void *restrict filename, void *res
 	if (unlikely(ksu_adb_root))
 		do_ksu_adb_root_execve_kernel(filename, envp_in);
 }
-static inline void ksu_static_branch_enable() { } // no-op
-static inline void ksu_static_branch_disable() { } // no-op
+static inline void ksu_adb_root_branch_enable() { } // no-op
+static inline void ksu_adb_root_branch_disable() { } // no-op
 #endif // KSU_CAN_USE_JUMP_LABEL
 
 static int kernel_adb_root_feature_get(u64 *value)
@@ -277,10 +277,10 @@ static int kernel_adb_root_feature_set(u64 value)
 
 	if (enable) {
 		ksu_adb_root = true;
-		ksu_static_branch_enable();
+		ksu_adb_root_branch_enable();
 	} else {
 		ksu_adb_root = false;
-		ksu_static_branch_disable();
+		ksu_adb_root_branch_disable();
 	}
 	pr_info("adb_root: set to %d\n", enable);
 	return 0;

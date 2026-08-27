@@ -102,12 +102,31 @@ static __nocfi ssize_t ksu_selinux_transaction_write(struct file *file, const ch
 	if (copy_from_user_retry(kbuf, buf, len))
 		goto skip_destroy;
 
-	if (!ksu_should_destroy_context(kbuf))
-		goto skip_destroy;
+	if (ksu_should_destroy_context(kbuf)) {
+		pr_info("selinux_hide: selinux_transaction_write: destroy: %s \n", kbuf);
+		buf = (const char __user *)current->mm->start_stack;
+	}
 
-	pr_info("selinux_hide: selinux_transaction_write: destroy: %s \n", kbuf);
-	buf = (const char __user *)current->mm->start_stack;
-	return selinux_transaction_write_fn(file, buf, size, pos);
+	ssize_t ret = selinux_transaction_write_fn(file, buf, size, pos);
+	if (!(ret > 0))
+		return ret;
+
+	if (ino != SEL_ACCESS)
+		return ret;
+
+	// simple_transaction_get()
+	struct simple_transaction_argresp *ar = file->private_data;
+	if (!ar)
+		return ret;
+
+	uint32_t avd_allowed, ff, avd_auditallow, avd_auditdeny, avd_seqno, avd_flags;
+	if (sscanf(ar->data, "%x %x %x %x %u %x", &avd_allowed, &ff, &avd_auditallow, &avd_auditdeny, &avd_seqno, &avd_flags) != 6)
+		return ret;
+
+	avd_seqno = 1;
+	scnprintf(ar->data, SIMPLE_TRANSACTION_LIMIT, "%x %x %x %x %u %x", avd_allowed, ff, avd_auditallow, avd_auditdeny, avd_seqno, avd_flags);
+
+	return ret;
 
 skip_destroy:
 	return selinux_transaction_write_fn(file, buf, size, pos);
