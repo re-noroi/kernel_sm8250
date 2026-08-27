@@ -5402,50 +5402,112 @@ static void binder_add_freeze_work(struct binder_proc *proc, bool is_frozen)
 		binder_put_node(prev);
 }
 
-static int binder_ioctl_freeze(struct binder_freeze_info *info,
-			       struct binder_proc *target_proc)
+static int binder_set_proc_frozen(struct binder_proc *proc, bool is_frozen)
 {
 	int ret = 0;
-	if (!info->enable) {
-		binder_inner_proc_lock(target_proc);
-		target_proc->sync_recv = false;
-		target_proc->async_recv = false;
-		target_proc->is_frozen = false;
-		binder_inner_proc_unlock(target_proc);
-		binder_add_freeze_work(target_proc, false);
-		return 0;
-	}
-	/*
-	 * Freezing the target. Prevent new transactions by
-	 * setting frozen state. If timeout specified, wait
-	 * for transactions to drain.
-	 */
-	binder_inner_proc_lock(target_proc);
-	target_proc->sync_recv = false;
-	target_proc->async_recv = false;
-	target_proc->is_frozen = true;
-	binder_inner_proc_unlock(target_proc);
-	if (info->timeout_ms > 0)
-		ret = wait_event_interruptible_timeout(
-			target_proc->freeze_wait,
-			(!target_proc->outstanding_txns),
-			msecs_to_jiffies(info->timeout_ms));
-	/* Check pending transactions that wait for reply */
-	if (ret >= 0) {
-		binder_inner_proc_lock(target_proc);
-		if (binder_txns_pending_ilocked(target_proc))
-			ret = -EAGAIN;
-		binder_inner_proc_unlock(target_proc);
-	}
-	if (ret < 0) {
-		binder_inner_proc_lock(target_proc);
-		target_proc->is_frozen = false;
-		binder_inner_proc_unlock(target_proc);
-	} else {
-		binder_add_freeze_work(target_proc, true);
-	}
+
+	binder_inner_proc_lock(proc);
+	proc->sync_recv = false;
+	proc->async_recv = false;
+	proc->is_frozen = is_frozen;
+	if (is_frozen && binder_txns_pending_ilocked(proc))
+		ret = -EAGAIN;
+	binder_inner_proc_unlock(proc);
+	binder_add_freeze_work(proc, is_frozen);
+
 	return ret;
 }
+
+static int binder_freeze_fastpath(int pid, bool is_frozen)
+{
+	struct binder_proc *proc;
+	int count = 0;
+	int ret = 0;
+
+	mutex_lock(&binder_procs_lock);
+	hlist_for_each_entry(proc, &binder_procs, proc_node) {
+		if (proc->pid != pid)
+			continue;
+		ret |= binder_set_proc_frozen(proc, is_frozen);
+		count++;
+	}
+	mutex_unlock(&binder_procs_lock);
+	if (!count)
+		return -EINVAL;
+
+	return ret;
+}
+
+static int binder_wait_pending_txns(struct binder_proc *proc, long timeout)
+{
+	int ret;
+
+	ret = wait_event_interruptible_timeout(proc->freeze_wait,
+					       !proc->outstanding_txns,
+					       msecs_to_jiffies(timeout));
+	if (ret < 0)
+		return ret;
+
+	binder_inner_proc_lock(proc);
+	if (binder_txns_pending_ilocked(proc))
+		ret = -EAGAIN;
+	binder_inner_proc_unlock(proc);
+
+	return ret < 0 ? ret : 0;
+}
+
+static int binder_freeze_wait(int pid, long timeout)
+{
+	struct binder_proc *proc;
+	int ret = 0;
+
+	if (timeout <= 0)
+		return -EAGAIN;
+
+next:
+	mutex_lock(&binder_procs_lock);
+	hlist_for_each_entry(proc, &binder_procs, proc_node) {
+		if (proc->pid != pid)
+			continue;
+		binder_inner_proc_lock(proc);
+		if (binder_txns_pending_ilocked(proc)) {
+			proc->tmp_ref++;
+			binder_inner_proc_unlock(proc);
+			break;
+		}
+		binder_inner_proc_unlock(proc);
+	}
+	mutex_unlock(&binder_procs_lock);
+
+	if (!proc)
+		return 0;
+
+	ret = binder_wait_pending_txns(proc, timeout);
+	binder_proc_dec_tmpref(proc);
+	if (!ret)
+		goto next;
+
+	return ret;
+}
+
+static int binder_ioctl_freeze(struct binder_freeze_info *info)
+{
+	int ret = 0;
+
+	ret = binder_freeze_fastpath(info->pid, info->enable);
+	if (ret != -EAGAIN)
+		return ret;
+
+	ret = binder_freeze_wait(info->pid, info->timeout_ms);
+	if (ret) {
+		/* Wait failed, rollback freeze request */
+		binder_freeze_fastpath(info->pid, false);
+		return ret;
+	}
+
+	return 0;
+}
+
 static int binder_ioctl_get_freezer_info(
 				struct binder_frozen_status_info *info)
 {
@@ -5570,47 +5632,15 @@ static long binder_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	}
 	case BINDER_FREEZE: {
 		struct binder_freeze_info info;
-		struct binder_proc **target_procs = NULL, *target_proc;
-		int target_procs_count = 0, i = 0;
+
 		ret = 0;
 		if (copy_from_user(&info, ubuf, sizeof(info))) {
 			ret = -EFAULT;
 			goto err;
 		}
-		mutex_lock(&binder_procs_lock);
-		hlist_for_each_entry(target_proc, &binder_procs, proc_node) {
-			if (target_proc->pid == info.pid)
-				target_procs_count++;
-		}
-		if (target_procs_count == 0) {
-			mutex_unlock(&binder_procs_lock);
-			ret = -EINVAL;
-			goto err;
-		}
-		target_procs = kcalloc(target_procs_count,
-				       sizeof(struct binder_proc *),
-				       GFP_KERNEL);
-		if (!target_procs) {
-			mutex_unlock(&binder_procs_lock);
-			ret = -ENOMEM;
-			goto err;
-		}
-		hlist_for_each_entry(target_proc, &binder_procs, proc_node) {
-			if (target_proc->pid != info.pid)
-				continue;
-			binder_inner_proc_lock(target_proc);
-			target_proc->tmp_ref++;
-			binder_inner_proc_unlock(target_proc);
-			target_procs[i++] = target_proc;
-		}
-		mutex_unlock(&binder_procs_lock);
-		for (i = 0; i < target_procs_count; i++) {
-			if (ret >= 0)
-				ret = binder_ioctl_freeze(&info,
-							  target_procs[i]);
-			binder_proc_dec_tmpref(target_procs[i]);
-		}
-		kfree(target_procs);
+
+		ret = binder_ioctl_freeze(&info);
+
 		if (ret < 0)
 			goto err;
 		break;
@@ -5760,6 +5790,9 @@ static int binder_open(struct inode *nodp, struct file *filp)
 	hlist_for_each_entry(itr, &binder_procs, proc_node) {
 		if (itr->pid == proc->pid) {
 			existing_pid = true;
+			binder_inner_proc_lock(itr);
+			proc->is_frozen = itr->is_frozen;
+			binder_inner_proc_unlock(itr);
 			break;
 		}
 	}
