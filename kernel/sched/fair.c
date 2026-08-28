@@ -356,8 +356,13 @@ static inline struct task_struct *task_of(struct sched_entity *se)
 }
 
 /* Walk up scheduling entities hierarchy */
-#define for_each_sched_entity(se, cfs_rq)				\
-	for (; (se) && ((cfs_rq) = cfs_rq_of(se)); (se) = (se)->parent)
+#define for_each_sched_entity(se, cfs_rq)					\
+	for (struct sched_entity *_BL = NULL;					\
+	     (se) && ((cfs_rq) = cfs_rq_of(se), (cfs_rq)->backlink = _BL, true);\
+	     (se) = (se)->parent, _BL = (se))
+
+#define for_each_sched_entity_bl(se, cfs_rq) \
+	for (; ((se) = (cfs_rq)->backlink); (cfs_rq) = group_cfs_rq(se))
 
 static inline struct cfs_rq *task_cfs_rq(struct task_struct *p)
 {
@@ -531,6 +536,9 @@ static inline struct cfs_rq *group_cfs_rq(struct sched_entity *grp)
 {
 	return NULL;
 }
+
+#define for_each_sched_entity_bl(se, cfs_rq) \
+	for (; ((se) = NULL);)
 
 static inline bool list_add_leaf_cfs_rq(struct cfs_rq *cfs_rq)
 {
