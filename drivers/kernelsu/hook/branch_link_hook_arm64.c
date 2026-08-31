@@ -91,9 +91,15 @@ KEEP_SYMBOL int ksu_vfs_statx(int dfd, struct filename *restrict filename, int f
 
 	// see sucompat.c
 	const char su[16] = SU_PATH;
+#if 0
+	uint128_t *su128 = (uint128_t *)su;
+	uint128_t *fn128 = (uint128_t *)*(char **)filename_ptr;
+	const uint128_t mask = make128const(0x00FFFFFFFFFFFFFFULL, 0xFFFFFFFFFFFFFFFFULL);
+	if (likely((*fn128 & mask) != (*su128 & mask)))
+		return;
+#endif
 	uint64_t *su_p = (uint64_t *)su;
 	uint64_t *fn_p = (uint64_t *)filename_ptr;
-
 	if (likely((fn_p[1] & 0x00FFFFFFFFFFFFFFULL) != (su_p[1] & 0x00FFFFFFFFFFFFFFULL)))
 		goto orig_fn;
 
@@ -102,7 +108,8 @@ KEEP_SYMBOL int ksu_vfs_statx(int dfd, struct filename *restrict filename, int f
 
 	write_sulog('s');
 	pr_info("su_compat: vfs_statx su->sh!%s\n", (is_compat_task()) ? " [compat]" : "" );
-	__builtin_memcpy(filename_ptr, SH_PATH, sizeof(SH_PATH));
+	const char sh[16] = SH_PATH;
+	memcpy_inline(filename_ptr, sh, sizeof(sh));
 
 orig_fn:
 	return ksu_vfs_statx_fn(dfd, filename, flags, stat, request_mask);

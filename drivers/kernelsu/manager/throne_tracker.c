@@ -348,7 +348,7 @@ static int throne_tracker_thread(void *data)
 
 	pr_info("throne_tracker: pid: %d started\n", current->pid);
 
-	mutex_lock(&throne_tracker_mutex);
+	guarded_mutex_lock(&throne_tracker_mutex);
 
 test_tmp:
 	if (!is_file_existing("/data/system/packages.list.tmp"))
@@ -376,8 +376,6 @@ start_tt:
 
 	escape_to_root_forced();
 	throne_tracker_fn(prune_only);
-
-	mutex_unlock(&throne_tracker_mutex);
 
 	pr_info("throne_tracker: pid: %d exit!\n", current->pid);
 	return 0;

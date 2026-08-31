@@ -70,7 +70,7 @@ static inline uint32_t boottime_s_get()
  *	__ATOMIC_RELAXED non-barrier'd atomic op
  *	__ATOMIC_RELEASE writer publish, barrier'd
  *	__ATOMIC_ACQUIRE reader consume, barrier'd
- *	__ATOMIC_SEQ_CST full barrier, atomic op
+ *	__ATOMIC_SEQ_CST sequential consitency, full barrier, atomic op
  *
  */
 static noinline void write_sulog(uint8_t sym)
@@ -104,8 +104,8 @@ retry:
 	if (!success)
 		goto retry; // another cpu overwrote slot, try grab another again
 
-	// also atomic on armv7 via ldrexd + strexd, https://godbolt.org/z/M1ecYYEsn
-	__atomic_store_n((uint64_t *)sulog_buf_ptr + slot, *(uint64_t *)&entry, __ATOMIC_RELEASE);
+	// 64-bit is also atomic on armv7 via ldrexd + strexd, https://godbolt.org/z/7Tqnrcceq
+	__atomic_store((uint64_t *)sulog_buf_ptr + slot, (uint64_t *)&entry, __ATOMIC_RELEASE);
 }
 
 struct sulog_entry_rcv_ptr {

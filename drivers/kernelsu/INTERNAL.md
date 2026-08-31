@@ -1,7 +1,7 @@
 # Quirks / Adaptations
 ## C-style
-- closest to GNU11, theres hacks to make it work on gnu89 / gnu99 compilers.
-- w/ 'C23 declaration after label' - like bypasses
+- closest to GNU11, w/ some C23 / C2x backportables. 
+- ^ e.g. declaration after label bypass, and macro-able features.
 - pointer-centric. pointer-heavy. cast-heavy. addresses first, types are suggestions.
 - assumes little endian on everything.
 - some metaprogramming is actually happening (redefines, compat hacks, backports)

@@ -226,6 +226,44 @@ static __nocfi __always_inline void *memset_explicit(void *s, int c, size_t coun
 #define __cleanup(fn) __attribute__((__cleanup__(fn)))
 #endif
 
+// dummy variable generator
+#define __ksu_concat(a, b) a##b
+#define __ksu_generate_dummy(a, b) __ksu_concat(a, b)
+#define __ksu_dummy_var __ksu_generate_dummy(_ksu_dummy_, __COUNTER__)
+
+// scoped lock, mutex
+static inline void mutex_unlock_byref(struct mutex **m) { mutex_unlock(*m); }
+#define deferred_mutex_unlock(lock) struct mutex *__ksu_dummy_var __cleanup(mutex_unlock_byref) = (lock)
+#define guarded_mutex_lock(lock) ({ mutex_lock(lock); deferred_mutex_unlock(lock); 1; })
+
+// scoped lock, spinlock
+static inline void spin_unlock_byref(spinlock_t **lock) { spin_unlock(*lock); }
+#define deferred_spin_unlock(lock) spinlock_t *__ksu_dummy_var __cleanup(spin_unlock_byref) = (lock)
+#define guarded_spin_lock(lock) ({ spin_lock(lock); deferred_spin_unlock(lock); 1; })
+
+// basic stack offload.
+static inline void kfree_byref(void *buf) { kfree(*(void **)buf); }
+#define __offstack(size) __cleanup(kfree_byref) = kmalloc(size, GFP_KERNEL)
+#define __zoffstack(size) __cleanup(kfree_byref) = kzalloc(size, GFP_KERNEL)
+
+/**
+ * uint128_t / int128_t
+ *
+ * - nonstandard, we can use _BitInt(x) but it needs C23
+ * - this exists as an extension on gcc and clang
+ * - can be used with atomics on arm64 via ldxp+stxp or LSE / LSE2, no neon entry required.
+ *
+ */
+#if defined(CONFIG_64BIT) && defined(__SIZEOF_INT128__) && (__SIZEOF_INT128__ == 16)
+#define KSU_HAS_INT128
+typedef __int128 int128_t;
+typedef unsigned __int128 uint128_t;
+
+// create 128-bit literals from two 64-bit literals
+// https://support.arm.com/documentation/ka004805/1-0/
+#define make128const(hi,lo) ((((int128_t)hi << 64) | lo))
+#endif
+
 // check for guaranteed inline routines
 // if unavailable, use plain builtin
 #ifndef __has_builtin
@@ -236,14 +274,20 @@ static __nocfi __always_inline void *memset_explicit(void *s, int c, size_t coun
 #if __has_builtin(__builtin_memcpy_inline) && defined(__clang__) && (__clang_major__ >= 17)
 #define memcpy_inline	__builtin_memcpy_inline
 #else
-#define memcpy_inline	__builtin_memcpy
+#define memcpy_inline(to, from, sz) ({			\
+	static_assert(__builtin_constant_p(sz));	\
+	__builtin_memcpy((to), (from), (sz));		\
+})
 #endif
 
 // memset_inline IR generation tends to fail on older clang
 #if __has_builtin(__builtin_memset_inline) && defined(__clang__) && (__clang_major__ >= 17)
 #define memset_inline	__builtin_memset_inline
 #else
-#define memset_inline	__builtin_memset
+#define memset_inline(dst, val, sz) ({			\
+	static_assert(__builtin_constant_p(sz));	\
+	__builtin_memset((dst), (val), (sz));		\
+})
 #endif
 
 /**
