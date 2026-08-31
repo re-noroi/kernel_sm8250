@@ -650,7 +650,7 @@ config PERF_HELPER
 
 config NTSYNC
 	tristate "NT synchronization primitive emulation"
-	default y
+	default n
 	help
 	  This module provides kernel support for emulation of Windows NT
 	  synchronization primitives. It is not a hardware driver.
