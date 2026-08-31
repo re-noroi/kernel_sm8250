@@ -38,7 +38,7 @@ static void ksu_add_shit_to_list(u32 cmd, const char *args[])
 	if (!args || !args[0])
 		return;
 
-	mutex_lock(&selinux_hide_list_mutex);
+	guarded_mutex_lock(&selinux_hide_list_mutex);
 
 	int argc = sepol_expected_argc(cmd);
 
@@ -59,7 +59,7 @@ static void ksu_add_shit_to_list(u32 cmd, const char *args[])
 			snprintf(tmp_buf, sizeof(tmp_buf), ":%s:", name);
 
 			if (!strcmp(current_type, tmp_buf))
-				goto out_unlock;
+				return;
 
 			offset = offset + strlen(current_type) + 1;
 		}
@@ -70,7 +70,7 @@ static void ksu_add_shit_to_list(u32 cmd, const char *args[])
 
 		char *new_ptr = krealloc(ksu_hide_type_list, new_total_len, GFP_KERNEL);
 		if (!new_ptr)
-			goto out_unlock;
+			return;
 
 		ksu_hide_type_list = new_ptr;
 
@@ -85,7 +85,7 @@ static void ksu_add_shit_to_list(u32 cmd, const char *args[])
 	} else if (argc >= 2) {
 
 		if (!args[1])
-			goto out_unlock;
+			return;
 
 		const char *src = args[0];
 		const char *tgt = args[1];
@@ -111,7 +111,7 @@ static void ksu_add_shit_to_list(u32 cmd, const char *args[])
 			snprintf(tgt_buf, sizeof(tgt_buf), ":%s:", tgt);
 
 			if (!strcmp(src_chk, src_buf) && !strcmp(tgt_chk, tgt_buf))
-				goto out_unlock;
+				return;
 
 			offset = offset + src_sz + tgt_sz;
 		}
@@ -121,7 +121,7 @@ static void ksu_add_shit_to_list(u32 cmd, const char *args[])
 		size_t new_total_len = ksu_hide_rule_len + needed_len;
 		char *new_ptr = krealloc(ksu_hide_rule_list, new_total_len, GFP_KERNEL);
 		if (!new_ptr)
-			goto out_unlock;
+			return;
 
 		ksu_hide_rule_list = new_ptr;
 
@@ -137,8 +137,7 @@ static void ksu_add_shit_to_list(u32 cmd, const char *args[])
 
 	}
 
-out_unlock:
-	mutex_unlock(&selinux_hide_list_mutex);
+	return;
 }
 
 static bool ksu_should_destroy_context(char *str)
@@ -146,18 +145,14 @@ static bool ksu_should_destroy_context(char *str)
 	if (!str)
 		return false;
 
-	bool status = false;
-
-	mutex_lock(&selinux_hide_list_mutex);
+	guarded_mutex_lock(&selinux_hide_list_mutex);
 
 	size_t offset = 0;
 	while (offset < ksu_hide_type_len) {
 		const char *current_entry = ksu_hide_type_list + offset;
 		
-		if (strstr(str, current_entry)) {
-			status = true;
-			goto out_unlock;
-		}
+		if (strstr(str, current_entry))
+			return true;
 
 		offset = offset + strlen(current_entry) + 1;
 	}
@@ -165,7 +160,7 @@ static bool ksu_should_destroy_context(char *str)
 	// double strstr
 	char *str2 = strchr(str, ' ');
 	if (!str2)
-		goto out_unlock;
+		return false;
 
 	offset = 0;
 	while (offset < ksu_hide_rule_len) {
@@ -175,18 +170,13 @@ static bool ksu_should_destroy_context(char *str)
 		const char *tgt_rule = src_rule + src_sz;
 		size_t tgt_sz = strlen(tgt_rule) + 1;
 
-		if (strstr(str, src_rule) && strstr(str2, tgt_rule)) {
-			status = true;
-			goto out_unlock;
-		}
+		if (strstr(str, src_rule) && strstr(str2, tgt_rule))
+			return true;
 
 		offset = offset + src_sz + tgt_sz;
 	}
 
-out_unlock:
-	mutex_unlock(&selinux_hide_list_mutex);
-	return status;
-
+	return false;
 }
 
 #if 0

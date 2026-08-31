@@ -3,7 +3,6 @@
 
 void ksu_kernel_umount_init(void);
 void ksu_kernel_umount_exit(void);
-extern bool ksu_webview_zygote_umount_enabled;
 
 // for the umount list
 struct mount_entry {

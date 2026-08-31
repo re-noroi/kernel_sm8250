@@ -119,13 +119,6 @@ static void ksu_kvfree(const void *buf)
 #define kvfree ksu_kvfree
 #endif
 
-// basic stack offload.
-static inline void kvfree_byref(void *buf) { kvfree(*(void **)buf); }
-static inline void kfree_byref(void *buf) { kfree(*(void **)buf); }
-
-#define __offstack(size) __cleanup(kfree_byref) = kmalloc(size, GFP_KERNEL)
-#define __zoffstack(size) __cleanup(kfree_byref) = kzalloc(size, GFP_KERNEL)
-
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 8, 0)
 __weak long copy_from_kernel_nofault(void *dst, const void *src, size_t size)
 {
@@ -425,8 +418,10 @@ struct dir_context { const filldir_t actor; loff_t pos; };
 __weak char *bin2hex(char *dst, const void *src, size_t count)
 {
 	const unsigned char *_src = src;
-	while (count--)
-		dst = pack_hex_byte(dst, *_src++);
+	while (count--) {
+		sprintf(dst, "%02x", *_src++);
+		dst = dst + 2;
+	}
 	return dst;
 }
 #endif

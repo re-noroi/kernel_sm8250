@@ -1258,6 +1258,8 @@ struct selinux_policy *ksu_dup_sepolicy(struct selinux_policy *old_pol)
 		goto out_free_data;
 	}
 
+	// https://android.googlesource.com/kernel/common/+/35a7845718734ae638b85b420534cb859498dab6%5E%21
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 18, 0)
 	// https://android-review.googlesource.com/c/kernel/common/+/3009995/11/security/selinux/ss/policydb.c
 	// fixup config
 	// 4*2+8+4
@@ -1279,7 +1281,7 @@ struct selinux_policy *ksu_dup_sepolicy(struct selinux_policy *old_pol)
 	#endif
 		pr_info("new config: %u\n", *config_ptr);
 	}
-
+#endif
 	new_pol = kmemdup(old_pol, sizeof(*old_pol), GFP_KERNEL);
 	if (!new_pol) {
 		ret = -ENOMEM;

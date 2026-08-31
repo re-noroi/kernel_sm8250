@@ -11,8 +11,8 @@ MDIR := $(realpath $(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
 $(info -- KDIR: $(KDIR))
 $(info -- MDIR: $(MDIR))
 
-# compliant to last upstream kernel change as of 4521784
-CFLAGS_ksu.o += -DKSU_VERSION=32595
+# compliant to last upstream kernel change as of 3497a56
+CFLAGS_ksu.o += -DKSU_VERSION=32603
 
 ifndef KSU_EXPECTED_SIZE
 KSU_EXPECTED_SIZE := 0x033b
@@ -123,6 +123,11 @@ ifeq ($(CONFIG_CC_OPTIMIZE_FOR_SIZE),y)
 CFLAGS_REMOVE_ksu.o += -Oz
 CFLAGS_REMOVE_ksu.o += -Os
 CFLAGS_ksu.o += -O2
+endif
+
+# inline atomics
+ifeq ($(CONFIG_ARM64),y)
+CFLAGS_ksu.o += $(call cc-option, -mno-outline-atomics)
 endif
 
 ifneq ($(CONFIG_KSU_DEBUG),y)
