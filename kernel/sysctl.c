@@ -1543,7 +1543,11 @@ static struct ctl_table vm_table[] = {
 		.procname	= "swappiness",
 		.data		= &vm_swappiness,
 		.maxlen		= sizeof(vm_swappiness),
+#ifdef CONFIG_RW_SWAPPINESS
+		.mode		= 0644,
+#else
 		.mode		= 0444,
+#endif
 		.proc_handler	= proc_dointvec_minmax,
 		.extra1		= &zero,
 		.extra2		= &one_hundred,
