@@ -646,6 +646,12 @@ config CHARGER_CROS_USBPD
 	  what is connected to USB PD ports from the EC and converts
 	  that into power_supply properties.
 
+config BYPASS_CHARGING
+	bool "Allow bypass charging"
+	default n
+	help
+	  Say Y here to enable support for bypass charging.
+
 source "drivers/power/supply/qcom/Kconfig"
 source "drivers/power/supply/qcom_cas/Kconfig"
 source "drivers/power/supply/lionsemi/Kconfig"
