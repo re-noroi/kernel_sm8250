@@ -429,6 +429,26 @@ static void workqueue_sysfs_unregister(struct workqueue_struct *wq);
 		if (({ assert_rcu_or_wq_mutex(wq); false; })) { }	\
 		else
 
+/*
+ * Per-node arrays in this file carry an extra slot at nr_node_ids serving
+ * NUMA_NO_NODE. Return the slot after all nodes.
+ */
+static int next_node_with_fallback(int node)
+{
+	if (node >= nr_node_ids)
+		return nr_node_ids + 1;
+
+	node = next_node(node, node_possible_map);
+	if (node >= nr_node_ids)
+		return nr_node_ids;
+	return node;
+}
+
+#define for_each_node_with_fallback(node)				\
+	for ((node) = first_node(node_possible_map);			\
+	     (node) <= nr_node_ids;					\
+	     (node) = next_node_with_fallback(node))
+
 #ifdef CONFIG_DEBUG_OBJECTS_WORK
 
 static struct debug_obj_descr work_debug_descr;
