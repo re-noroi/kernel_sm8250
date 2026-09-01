@@ -505,6 +505,20 @@ config FRONTSWAP
 
 	  If unsure, say Y to enable frontswap.
 
+config RW_SWAPPINESS
+	bool "Allow users to modify vm.swappiness at runtime"
+	depends on SWAP
+	default n
+	help
+	  This option sets the sysctl parameter vm.swappiness to read-write (0644).
+	  This allows the root user to dynamically change how aggressively
+	  the kernel swaps memory pages.
+
+	  If you say N here, vm.swappiness will be locked to read-only (0444)
+	  to prevent user-space modifications.
+
+	  If unsure, say Y to enable RW_SWAPPINESS.
+
 config CMA
 	bool "Contiguous Memory Allocator"
 	depends on HAVE_MEMBLOCK && MMU
