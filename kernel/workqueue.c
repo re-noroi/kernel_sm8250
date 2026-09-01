@@ -204,6 +204,7 @@ struct pool_workqueue {
 	int			work_color;	/* L: current color */
 	int			flush_color;	/* L: flushing color */
 	int			refcnt;		/* L: reference count */
+	int			total_in_flight; /* L: sum of nr_in_flight[] */
 	int			nr_in_flight[WORK_NR_COLORS];
 						/* L: nr of in_flight works */
 	int			nr_active;	/* L: nr of active works */
@@ -1208,6 +1209,7 @@ static void pwq_dec_nr_in_flight(struct pool_workqueue *pwq, int color)
 		goto out_put;
 
 	pwq->nr_in_flight[color]--;
+	pwq->total_in_flight--;
 
 	pwq->nr_active--;
 	if (!list_empty(&pwq->delayed_works)) {
@@ -1513,6 +1515,7 @@ retry:
 	}
 
 	pwq->nr_in_flight[pwq->work_color]++;
+	pwq->total_in_flight++;
 	work_flags = work_color_to_flags(pwq->work_color);
 
 	if (likely(pwq->nr_active < pwq->max_active)) {
