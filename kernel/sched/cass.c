@@ -86,11 +86,9 @@ bool cass_cpu_better(const struct cass_cpu_cand *a,
 #define cass_cmp(a, b) ({ res = (a) - (b); })
 #define cass_eq(a, b) ({ res = (a) == (b); })
 	long res;
-	unsigned long hyst;
 
 	/* Prefer the CPU that's not overloaded */
-	if (cass_cmp((u64)b->eff_util * a->cap_max,
-		     (u64)a->eff_util * b->cap_max))
+	if (cass_cmp(b->eff_util / b->cap_max, a->eff_util / a->cap_max))
 		goto done;
 
 	/* Prefer the CPU that's less overloaded if they're both overloaded */
@@ -111,26 +109,6 @@ bool cass_cpu_better(const struct cass_cpu_cand *a,
 	/* Prefer the CPU that is idle (only relevant for uclamped tasks) */
 	if (cass_cmp(!!a->exit_lat, !!b->exit_lat))
 		goto done;
-
-	/*
-	 * When both CPUs are idle, keep the previous CPU slightly stickier:
-	 * require a small relative-util advantage to move away from it.
-	 */
-	if (a->exit_lat && b->exit_lat) {
-		hyst = SCHED_CAPACITY_SCALE / 64; //~1.5%
-
-		if (a->cpu == prev_cpu && b->cpu != prev_cpu &&
-		    a->util <= b->util + hyst) {
-			res = 1;
-			goto done;
-		}
-
-		if (b->cpu == prev_cpu && a->cpu != prev_cpu &&
-		    b->util <= a->util + hyst) {
-			res = -1;
-			goto done;
-		}
-	}
 
 	/* Prefer the current CPU for sync wakes */
 	if (sync && (cass_eq(a->cpu, this_cpu) || !cass_cmp(b->cpu, this_cpu)))
