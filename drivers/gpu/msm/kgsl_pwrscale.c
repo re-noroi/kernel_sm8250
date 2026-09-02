@@ -1,12 +1,10 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2010-2019, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/devfreq_cooling.h>
 #include <linux/slab.h>
-#include <linux/msm_kgsl.h>
 
 #include "kgsl_device.h"
 #include "kgsl_pwrscale.h"
@@ -669,20 +667,12 @@ static int opp_notify(struct notifier_block *nb,
 			min_level = level;
 	}
 
+	pwr->thermal_pwrlevel = max_level;
 	pwr->thermal_pwrlevel_floor = min_level;
 
+	/* Update the current level using the new limit */
+	kgsl_pwrctrl_pwrlevel_change(device, pwr->active_pwrlevel);
 	mutex_unlock(&device->mutex);
-
-	if (kgsl_pwr_limits_set_freq(pwr->cooling_pwr_limit,
-			pwr->pwrlevels[max_level].gpu_freq)) {
-		dev_err(device->dev,
-				"Failed to set cooling thermal limit via limits fw\n");
-		mutex_lock(&device->mutex);
-		pwr->thermal_pwrlevel = max_level;
-		/* Update the current level using the new limit */
-		kgsl_pwrctrl_pwrlevel_change(device, pwr->active_pwrlevel);
-		mutex_unlock(&device->mutex);
-	}
 
 	return 0;
 }
@@ -739,6 +729,10 @@ int kgsl_pwrscale_init(struct device *dev, const char *governor)
 	profile->max_state = pwr->num_pwrlevels - 1;
 	/* link storage array to the devfreq profile pointer */
 	profile->freq_table = pwrscale->freq_table;
+
+	/* if there is only 1 freq, no point in running a governor */
+	if (profile->max_state == 1)
+		governor = "performance";
 
 	/* initialize msm-adreno-tz governor specific data here */
 	data = gpu_profile->private_data;
