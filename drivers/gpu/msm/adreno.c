@@ -3355,8 +3355,21 @@ int adreno_gmu_fenced_write(struct adreno_device *adreno_dev,
 		if (!(status & fence_mask))
 			break;
 
-		/* Wait a small amount of time before trying again */
-		udelay(GMU_CORE_WAKEUP_DELAY_US);
+		/*
+		 * Wait a small amount of time before trying again.
+		 *
+		 * This retry loop can spin GMU_CORE_LONG_WAKEUP_RETRY_LIMIT
+		 * times, so on an IFPC wake it can burn ~2 ms of CPU. Some
+		 * callers are genuinely atomic - adreno_ringbuffer_wptr() holds
+		 * rb->preempt_lock with interrupts off - and there we have no
+		 * choice but to busy wait. Everywhere else, sleep so the CPU is
+		 * released to the game's threads for the duration.
+		 */
+		if (in_atomic() || irqs_disabled())
+			udelay(GMU_CORE_WAKEUP_DELAY_US);
+		else
+			usleep_range(GMU_CORE_WAKEUP_DELAY_US,
+					GMU_CORE_WAKEUP_DELAY_US * 2);
 
 		/* Try to write the fenced register again */
 		adreno_writereg(adreno_dev, offset, val);
