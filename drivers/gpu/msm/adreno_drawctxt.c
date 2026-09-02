@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2002,2007-2020, The Linux Foundation. All rights reserved.
- * Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/debugfs.h>
@@ -595,6 +594,8 @@ int adreno_drawctxt_switch(struct adreno_device *adreno_dev,
 	if (drawctxt != NULL && kgsl_context_detached(&drawctxt->base))
 		return -ENOENT;
 
+	trace_adreno_drawctxt_switch(rb, drawctxt);
+
 	/* Get a refcount to the new instance */
 	if (drawctxt) {
 		if (!_kgsl_context_get(&drawctxt->base))
@@ -608,7 +609,7 @@ int adreno_drawctxt_switch(struct adreno_device *adreno_dev,
 
 	ret = adreno_iommu_set_pt_ctx(rb, new_pt, drawctxt);
 	if (ret)
-		goto err;
+		return ret;
 
 	if (rb->drawctxt_active) {
 		/* Wait for the timestamp to expire */
@@ -618,12 +619,7 @@ int adreno_drawctxt_switch(struct adreno_device *adreno_dev,
 			kgsl_context_put(&rb->drawctxt_active->base);
 		}
 	}
-	trace_adreno_drawctxt_switch(rb, drawctxt);
 
 	rb->drawctxt_active = drawctxt;
 	return 0;
-err:
-	if (drawctxt)
-		kgsl_context_put(&drawctxt->base);
-	return ret;
 }

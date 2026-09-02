@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2002,2007-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #include <linux/delay.h>
 #include <linux/io.h>
@@ -1110,6 +1109,9 @@ static int adreno_of_get_power(struct adreno_device *adreno_dev,
 	device->pwrctrl.bus_control = of_property_read_bool(node,
 		"qcom,bus-control");
 
+	device->pwrctrl.input_disable = of_property_read_bool(node,
+		"qcom,disable-wake-on-touch");
+
 	return 0;
 }
 
@@ -1512,8 +1514,6 @@ static int adreno_probe(struct platform_device *pdev)
 	adreno_debugfs_init(adreno_dev);
 	adreno_profile_init(adreno_dev);
 
-	adreno_dev->perfcounter = false;
-
 	adreno_sysfs_init(adreno_dev);
 
 	kgsl_pwrscale_init(&pdev->dev, CONFIG_QCOM_ADRENO_DEFAULT_GOVERNOR);
@@ -1839,7 +1839,7 @@ static int adreno_init(struct kgsl_device *device)
 	set_bit(ADRENO_DEVICE_INITIALIZED, &adreno_dev->priv);
 
 	/*
-	 * Allocate a small chunk of memory for precise drawobj profiling for
+	 * Allocate a small chunk of memory for precise drawobj  for
 	 * those targets that have the always on timer
 	 */
 
@@ -3105,9 +3105,6 @@ int adreno_spin_idle(struct adreno_device *adreno_dev, unsigned int timeout)
 		if (adreno_isidle(KGSL_DEVICE(adreno_dev)))
 			return 0;
 
-		/* relax tight loop */
-		cond_resched();
-
 	} while (time_before(jiffies, wait));
 
 	/*
@@ -3176,7 +3173,7 @@ static int adreno_drain(struct kgsl_device *device)
 /* Caller must hold the device mutex. */
 static int adreno_suspend_context(struct kgsl_device *device)
 {
-	/* process any profiling results that are available */
+	/* process any  results that are available */
 	adreno_profile_process_results(ADRENO_DEVICE(device));
 
 	/* Wait for the device to go idle */

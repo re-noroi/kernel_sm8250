@@ -1,7 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2008-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #ifndef __ADRENO_H
 #define __ADRENO_H
@@ -241,9 +240,6 @@ struct adreno_gpudev;
 /* Time to allow preemption to complete (in ms) */
 #define ADRENO_PREEMPT_TIMEOUT 10000
 
-#define PREEMPT_SCRATCH_ADDR(dev, id) \
-	((dev)->preempt.scratch.gpuaddr + (id * sizeof(u64)))
-
 #define ADRENO_INT_BIT(a, _bit) (((a)->gpucore->gpudev->int_bits) ? \
 		(adreno_get_int(a, _bit) < 0 ? 0 : \
 		BIT(adreno_get_int(a, _bit))) : 0)
@@ -278,7 +274,6 @@ enum adreno_preempt_states {
  * skipsaverestore: To skip saverestore during L1 preemption (for 6XX)
  * usesgmem: enable GMEM save/restore across preemption (for 6XX)
  * count: Track the number of preemptions triggered
- * @postamble_len: Number of dwords in KMD postamble pm4 packet
  */
 struct adreno_preemption {
 	atomic_t state;
@@ -289,7 +284,6 @@ struct adreno_preemption {
 	bool skipsaverestore;
 	bool usesgmem;
 	unsigned int count;
-	u32 postamble_len;
 };
 
 
@@ -440,8 +434,8 @@ enum gpu_coresight_sources {
  * @pending_irq_refcnt: Atomic variable to keep track of running IRQ handlers
  * @ctx_d_debugfs: Context debugfs node
  * @pwrctrl_flag: Flag to hold adreno specific power attributes
- * @profile_buffer: Memdesc holding the drawobj profiling buffer
- * @profile_index: Index to store the start/stop ticks in the profiling
+ * @profile_buffer: Memdesc holding the drawobj  buffer
+ * @profile_index: Index to store the start/stop ticks in the
  * buffer
  * @pwrup_reglist: Memdesc holding the power up register list
  * which is used by CP during preemption and IFPC
@@ -547,11 +541,6 @@ struct adreno_device {
 	bool gpuhtw_llc_slice_enable;
 	unsigned int zap_loaded;
 	unsigned int soc_hw_rev;
-	/*
-	 * @perfcounter: Flag to clear perfcounters across contexts and
-	 * controls perfcounter ioctl read
-	 */
-	bool perfcounter;
 };
 
 /**
@@ -566,7 +555,7 @@ struct adreno_device {
  * @ADRENO_DEVICE_FAULT - Set if the device is currently in fault (and shouldn't
  * send any more commands to the ringbuffer)
  * @ADRENO_DEVICE_DRAWOBJ_PROFILE - Set if the device supports drawobj
- * profiling via the ALWAYSON counter
+ *  via the ALWAYSON counter
  * @ADRENO_DEVICE_PREEMPTION - Turn on/off preemption
  * @ADRENO_DEVICE_SOFT_FAULT_DETECT - Set if soft fault detect is enabled
  * @ADRENO_DEVICE_GPMU_INITIALIZED - Set if GPMU firmware initialization succeed
@@ -593,7 +582,7 @@ enum adreno_device_flags {
 
 /**
  * struct adreno_drawobj_profile_entry - a single drawobj entry in the
- * kernel profiling buffer
+ * kernel  buffer
  * @started: Number of GPU ticks at start of the drawobj
  * @retired: Number of GPU ticks at the end of the drawobj
  */
@@ -753,60 +742,6 @@ struct adreno_reg_offsets {
 #define ADRENO_REG_SKIP	0xFFFFFFFE
 #define ADRENO_REG_DEFINE(_offset, _reg)[_offset] = _reg
 #define ADRENO_INT_DEFINE(_offset, _val) ADRENO_REG_DEFINE(_offset, _val)
-
-/**
- * struct adreno_coresight_register - Definition for a coresight (tracebus)
- * debug register
- * @offset: Offset of the debug register in the KGSL mmio region
- * @initial: Default value to write when coresight is enabled
- * @value: Current shadow value of the register (to be reprogrammed after power
- * collapse)
- */
-struct adreno_coresight_register {
-	unsigned int offset;
-	unsigned int initial;
-	unsigned int value;
-};
-
-struct adreno_coresight_attr {
-	struct device_attribute attr;
-	struct adreno_coresight_register *reg;
-};
-
-#if IS_ENABLED(CONFIG_CORESIGHT_ADRENO)
-ssize_t adreno_coresight_show_register(struct device *device,
-		struct device_attribute *attr, char *buf);
-
-ssize_t adreno_coresight_store_register(struct device *dev,
-		struct device_attribute *attr, const char *buf, size_t size);
-
-#define ADRENO_CORESIGHT_ATTR(_attrname, _reg) \
-	struct adreno_coresight_attr coresight_attr_##_attrname  = { \
-		__ATTR(_attrname, 0644, \
-		adreno_coresight_show_register, \
-		adreno_coresight_store_register), \
-		(_reg), }
-#else
-#define ADRENO_CORESIGHT_ATTR(_attrname, _reg) \
-	struct adreno_coresight_attr coresight_attr_##_attrname  = { \
-		__ATTR_NULL, \
-		(_reg), }
-#endif /* CONFIG_CORESIGHT_ADRENO */
-
-/**
- * struct adreno_coresight - GPU specific coresight definition
- * @registers - Array of GPU specific registers to configure trace bus output
- * @count - Number of registers in the array
- * @groups - Pointer to an attribute list of control files
- * @atid - The unique ATID value of the coresight device
- */
-struct adreno_coresight {
-	struct adreno_coresight_register *registers;
-	unsigned int count;
-	const struct attribute_group **groups;
-	unsigned int atid;
-};
-
 
 struct adreno_irq_funcs {
 	void (*func)(struct adreno_device *adreno_dev, int mask);
@@ -1022,23 +957,6 @@ int adreno_reset(struct kgsl_device *device, int fault);
 void adreno_fault_skipcmd_detached(struct adreno_device *adreno_dev,
 					 struct adreno_context *drawctxt,
 					 struct kgsl_drawobj *drawobj);
-
-#if IS_ENABLED(CONFIG_CORESIGHT_ADRENO)
-int adreno_coresight_init(struct adreno_device *adreno_dev);
-
-void adreno_coresight_start(struct adreno_device *adreno_dev);
-void adreno_coresight_stop(struct adreno_device *adreno_dev);
-
-void adreno_coresight_remove(struct adreno_device *adreno_dev);
-#else
-static inline int adreno_coresight_init(struct adreno_device *adreno_dev)
-{
-	return -ENODEV;
-}
-static inline void adreno_coresight_start(struct adreno_device *adreno_dev) { }
-static inline void adreno_coresight_stop(struct adreno_device *adreno_dev) { }
-static inline void adreno_coresight_remove(struct adreno_device *adreno_dev) { }
-#endif /* CONFIG_CORESIGHT_ADRENO */
 
 bool adreno_hw_isidle(struct adreno_device *adreno_dev);
 
