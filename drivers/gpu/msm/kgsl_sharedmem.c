@@ -733,14 +733,20 @@ static struct kgsl_memdesc_ops kgsl_cma_ops = {
 	.vmfault = kgsl_contiguous_vmfault,
 };
 
+/*
+ * Issue cache maintenance for one physically contiguous run described by
+ * @page + @offset for @length bytes. @offset is relative to @page and may be
+ * larger than a page; @length may span many pages, which is the point - one
+ * call per scatterlist entry rather than one per 4K page.
+ */
 static void _dma_cache_op(struct device *dev, struct page *page,
-		unsigned int op)
+		unsigned int offset, unsigned int length, unsigned int op)
 {
 	struct scatterlist sgl;
 
 	sg_init_table(&sgl, 1);
-	sg_set_page(&sgl, page, PAGE_SIZE, 0);
-	sg_dma_address(&sgl) = page_to_phys(page);
+	sg_set_page(&sgl, page, length, offset);
+	sg_dma_address(&sgl) = page_to_phys(page) + offset;
 
 	switch (op) {
 	case KGSL_CACHE_OP_FLUSH:
@@ -760,7 +766,9 @@ int kgsl_cache_range_op(struct kgsl_memdesc *memdesc, uint64_t offset,
 		uint64_t size, unsigned int op)
 {
 	struct sg_table *sgt = NULL;
-	struct sg_page_iter sg_iter;
+	struct scatterlist *sg;
+	uint64_t start, end, pos = 0;
+	int i;
 
 	if (size == 0 || size > UINT_MAX)
 		return -EINVAL;
@@ -784,12 +792,41 @@ int kgsl_cache_range_op(struct kgsl_memdesc *memdesc, uint64_t offset,
 			return PTR_ERR(sgt);
 	}
 
-	size += offset & PAGE_MASK;
-	offset &= ~PAGE_MASK;
+	/* Round the requested range out to whole pages */
+	start = ALIGN_DOWN(offset, PAGE_SIZE);
+	end = PAGE_ALIGN(offset + size);
 
-	for_each_sg_page(sgt->sgl, &sg_iter, PAGE_ALIGN(size) >> PAGE_SHIFT,
-			offset >> PAGE_SHIFT)
-		_dma_cache_op(memdesc->dev, sg_page_iter_page(&sg_iter), op);
+	/*
+	 * Walk whole scatterlist entries instead of individual pages. Each entry
+	 * describes a physically contiguous run, so a single dma_sync covers all
+	 * of it: a 32 MB flush over an order 8 backed buffer costs a handful of
+	 * calls rather than 8192. Walk orig_nents, which is the CPU side entry
+	 * count - nents may have been collapsed by dma_map_sg() on an imported
+	 * buffer, and cache maintenance is a CPU side operation.
+	 */
+	for_each_sg(sgt->sgl, sg, sgt->orig_nents, i) {
+		uint64_t sg_start = pos, sg_end = pos + sg->length;
+		uint64_t skip, len, byte_off;
+		struct page *page;
+
+		pos = sg_end;
+
+		if (sg_end <= start)
+			continue;
+		if (sg_start >= end)
+			break;
+
+		/* Clamp to the requested range so we never touch more than asked */
+		skip = (start > sg_start) ? (start - sg_start) : 0;
+		len = min(sg_end, end) - (sg_start + skip);
+
+		byte_off = (uint64_t)sg->offset + skip;
+		page = nth_page(sg_page(sg), byte_off >> PAGE_SHIFT);
+
+		_dma_cache_op(memdesc->dev, page,
+				(unsigned int)(byte_off & ~PAGE_MASK),
+				(unsigned int)len, op);
+	}
 
 	if (memdesc->sgt == NULL)
 		kgsl_free_sgt(sgt);
