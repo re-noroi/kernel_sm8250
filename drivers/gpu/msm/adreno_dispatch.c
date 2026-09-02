@@ -1638,6 +1638,7 @@ static inline const char *_kgsl_context_comm(struct kgsl_context *context)
 		_kgsl_context_comm((_c)->context), \
 		pid_nr((_c)->context->proc_priv->pid), ##args)
 
+
 void adreno_fault_skipcmd_detached(struct adreno_device *adreno_dev,
 				 struct adreno_context *drawctxt,
 				 struct kgsl_drawobj *drawobj)
@@ -2299,10 +2300,6 @@ static int adreno_dispatch_process_drawqueue(struct adreno_device *adreno_dev,
 			msecs_to_jiffies(adreno_drawobj_timeout);
 		return count;
 	}
-
-	/* Don't check timeout if we are still in middle of preemption */
-	if (!adreno_in_preempt_state(adreno_dev, ADRENO_PREEMPT_NONE))
-		return 0;
 
 	/*
 	 * If we get here then 1) the ringbuffer is current and 2) we haven't
