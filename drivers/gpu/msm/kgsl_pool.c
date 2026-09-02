@@ -483,10 +483,15 @@ static void kgsl_pool_config(unsigned int order, unsigned int reserved_pages,
 static void kgsl_of_parse_mempools(struct device_node *node)
 {
 	struct device_node *child;
-	unsigned int page_size, reserved_pages = 0, max_pages = UINT_MAX;
-	bool allocation_allowed;
+	unsigned int page_size;
 
 	for_each_child_of_node(node, child) {
+		/*
+		 * Keep these per-child. of_property_read_u32() leaves its output
+		 * untouched when the property is absent, so hoisting them out of
+		 * the loop silently inherits the previous node's values.
+		 */
+		unsigned int reserved_pages = 0, max_pages = UINT_MAX;
 		unsigned int index;
 
 		if (of_property_read_u32(child, "reg", &index))
@@ -502,14 +507,26 @@ static void kgsl_of_parse_mempools(struct device_node *node)
 		of_property_read_u32(child, "qcom,mempool-reserved",
 				&reserved_pages);
 
-		allocation_allowed = of_property_read_bool(child,
-				"qcom,mempool-allocate");
-
 		of_property_read_u32(child, "qcom,mempool-max-pages",
 				&max_pages);
 
+		/*
+		 * Let every pool refill itself instead of honouring
+		 * qcom,mempool-allocate, which kona only grants to the 4K and 8K
+		 * pools. Without this the 64K and 1M pools can only ever hand out
+		 * their pre-reserved pages, and once a level load has drained
+		 * those, kgsl_pool_alloc_page() takes its eagain path for the rest
+		 * of the session - so large allocations permanently degrade
+		 * 1M -> 64K -> 8K -> 4K, giving up IOMMU block mappings and
+		 * multiplying scatterlist entries and TLB pressure.
+		 *
+		 * Refilling cannot stall: kgsl_gfp_mask() marks order > 0 requests
+		 * __GFP_NORETRY | __GFP_NOWARN with __GFP_RECLAIM cleared, so a
+		 * high order allocation that cannot be satisfied fails immediately
+		 * and the existing smaller-order fallback still runs.
+		 */
 		kgsl_pool_config(ilog2(page_size >> PAGE_SHIFT), reserved_pages,
-				allocation_allowed, max_pages);
+				true, max_pages);
 	}
 }
 
