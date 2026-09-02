@@ -91,7 +91,13 @@ static const struct vm_operations_struct kgsl_gpumem_vm_ops;
  * recently freed and print out a message to that effect
  */
 
-#define MEMFREE_ENTRIES 512
+/*
+ * kgsl_memfree_purge() scans this whole array under memfree_lock on every
+ * allocation, so its size is paid on the hot path while only the pagefault
+ * diagnostic reader ever benefits from the depth. Keep enough history to be
+ * useful without holding a global spinlock for 512 iterations per allocation.
+ */
+#define MEMFREE_ENTRIES 64
 
 static DEFINE_SPINLOCK(memfree_lock);
 
