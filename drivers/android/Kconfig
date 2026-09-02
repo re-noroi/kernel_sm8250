@@ -55,7 +55,6 @@ config ANDROID_DEBUG_SYMBOLS
 	  interface vendor modules.
 config ANDROID_VENDOR_HOOKS
 	bool "Android Vendor Hooks"
-	depends on TRACEPOINTS
 	help
 	  Enable vendor hooks implemented as tracepoints
 	  Allow vendor modules to attach to tracepoint "hooks" defined via
@@ -133,6 +132,14 @@ config ANDROID_KABI_RESERVE
 	  kernel team.
 
 	  If even slightly unsure, say Y.
+
+config ANDROID_VENDOR_HOOKS
+	bool "Android Vendor Hooks"
+	---help---
+	  Enable vendor hooks implemented as tracepoints
+
+	  Allow vendor modules to attach to tracepoint "hooks" defined via
+	  DECLARE_HOOK or DECLARE_RESTRICTED_HOOK.
 
 endif # if ANDROID
 endmenu
