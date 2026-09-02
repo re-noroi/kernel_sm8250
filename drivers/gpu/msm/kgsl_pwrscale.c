@@ -743,20 +743,27 @@ int kgsl_pwrscale_init(struct device *dev, const char *governor)
 			pwrscale->ctxt_aware_busy_penalty;
 	}
 
-	if (of_property_read_bool(device->pdev->dev.of_node,
-			"qcom,enable-midframe-timer")) {
-		kgsl_midframe = kzalloc(
-				sizeof(struct kgsl_midframe_info), GFP_KERNEL);
-		if (kgsl_midframe) {
-			hrtimer_init(&kgsl_midframe->timer,
-					CLOCK_MONOTONIC, HRTIMER_MODE_REL);
-			kgsl_midframe->timer.function =
-					kgsl_pwrscale_midframe_timer;
-			kgsl_midframe->device = device;
-		} else
-			dev_err(device->dev,
-				     "Failed to enable-midframe-timer feature\n");
-	}
+	/*
+	 * Always enable the midframe timer rather than keying off
+	 * qcom,enable-midframe-timer, which kona does not set. With
+	 * kgsl_midframe NULL, kgsl_pwrscale_midframe_timer_restart() is a no-op
+	 * and the governor is driven purely by drawobj retire notifications, so
+	 * a single long frame - a scene transition, a shader stall - produces no
+	 * retires and gets no DCVS evaluation at all for its whole duration. The
+	 * hrtimer guarantees a kgsl_pwrscale_update() every
+	 * KGSL_GOVERNOR_CALL_INTERVAL while the device is ACTIVE. It only lets
+	 * DCVS observe load sooner; it does not force a power level.
+	 */
+	kgsl_midframe = kzalloc(sizeof(struct kgsl_midframe_info), GFP_KERNEL);
+	if (kgsl_midframe) {
+		hrtimer_init(&kgsl_midframe->timer,
+				CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+		kgsl_midframe->timer.function =
+				kgsl_pwrscale_midframe_timer;
+		kgsl_midframe->device = device;
+	} else
+		dev_err(device->dev,
+			     "Failed to enable-midframe-timer feature\n");
 
 	/*
 	 * If there is a separate GX power rail, allow
