@@ -14,6 +14,7 @@
 #include <linux/module.h>
 #include <linux/etherdevice.h>
 #include <linux/hash.h>
+#include <net/ipv6_stubs.h>
 #include <net/dst_metadata.h>
 #include <net/gro_cells.h>
 #include <net/rtnetlink.h>
@@ -217,7 +218,7 @@ static void geneve_rx(struct geneve_dev *geneve, struct geneve_sock *gs,
 	struct metadata_dst *tun_dst = NULL;
 	struct pcpu_sw_netstats *stats;
 	unsigned int len;
-	int err = 0;
+	int nh, err = 0;
 	void *oiph;
 
 	if (ip_tunnel_collect_metadata() || gs->collect_md) {
@@ -261,8 +262,22 @@ static void geneve_rx(struct geneve_dev *geneve, struct geneve_sock *gs,
 		goto drop;
 	}
 
-	oiph = skb_network_header(skb);
+	/* Save offset of outer header relative to skb->head,
+	 * because we are going to reset the network header to the inner header
+	 * and might change skb->head.
+	 */
+	nh = skb_network_header(skb) - skb->head;
+
 	skb_reset_network_header(skb);
+
+	if (!pskb_inet_may_pull(skb)) {
+		DEV_STATS_INC(geneve->dev, rx_length_errors);
+		DEV_STATS_INC(geneve->dev, rx_errors);
+		goto drop;
+	}
+
+	/* Get the outer header. */
+	oiph = skb->head + nh;
 
 	if (geneve_get_sk_family(gs) == AF_INET)
 		err = IP_ECN_decapsulate(oiph, skb);
@@ -1670,7 +1685,7 @@ struct net_device *geneve_dev_create_fb(struct net *net, const char *name,
 
 	memset(tb, 0, sizeof(tb));
 	dev = rtnl_create_link(net, name, name_assign_type,
-			       &geneve_link_ops, tb);
+			       &geneve_link_ops, tb, NULL);
 	if (IS_ERR(dev))
 		return dev;
 
@@ -1709,9 +1724,11 @@ static int geneve_netdevice_event(struct notifier_block *unused,
 	    event == NETDEV_UDP_TUNNEL_DROP_INFO) {
 		geneve_offload_rx_ports(dev, event == NETDEV_UDP_TUNNEL_PUSH_INFO);
 	} else if (event == NETDEV_UNREGISTER) {
-		geneve_offload_rx_ports(dev, false);
+		if (!dev->udp_tunnel_nic_info)
+			geneve_offload_rx_ports(dev, false);
 	} else if (event == NETDEV_REGISTER) {
-		geneve_offload_rx_ports(dev, true);
+		if (!dev->udp_tunnel_nic_info)
+			geneve_offload_rx_ports(dev, true);
 	}
 
 	return NOTIFY_DONE;
