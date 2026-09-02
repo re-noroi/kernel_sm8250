@@ -104,6 +104,9 @@
 #define A64_STADD(sf, Rn, Rs) \
 	aarch64_insn_gen_stadd(Rn, Rs, A64_SIZE(sf))
 
+/* dmb ish (data memory barrier, inner shareable) */
+#define A64_DMB_ISH	0xD5033BBF
+
 /* Add/subtract (immediate) */
 #define A64_ADDSUB_IMM(sf, Rd, Rn, imm12, type) \
 	aarch64_insn_gen_add_sub_imm(Rd, Rn, imm12, \
