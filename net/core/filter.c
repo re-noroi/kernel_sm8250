@@ -6428,6 +6428,28 @@ static u32 sock_ops_convert_ctx_access(enum bpf_access_type type,
 	struct bpf_insn *insn = insn_buf;
 	int off;
 
+/* Helper macro for adding read access to tcp_sock or sock fields. */
+#define SOCK_OPS_GET_FIELD(BPF_FIELD, OBJ_FIELD, OBJ)			      \
+	do {								      \
+		BUILD_BUG_ON(FIELD_SIZEOF(OBJ, OBJ_FIELD) >		      \
+			     FIELD_SIZEOF(struct bpf_sock_ops, BPF_FIELD));   \
+		*insn++ = BPF_LDX_MEM(BPF_FIELD_SIZEOF(			      \
+						struct bpf_sock_ops_kern,     \
+						is_fullsock),		      \
+				      si->dst_reg, si->src_reg,		      \
+				      offsetof(struct bpf_sock_ops_kern,      \
+					       is_fullsock));		      \
+		*insn++ = BPF_JMP_IMM(BPF_JEQ, si->dst_reg, 0, 2);	      \
+		*insn++ = BPF_LDX_MEM(BPF_FIELD_SIZEOF(			      \
+						struct bpf_sock_ops_kern, sk),\
+				      si->dst_reg, si->src_reg,		      \
+				      offsetof(struct bpf_sock_ops_kern, sk));\
+		*insn++ = BPF_LDX_MEM(BPF_FIELD_SIZEOF(OBJ,		      \
+						       OBJ_FIELD),	      \
+				      si->dst_reg, si->dst_reg,		      \
+				      offsetof(OBJ, OBJ_FIELD));	      \
+	} while (0)
+
 	switch (si->off) {
 	case offsetof(struct bpf_sock_ops, op) ...
 	     offsetof(struct bpf_sock_ops, replylong[3]):
@@ -6571,41 +6593,8 @@ static u32 sock_ops_convert_ctx_access(enum bpf_access_type type,
 		break;
 
 	case offsetof(struct bpf_sock_ops, rtt_min):
-		BUILD_BUG_ON(FIELD_SIZEOF(struct tcp_sock, rtt_min) !=
-			     sizeof(struct minmax));
-		BUILD_BUG_ON(sizeof(struct minmax) <
-			     sizeof(struct minmax_sample));
-
-		*insn++ = BPF_LDX_MEM(BPF_FIELD_SIZEOF(
-						struct bpf_sock_ops_kern, sk),
-				      si->dst_reg, si->src_reg,
-				      offsetof(struct bpf_sock_ops_kern, sk));
-		*insn++ = BPF_LDX_MEM(BPF_W, si->dst_reg, si->dst_reg,
-				      offsetof(struct tcp_sock, rtt_min) +
-				      FIELD_SIZEOF(struct minmax_sample, t));
+		SOCK_OPS_GET_FIELD(rtt_min, rtt_min.s[0].v, struct tcp_sock);
 		break;
-
-/* Helper macro for adding read access to tcp_sock or sock fields. */
-#define SOCK_OPS_GET_FIELD(BPF_FIELD, OBJ_FIELD, OBJ)			      \
-	do {								      \
-		BUILD_BUG_ON(FIELD_SIZEOF(OBJ, OBJ_FIELD) >		      \
-			     FIELD_SIZEOF(struct bpf_sock_ops, BPF_FIELD));   \
-		*insn++ = BPF_LDX_MEM(BPF_FIELD_SIZEOF(			      \
-						struct bpf_sock_ops_kern,     \
-						is_fullsock),		      \
-				      si->dst_reg, si->src_reg,		      \
-				      offsetof(struct bpf_sock_ops_kern,      \
-					       is_fullsock));		      \
-		*insn++ = BPF_JMP_IMM(BPF_JEQ, si->dst_reg, 0, 2);	      \
-		*insn++ = BPF_LDX_MEM(BPF_FIELD_SIZEOF(			      \
-						struct bpf_sock_ops_kern, sk),\
-				      si->dst_reg, si->src_reg,		      \
-				      offsetof(struct bpf_sock_ops_kern, sk));\
-		*insn++ = BPF_LDX_MEM(BPF_FIELD_SIZEOF(OBJ,		      \
-						       OBJ_FIELD),	      \
-				      si->dst_reg, si->dst_reg,		      \
-				      offsetof(OBJ, OBJ_FIELD));	      \
-	} while (0)
 
 /* Helper macro for adding write access to tcp_sock or sock fields.
  * The macro is called with two registers, dst_reg which contains a pointer
