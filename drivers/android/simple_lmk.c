@@ -102,6 +102,8 @@ static unsigned long get_time_decayed_pages(struct task_struct *tsk, struct mm_s
 	unsigned long anon_pages = get_mm_counter(mm, MM_ANONPAGES);
 	unsigned long swap_pages = get_mm_counter(mm, MM_SWAPENTS);
 	unsigned long cache_time = tsk->simple_lmk_cache_time;
+	unsigned long age_jiffies;
+	int shift;
 
 	/* If not cached, or cache_time not set, it's hot (low weight) */
 	if (tsk->signal->oom_score_adj < tier_min_adj[0] || !cache_time)
@@ -110,8 +112,7 @@ static unsigned long get_time_decayed_pages(struct task_struct *tsk, struct mm_s
 	/*
 	 * Calculate decay based on time spent in background.
 	 */
-	unsigned long age_jiffies = jiffies - cache_time;
-	int shift;
+	age_jiffies = jiffies - cache_time;
 
 	if (age_jiffies > CONFIG_ANDROID_SIMPLE_LMK_DECAY_FULL_SEC * HZ)
 		shift = 0;	/* full weight */
