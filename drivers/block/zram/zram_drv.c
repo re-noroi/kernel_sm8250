@@ -1160,7 +1160,6 @@ static void comp_algorithm_set(struct zram *zram, u32 prio, const char *alg)
 
 static int __comp_algorithm_store(struct zram *zram, u32 prio, const char *buf)
 {
-#if 0
 	const char *alg;
 	size_t sz;
 
@@ -1181,7 +1180,6 @@ static int __comp_algorithm_store(struct zram *zram, u32 prio, const char *buf)
 
 	comp_algorithm_set(zram, prio, alg);
 	up_write(&zram->init_lock);
-#endif
 	return 0;
 }
 
