@@ -26,17 +26,10 @@ struct sulog_entry {
 #define SULOG_ENTRY_MAX 250
 #define SULOG_BUFSIZ SULOG_ENTRY_MAX * (sizeof (struct sulog_entry))
 
-static void *sulog_buf_ptr = NULL;
-static uint32_t sulog_index_next = 0;
+char sulog_buf[SULOG_BUFSIZ] = { 0 };
 
-static void tiny_sulog_init_heap()
-{
-	sulog_buf_ptr = kzalloc(SULOG_BUFSIZ, GFP_KERNEL);
-	if (!sulog_buf_ptr)
-		return;
-	
-	pr_info("sulog_init: allocated %lu bytes on 0x%lx \n", SULOG_BUFSIZ, (uintptr_t)sulog_buf_ptr);
-}
+static void *sulog_buf_ptr = (void *)sulog_buf;
+static uint32_t sulog_index_next = 0;
 
 /**
  *
@@ -75,10 +68,7 @@ static inline uint32_t boottime_s_get()
  */
 static noinline void write_sulog(uint8_t sym)
 {
-	if (!sulog_buf_ptr)
-		return;
-
-	struct sulog_entry entry = {0};
+	struct sulog_entry entry;
 
 	// WARNING!!! this is LE only!
 	entry.s_time = boottime_s_get();
@@ -116,9 +106,6 @@ struct sulog_entry_rcv_ptr {
 
 static noinline int send_sulog_dump(void __user *uptr)
 {
-	if (!sulog_buf_ptr)
-		return 1;
-
 	struct sulog_entry_rcv_ptr sbuf = {0};
 
 	if (copy_from_user(&sbuf, uptr, sizeof(sbuf) ))

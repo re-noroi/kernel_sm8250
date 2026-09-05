@@ -129,7 +129,6 @@ static inline void ksu_hook_syscall_init_module(void)
 	kthread_run(ksu_unhook_syscall_init_module, NULL, "kthread");
 }
 
-
 static noinline void ksu_extend_module_blacklist()
 {
 	uintptr_t blacklist_pptr = ksu_read_module_blacklist();
@@ -143,7 +142,6 @@ static noinline void ksu_extend_module_blacklist()
 		pr_info("module_blackist: operation failed! ret: %d \n", ret);
 
 	ksu_hook_syscall_init_module();
-
 	return;
 }
 

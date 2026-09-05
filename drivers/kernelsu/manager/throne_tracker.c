@@ -76,7 +76,6 @@ FILLDIR_RETURN_TYPE my_actor(MY_ACTOR_CTX_ARG, const char *name,
 			     unsigned int d_type)
 {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3,19,0)
-	// then pull it out of the void
 	struct dir_context *ctx = (struct dir_context *)ctx_void;
 #endif
 	struct my_dir_context *my_ctx =
@@ -384,16 +383,17 @@ start_tt:
 void track_throne(bool prune_only)
 {
 #ifndef CONFIG_KSU_THRONE_TRACKER_ALWAYS_THREADED
-	static bool throne_tracker_first_run __read_mostly = true;
-	if (unlikely(throne_tracker_first_run)) {
-		mutex_lock(&throne_tracker_mutex);
-		throne_tracker_fn(prune_only);
-		mutex_unlock(&throne_tracker_mutex);
-		throne_tracker_first_run = false;
-		return;
-	}
-#endif
+	static void *label = &&first_run;
+	goto *label;
 
+first_run:
+	if (guarded_mutex_lock(&throne_tracker_mutex))
+		throne_tracker_fn(prune_only);
+	
+	label = &&threaded;
+	return;
+threaded:
+#endif
 	// HACK: force cast prune_only to be a void *
 	kthread_run(throne_tracker_thread, (void *)prune_only, "kthread");
 }

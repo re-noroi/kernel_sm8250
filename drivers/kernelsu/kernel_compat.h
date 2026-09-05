@@ -236,10 +236,8 @@ __weak int path_mount(const char *dev_name, struct path *path, const char *type_
 	if (!buf)
 		return -ENOMEM;
 
-	// -1 on the size as implicit null termination
-	// as we zero init the thing
 	char *realpath = d_path(path, buf, PATH_MAX - 1);
-	if (!(realpath && realpath != buf)) 
+	if (IS_ERR(realpath) || realpath == buf)
 		return -ENOENT;
 
 	mm_segment_t old_fs = get_fs();
@@ -265,15 +263,11 @@ __weak int path_mount(const char *dev_name, struct path *path, const char *type_
 __weak int path_umount(struct path *path, int flags)
 {
 	char buf[256] = {0};
-	int ret;
+	int ret = -ENOENT;
 
-	// -1 on the size as implicit null termination
-	// as we zero init the thing
 	char *usermnt = d_path(path, buf, sizeof(buf) - 1);
-	if (!(usermnt && usermnt != buf)) {
-		ret = -ENOENT;
+	if (IS_ERR(usermnt) || usermnt == buf)
 		goto out;
-	}
 
 	mm_segment_t old_fs = get_fs();
 	set_fs(KERNEL_DS);
@@ -466,9 +460,8 @@ static inline u64 ksu_ktime_get_ns(void) { return ktime_to_ns(ktime_get()); }
 #define ktime_get_ns ksu_ktime_get_ns
 #endif
 
-// WARNING: no overflow safety!
-#ifndef struct_size
-#define struct_size(p, member, n) (sizeof(*(p)) + (n) * sizeof(*(p)->member))
+#if LINUX_VERSION_CODE < KERNEL_VERSION (4, 18, 0)
+#include "external/linux_overflow.h"
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION (3, 4, 0)
