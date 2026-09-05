@@ -1,6 +1,6 @@
 # Quirks / Adaptations
 ## C-style
-- closest to GNU11, w/ some C23 / C2x backportables. 
+- GNU11, w/ some C23 / C2x backportables. 
 - ^ e.g. declaration after label bypass, and macro-able features.
 - pointer-centric. pointer-heavy. cast-heavy. addresses first, types are suggestions.
 - assumes little endian on everything.
@@ -9,13 +9,14 @@
 - minimum is gcc 4.9 / clang 10
 
 ## hooking
+- wired up for aarch64 + armeabi, k3.0 ~ mainline (7.2 as of current)
 - prefer syscalls and LSM always
 - syscall table hooking is implemented
 - theres partial kprobe/kretprobe support on boot-time hooks
-- on legacy theres no kprobes/kretprobes and syscall tracepoint guarantees
+- on legacy theres no kprobes/kretprobes and syscall tracepoint guarantees!
 - theres no guarantee for kallsyms even!
 - lots have random backports left and right, theres no abi stability guarantee at all!
-- theres also ARM64 'branch-link' inline hooking support.
+- ARM64 'branch-link', callsite inline hooking support for sucompat and 6.8+ LSM.
 - real-deal-but-brittle kallsyms bruteforcer to hunt ksyms.
 - manual hooking is still supported and will be kept forever.
 
@@ -53,7 +54,6 @@
 - after all we just need file pointer
 - however if theres syscall table hook or kprobes_ksud, we hook it on there instead
 - we also use this for "second stage apply" instead of execve_ksud
-- we also grab init_session_keyring here
 
 ## bprm LSM
 - defferent hooks for different kernels

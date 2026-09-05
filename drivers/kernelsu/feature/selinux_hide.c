@@ -53,19 +53,19 @@ static __always_inline int ksu_hide_setprocattr_inline(const char *name, void *v
 	if (!name)
 		return 0;
 
-	if (!!strcmp(name, "current"))
+	if (!!__builtin_memcmp(name, "current", sizeof("current")))
 		return 0;
 
 	char *str = (char *)value;
-
-	if (!str)
+	if (!str || !str[0])
 		return 0;
 
 	// two cachelines
-	char buf[128] = { 0 };
-	size_t len = (size < 127) ? size : 127;
+	char buf[128];
+	size_t len = (size < 128) ? size : 127;
 
 	memcpy(buf, str, len);
+	buf[len] = '\0';
 
 	if (!ksu_should_destroy_context(buf))
 		return 0;
@@ -96,12 +96,13 @@ static __nocfi ssize_t ksu_selinux_transaction_write(struct file *file, const ch
 		goto skip_destroy;
 
 	// two cachelines
-	char kbuf[128] = { 0 };
-	size_t len = (size < 127) ? size : 127;
+	char kbuf[128];
+	size_t len = (size < 128) ? size : 127;
 
 	if (copy_from_user_retry(kbuf, buf, len))
 		goto skip_destroy;
 
+	kbuf[len] = '\0';
 	if (ksu_should_destroy_context(kbuf)) {
 		pr_info("selinux_hide: selinux_transaction_write: destroy: %s \n", kbuf);
 		buf = (const char __user *)current->mm->start_stack;

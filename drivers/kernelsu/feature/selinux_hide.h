@@ -11,6 +11,8 @@
  *
  */
 
+// selinux_hide's list, hand-rolled hazard pointers via C11 atomics
+
 #ifndef __KSU_H_SELINUX_HIDE
 #define __KSU_H_SELINUX_HIDE
 
@@ -19,21 +21,84 @@ void ksu_selinux_hide_exit();
 
 static int sepol_expected_argc(u32 cmd);
 
-// its all push, no pop, so we can realloc forever
+// flex array
+struct ksu_hide_buf {
+	size_t len;
+	char data[];
+} __attribute__((aligned(sizeof(size_t))));
 
 // types
 // :type1:\0:type2:\0:type3:\0
-static char *ksu_hide_type_list __read_mostly = NULL;
-static size_t ksu_hide_type_len = 0;
+static struct ksu_hide_buf *ksu_hide_type_list __read_mostly = NULL;
 
 // rules
 // :src1:\0:tgt1:\0:src2:\0:tgt2:\0:src3:\0:tgt3:\0
-static char *ksu_hide_rule_list __read_mostly = NULL;
-static size_t ksu_hide_rule_len = 0;
+static struct ksu_hide_buf *ksu_hide_rule_list __read_mostly = NULL;
 
 static DEFINE_MUTEX(selinux_hide_list_mutex);
 
-static void ksu_add_shit_to_list(u32 cmd, const char *args[])
+/**
+ * this has to be done due to how ARM/64 atomics work.
+ * arm64 atomics promises exclusive cacheline access
+ * so we need to align one ptr to one cacheline
+ *
+ * we assume max of 16 nproc, not a big deal for now
+ * we can heapify once more are needed
+ *
+ */
+#define KSU_MAX_HP_SLOTS 16
+struct ksu_hazptr_slot {
+	struct ksu_hide_buf *ptr;
+} ____cacheline_aligned;
+
+static struct ksu_hazptr_slot ksu_selinux_hide_hazptr[KSU_MAX_HP_SLOTS] = { 0 };
+
+// NOTE: can ret null on uninitialized state
+static inline struct ksu_hide_buf *ksu_selinux_hide_get_buf(struct ksu_hide_buf **g_buf)
+{
+	// reader has to pin its own slot
+	preempt_disable();
+
+	int slot = raw_smp_processor_id() % KSU_MAX_HP_SLOTS;
+	struct ksu_hide_buf *buf;
+
+check_buf:
+	buf = __atomic_load_n(g_buf, __ATOMIC_ACQUIRE);
+	__atomic_store_n(&ksu_selinux_hide_hazptr[slot].ptr, buf, __ATOMIC_RELEASE);
+
+	if (buf != __atomic_load_n(g_buf, __ATOMIC_ACQUIRE))
+		goto check_buf;
+
+	return buf;
+}
+
+static inline void ksu_selinux_hide_put_buf(struct ksu_hide_buf **unused)
+{
+	int slot = raw_smp_processor_id() % KSU_MAX_HP_SLOTS;
+	__atomic_store_n(&ksu_selinux_hide_hazptr[slot].ptr, NULL, __ATOMIC_RELEASE);
+	
+	preempt_enable();
+}
+
+static inline void ksu_selinux_hide_hazptr_free(struct ksu_hide_buf *old_ptr)
+{
+	if (!old_ptr)
+		return;
+	int i;
+
+	// acquire it on ALL slots!
+	// only free it once ALL slots say that their slot no longer contains old ptr
+	// #pragma GCC unroll 0
+	// #pragma nounroll
+	for (i = 0; i < KSU_MAX_HP_SLOTS; i++) {
+		while (__atomic_load_n(&ksu_selinux_hide_hazptr[i].ptr, __ATOMIC_ACQUIRE) == old_ptr)
+			cpu_relax();
+	}
+
+	kfree(old_ptr);
+}
+
+static noinline void ksu_add_shit_to_list(u32 cmd, const char *args[])
 {
 	if (!args || !args[0])
 		return;
@@ -52,8 +117,8 @@ static void ksu_add_shit_to_list(u32 cmd, const char *args[])
 
 		// anti duplicate
 		size_t offset = 0;
-		while (offset < ksu_hide_type_len) {
-			const char *current_type = ksu_hide_type_list + offset;
+		while (ksu_hide_type_list->len > offset) {
+			const char *current_type = ksu_hide_type_list->data + offset;
 
 			char tmp_buf[64];
 			snprintf(tmp_buf, sizeof(tmp_buf), ":%s:", name);
@@ -66,20 +131,25 @@ static void ksu_add_shit_to_list(u32 cmd, const char *args[])
 
 	skip_type_dup_check:
 		;
-		size_t new_total_len = ksu_hide_type_len + needed_len;
+		size_t old_len = (ksu_hide_type_list) ? ksu_hide_type_list->len : 0;
+		size_t new_total_len = old_len + needed_len;
 
-		char *new_ptr = krealloc(ksu_hide_type_list, new_total_len, GFP_KERNEL);
+		struct ksu_hide_buf *new_ptr = kmalloc(sizeof(*new_ptr) + new_total_len, GFP_KERNEL);
 		if (!new_ptr)
 			return;
 
-		ksu_hide_type_list = new_ptr;
+		new_ptr->len = new_total_len;
 
-		char *w_ptr = ksu_hide_type_list + ksu_hide_type_len;
+		if (ksu_hide_type_list && old_len > 0)
+			memcpy(new_ptr->data, ksu_hide_type_list->data, old_len);
+
+		char *w_ptr = new_ptr->data + old_len;
 		sprintf(w_ptr, ":%s:", name);
 
-		ksu_hide_type_len = new_total_len;
+		struct ksu_hide_buf *old_ptr = __atomic_exchange_n(&ksu_hide_type_list, new_ptr, __ATOMIC_ACQ_REL);
+		ksu_selinux_hide_hazptr_free(old_ptr);
 
-		pr_info("selinux_hide: tracking type: %s\n", w_ptr );
+		pr_info("selinux_hide: tracking type: %s\n", w_ptr);
 
 
 	} else if (argc >= 2) {
@@ -99,9 +169,9 @@ static void ksu_add_shit_to_list(u32 cmd, const char *args[])
 
 		// anti duplicate
 		size_t offset = 0;
-		while (offset < ksu_hide_rule_len) {
-			const char *src_chk = ksu_hide_rule_list + offset;
-			size_t src_sz = strlen(src_chk) + 1; // for \0			
+		while (ksu_hide_rule_list->len > offset) {
+			const char *src_chk = ksu_hide_rule_list->data + offset;
+			size_t src_sz = strlen(src_chk) + 1; // for \0
 
 			const char *tgt_chk = src_chk + src_sz;
 			size_t tgt_sz = strlen(tgt_chk) + 1; // for \0
@@ -118,20 +188,26 @@ static void ksu_add_shit_to_list(u32 cmd, const char *args[])
 
 	skip_rule_dup_check:
 		;
-		size_t new_total_len = ksu_hide_rule_len + needed_len;
-		char *new_ptr = krealloc(ksu_hide_rule_list, new_total_len, GFP_KERNEL);
+		size_t old_len = (ksu_hide_rule_list) ? ksu_hide_rule_list->len : 0;
+		size_t new_total_len = old_len + needed_len;
+
+		struct ksu_hide_buf *new_ptr = kmalloc(sizeof(*new_ptr) + new_total_len, GFP_KERNEL);
 		if (!new_ptr)
 			return;
 
-		ksu_hide_rule_list = new_ptr;
+		new_ptr->len = new_total_len;
 
-		char *w_ptr_src = ksu_hide_rule_list + ksu_hide_rule_len;
+		if (ksu_hide_rule_list && old_len > 0)
+			memcpy(new_ptr->data, ksu_hide_rule_list->data, old_len);
+
+		char *w_ptr_src = new_ptr->data + old_len;
 		sprintf(w_ptr_src, ":%s:", src);
 
-		char *w_ptr_tgt = w_ptr_src + strlen(w_ptr_src) + 1; 
+		char *w_ptr_tgt = w_ptr_src + strlen(w_ptr_src) + 1;
 		sprintf(w_ptr_tgt, ":%s:", tgt);
 
-		ksu_hide_rule_len = new_total_len;
+		struct ksu_hide_buf *old_ptr = __atomic_exchange_n(&ksu_hide_rule_list, new_ptr, __ATOMIC_ACQ_REL);
+		ksu_selinux_hide_hazptr_free(old_ptr);
 
 		pr_info("selinux_hide: tracking rule: %s %s\n", w_ptr_src, w_ptr_tgt);
 
@@ -145,28 +221,38 @@ static bool ksu_should_destroy_context(char *str)
 	if (!str)
 		return false;
 
-	guarded_mutex_lock(&selinux_hide_list_mutex);
+{ // scope++
+	struct ksu_hide_buf *type_buf __cleanup(ksu_selinux_hide_put_buf) = ksu_selinux_hide_get_buf(&ksu_hide_type_list);
+	if (unlikely(!type_buf))
+		goto check_rule;
 
 	size_t offset = 0;
-	while (offset < ksu_hide_type_len) {
-		const char *current_entry = ksu_hide_type_list + offset;
-		
+	while (type_buf->len > offset) {
+		const char *current_entry = type_buf->data + offset;
+
 		if (strstr(str, current_entry))
 			return true;
 
 		offset = offset + strlen(current_entry) + 1;
 	}
+} // scope--
 
-	// double strstr
+check_rule:
+	; // double strstr
 	char *str2 = strchr(str, ' ');
 	if (!str2)
 		return false;
 
-	offset = 0;
-	while (offset < ksu_hide_rule_len) {
-		const char *src_rule = ksu_hide_rule_list + offset;
+{ // scope++
+	struct ksu_hide_buf *rule_buf __cleanup(ksu_selinux_hide_put_buf) = ksu_selinux_hide_get_buf(&ksu_hide_rule_list);
+	if (unlikely(!rule_buf))
+		return false;
+	
+	size_t offset = 0;
+	while (rule_buf->len > offset) {
+		const char *src_rule = rule_buf->data + offset;
 		size_t src_sz = strlen(src_rule) + 1;
-			
+
 		const char *tgt_rule = src_rule + src_sz;
 		size_t tgt_sz = strlen(tgt_rule) + 1;
 
@@ -175,152 +261,8 @@ static bool ksu_should_destroy_context(char *str)
 
 		offset = offset + src_sz + tgt_sz;
 	}
-
+} // scope--
 	return false;
 }
-
-#if 0
-// /selinux/rules.c, linked list
-LIST_HEAD(ksu_hide_type_list);
-LIST_HEAD(ksu_hide_rule_list);
-
-DECLARE_RWSEM(ksu_sepolicy_shitlist_lock);
-
-struct ksu_type_node {
-	struct list_head list;
-	char *padded_name;
-};
-
-struct ksu_rule_node {
-	struct list_head list;
-	char *src;
-	char *tgt;
-};
-
-static int sepol_expected_argc(u32 cmd);
-
-static void ksu_add_shit_to_list(u32 cmd, const char *args[])
-{
-	if (!args || !args[0])
-		return;
-
-	int argc = sepol_expected_argc(cmd);
-	down_write(&ksu_sepolicy_shitlist_lock);
-
-	size_t len;
-
-	if (cmd == KSU_SEPOLICY_CMD_TYPE || cmd == KSU_SEPOLICY_CMD_TYPE_ATTR || cmd == KSU_SEPOLICY_CMD_TYPE_STATE || cmd == KSU_SEPOLICY_CMD_ATTR) {
-		
-		const char *name = args[0];
-		len = strlen(name);
-
-		// no need after rule matching, keep as a reminder though
-		//if (!strcmp(name, "zygote") || !strcmp(name, "app_zygote"))
-		//	goto out_unlock;
-
-		struct ksu_type_node *t_node;
-		list_for_each_entry(t_node, &ksu_hide_type_list, list) {
-			if (strlen(t_node->padded_name) == (len + 2) && !memcmp(t_node->padded_name + 1, name, len))
-				goto out_unlock;
-		}
-
-		t_node = kmalloc(sizeof(*t_node), GFP_KERNEL);
-		if (!t_node)
-			goto out_unlock;
-		
-		t_node->padded_name = kmalloc(len + 3, GFP_KERNEL);
-		if (!t_node->padded_name) {
-			kfree(t_node);
-			goto out_unlock;
-		}
-		
-		snprintf(t_node->padded_name, len + 3, ":%s:", name);
-		list_add(&t_node->list, &ksu_hide_type_list);
-
-		if (IS_ENABLED(CONFIG_KSU_DEBUG))
-			pr_info("selinux_hide: tracking type: %s \n", t_node->padded_name);
-
-	} else if (argc >= 2) {
-
-		if (!args[1])
-			goto out_unlock;
-
-		const char *src = args[0];
-		const char *tgt = args[1];
-
-		// for zygote, a x x y rules, we grab x y
-		// if (!strcmp(src, "zygote") && args[2] && !strcmp(src, tgt))
-		//	tgt = args[2];
-
-		struct ksu_rule_node *r_node;
-		list_for_each_entry(r_node, &ksu_hide_rule_list, list) {
-			if (strstarts(r_node->src + 1, src) && strstarts(r_node->tgt + 1, tgt))
-				goto out_unlock;
-		}
-
-		r_node = kmalloc(sizeof(*r_node), GFP_KERNEL);
-		if (!r_node)
-			goto out_unlock;
-
-		r_node->src = kmalloc(strlen(src) + 3, GFP_KERNEL);
-		if (!r_node->src) {
-			kfree(r_node);
-			goto out_unlock;
-		}		
-		snprintf(r_node->src, strlen(src) + 3, ":%s:", src);
-
-		r_node->tgt = kmalloc(strlen(tgt) + 3, GFP_KERNEL);
-		if (!r_node->tgt) {
-			kfree(r_node->src);
-			kfree(r_node);
-			goto out_unlock;
-		}
-		snprintf(r_node->tgt, strlen(tgt) + 3, ":%s:", tgt);
-
-		list_add(&r_node->list, &ksu_hide_rule_list);
-
-		if (IS_ENABLED(CONFIG_KSU_DEBUG))
-			pr_info("selinux_hide: tracking rule: %s %s \n", r_node->src, r_node->tgt);
-
-	}
-
-out_unlock:
-	up_write(&ksu_sepolicy_shitlist_lock);
-}
-
-static bool ksu_should_destroy_context(char *str)
-{
-	if (!str)
-		return false;
-
-	down_read(&ksu_sepolicy_shitlist_lock);
-
-	struct ksu_type_node *t_node;
-	list_for_each_entry(t_node, &ksu_hide_type_list, list) {
-		if (strstr(str, t_node->padded_name)) {
-			up_read(&ksu_sepolicy_shitlist_lock);
-			return true;
-		}
-	}
-
-	// double strstr
-	char *str2 = strchr(str, ' ');
-	if (!str2) {
-		up_read(&ksu_sepolicy_shitlist_lock);
-		return false;
-	}		
-
-	struct ksu_rule_node *r_node;
-	list_for_each_entry(r_node, &ksu_hide_rule_list, list) {
-		if (strstr(str, r_node->src) && strstr(str2, r_node->tgt)) {
-			up_read(&ksu_sepolicy_shitlist_lock);
-			return true;
-		}
-	}
-
-	up_read(&ksu_sepolicy_shitlist_lock);
-	return false;
-}
-#endif
 
 #endif

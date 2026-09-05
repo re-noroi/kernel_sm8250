@@ -687,10 +687,12 @@ static int vol_detector_exit()
 	return 0;
 }
 
-// we do this so that if theres no ksud to call on_post_fs_data/ksu_is_safe_mode/on_boot_completed
-// there will be no input handler / extra execve branch that stays around
-// 60s is more than enough time from second_stage to decrypt/post_fs_data
-// if theres no ksud that does that, we trigger the closing of hooks ourselves
+/**
+ * we do this so that if theres no ksud to call on_post_fs_data/ksu_is_safe_mode/on_boot_completed
+ * there will be no input handler / extra execve branch that stays around
+ * 60s is more than enough time from second_stage to decrypt/post_fs_data
+ * if theres no ksud that does that, we trigger the closing of hooks ourselves
+ */
 static int ksu_hook_watchdog(void *data)
 {
 	unsigned int i = 0;
