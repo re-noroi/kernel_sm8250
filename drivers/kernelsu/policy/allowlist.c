@@ -401,8 +401,6 @@ out:
 // us to have our own context. we give it a full escaped-to-root one.
 static int persistent_allow_list_pre(void *data)
 {
-	pr_info("do_persistent_allow_list: pid: %d started\n", current->pid);
-
 	/**
 	 * repurpose the mutex they were holding on ksu_persistent_allow_list_fn
 	 * since all this does eventually is to call kernel_write
@@ -411,12 +409,11 @@ static int persistent_allow_list_pre(void *data)
 	 * we just let other threads stall.
 	 * 'mutex-trylock-fail-then-return' is detrimental here
 	 */
-	mutex_lock(&allowlist_mutex);
+	guarded_mutex_lock(&allowlist_mutex);
+	pr_info("do_persistent_allow_list: pid: %d started\n", current->pid);
 
 	escape_to_root_forced(); // give permissions for everything
 	do_persistent_allow_list();
-
-	mutex_unlock(&allowlist_mutex);
 
 	pr_info("do_persistent_allow_list: pid: %d exit\n", current->pid);
 	return 0;

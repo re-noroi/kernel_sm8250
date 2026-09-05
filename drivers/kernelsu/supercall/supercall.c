@@ -205,8 +205,6 @@ int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd, void __user 
 void __init ksu_supercalls_init(void)
 {
 	ksu_supercall_dump_commands();
-	
-	tiny_sulog_init_heap(); // grab heap memory for sulog
 }
 
 void __exit ksu_supercalls_exit(void) { }
