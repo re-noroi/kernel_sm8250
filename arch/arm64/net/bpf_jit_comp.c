@@ -745,16 +745,6 @@ emit_cond_jmp:
 
 	case BPF_STX | BPF_ATOMIC | BPF_W:
 	case BPF_STX | BPF_ATOMIC | BPF_DW:
-		if (insn->imm != BPF_ADD) {
-			pr_err_once("unknown atomic op code %02x\n", insn->imm);
-			return -EINVAL;
-		}
-
-		/* STX XADD: lock *(u32 *)(dst + off) += src
-		 * and
-		 * STX XADD: lock *(u64 *)(dst + off) += src
-		 */
-
 		if (!off) {
 			reg = dst;
 		} else {
@@ -762,15 +752,84 @@ emit_cond_jmp:
 			emit(A64_ADD(1, tmp, tmp, dst), ctx);
 			reg = tmp;
 		}
-		if (cpus_have_cap(ARM64_HAS_LSE_ATOMICS)) {
+
+		if (imm == BPF_ADD && cpus_have_cap(ARM64_HAS_LSE_ATOMICS)) {
+			/* STX XADD: lock *(u32/u64 *)(dst + off) += src */
 			emit(A64_STADD(isdw, reg, src), ctx);
-		} else {
+			break;
+		}
+
+		/*
+		 * Use the exclusive load/store loop for all atomic
+		 * operations not covered by the LSE fast path above.
+		 * These semantics follow the interpreter in
+		 * kernel/bpf/core.c.
+		 */
+		if (imm == BPF_ADD || imm == BPF_AND ||
+		    imm == BPF_OR || imm == BPF_XOR) {
+			/* lock *(u32/u64 *)(dst + off) <op>= src_reg */
 			emit(A64_LDXR(isdw, tmp2, reg), ctx);
-			emit(A64_ADD(isdw, tmp2, tmp2, src), ctx);
+			if (imm == BPF_ADD)
+				emit(A64_ADD(isdw, tmp2, tmp2, src), ctx);
+			else if (imm == BPF_AND)
+				emit(A64_AND(isdw, tmp2, tmp2, src), ctx);
+			else if (imm == BPF_OR)
+				emit(A64_ORR(isdw, tmp2, tmp2, src), ctx);
+			else
+				emit(A64_EOR(isdw, tmp2, tmp2, src), ctx);
 			emit(A64_STXR(isdw, tmp2, reg, tmp3), ctx);
 			jmp_offset = -3;
 			check_imm19(jmp_offset);
 			emit(A64_CBNZ(0, tmp3, jmp_offset), ctx);
+		} else if (imm == (BPF_ADD | BPF_FETCH) ||
+			   imm == (BPF_AND | BPF_FETCH) ||
+			   imm == (BPF_OR | BPF_FETCH) ||
+			   imm == (BPF_XOR | BPF_FETCH)) {
+			/* src_reg = atomic_fetch_<op>(dst + off, src_reg) */
+			const u8 ax = bpf2a64[BPF_REG_AX];
+
+			emit(A64_MOV(isdw, ax, src), ctx);
+			emit(A64_LDXR(isdw, src, reg), ctx);
+			if (imm == (BPF_ADD | BPF_FETCH))
+				emit(A64_ADD(isdw, tmp2, src, ax), ctx);
+			else if (imm == (BPF_AND | BPF_FETCH))
+				emit(A64_AND(isdw, tmp2, src, ax), ctx);
+			else if (imm == (BPF_OR | BPF_FETCH))
+				emit(A64_ORR(isdw, tmp2, src, ax), ctx);
+			else
+				emit(A64_EOR(isdw, tmp2, src, ax), ctx);
+			emit(A64_STXR(isdw, tmp2, reg, tmp3), ctx);
+			jmp_offset = -3;
+			check_imm19(jmp_offset);
+			emit(A64_CBNZ(0, tmp3, jmp_offset), ctx);
+			emit(A64_DMB_ISH, ctx);
+		} else if (imm == BPF_XCHG) {
+			/* src_reg = atomic_xchg(dst + off, src_reg) */
+			emit(A64_MOV(isdw, tmp2, src), ctx);
+			emit(A64_LDXR(isdw, src, reg), ctx);
+			emit(A64_STXR(isdw, tmp2, reg, tmp3), ctx);
+			jmp_offset = -2;
+			check_imm19(jmp_offset);
+			emit(A64_CBNZ(0, tmp3, jmp_offset), ctx);
+			emit(A64_DMB_ISH, ctx);
+		} else if (imm == BPF_CMPXCHG) {
+			/* r0 = atomic_cmpxchg(dst + off, r0, src_reg) */
+			const u8 r0 = bpf2a64[BPF_REG_0];
+
+			emit(A64_MOV(isdw, tmp2, r0), ctx);
+			emit(A64_LDXR(isdw, r0, reg), ctx);
+			emit(A64_EOR(isdw, tmp3, r0, tmp2), ctx);
+			jmp_offset = 4;
+			check_imm19(jmp_offset);
+			emit(A64_CBNZ(isdw, tmp3, jmp_offset), ctx);
+			emit(A64_STXR(isdw, src, reg, tmp3), ctx);
+			jmp_offset = -4;
+			check_imm19(jmp_offset);
+			emit(A64_CBNZ(0, tmp3, jmp_offset), ctx);
+			emit(A64_DMB_ISH, ctx);
+		} else {
+			pr_err_once("unknown atomic op code %02x\n", imm);
+			return -EINVAL;
 		}
 		break;
 

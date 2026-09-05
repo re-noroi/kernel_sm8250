@@ -45,7 +45,28 @@ const struct bpf_func_proto * __weak tracing_prog_func_proto(
 static const struct bpf_func_proto *
 tp_stub_func_proto(enum bpf_func_id func_id, const struct bpf_prog *prog)
 {
-	return bpf_base_func_proto(func_id);
+	const struct bpf_func_proto *fn;
+
+	fn = bpf_base_func_proto(func_id);
+	if (fn)
+		return fn;
+
+	switch (func_id) {
+	case BPF_FUNC_get_current_pid_tgid:
+		return &bpf_get_current_pid_tgid_proto;
+	case BPF_FUNC_get_current_uid_gid:
+		return &bpf_get_current_uid_gid_proto;
+	case BPF_FUNC_get_current_comm:
+		return &bpf_get_current_comm_proto;
+	default:
+		break;
+	}
+
+	fn = bpf_tracing_func_proto(func_id, prog);
+	if (fn)
+		return fn;
+
+	return NULL;
 }
 
 /* Base access check for all stub program types */
