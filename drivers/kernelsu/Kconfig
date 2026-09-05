@@ -5,7 +5,7 @@ config KSU
 	depends on !CPU_BIG_ENDIAN
 	depends on SECURITY_SELINUX
 	select SECCOMP
-	default y
+	default n
 	help
 	  Enable kernel-level root privileges on Android System.
 
