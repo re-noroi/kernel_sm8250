@@ -520,7 +520,7 @@ this file is for attribution only of alioth
 	status = "ok";
 	qcom,sec-charger-config = <0>;
 	qcom,usb-icl-ua = <3000000>;
-	qcom,fcc-max-ua = <5400000>;
+	qcom,fcc-max-ua = <6000000>;
 	qcom,fv-max-uv = <4450000>;
 	qcom,non-fcc-fv-max-uv = <4450000>;
 	qcom,dc-icl-ua = <1000000>;
@@ -666,7 +666,7 @@ this file is for attribution only of alioth
 		compatible = "xiaomi,usbpd-pm";
 		status = "ok";
 		mi,pd-bat-volt-max = <4450>;
-		mi,pd-bat-curr-max = <5400>;
+		mi,pd-bat-curr-max = <6000>;
 		mi,pd-bus-volt-max = <12000>;
 		mi,pd-bus-curr-max = <3000>;
 		mi,pd-bus-curr-compensate  = <50>;
