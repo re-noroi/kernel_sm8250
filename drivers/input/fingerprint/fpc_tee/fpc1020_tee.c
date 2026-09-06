@@ -116,7 +116,8 @@ static int request_vreg_gpio(struct fpc1020_data *fpc1020, bool enable)
 			goto exit;
 		}
 
-		enable_irq_wake(gpio_to_irq(fpc1020->irq_gpio));
+		if (!(fpc1020->irqf & IRQF_NO_SUSPEND))
+			enable_irq_wake(gpio_to_irq(fpc1020->irq_gpio));
 
 		fpc1020->irq_requested = true;
 		fpc1020->gpios_requested = true;
