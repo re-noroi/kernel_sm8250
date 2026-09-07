@@ -32,6 +32,7 @@
 #include <linux/sysfs.h>
 #include <linux/debugfs.h>
 #include <linux/cpuhotplug.h>
+#include <linux/scatterlist.h>
 
 #include "zram_drv.h"
 
@@ -1587,15 +1588,19 @@ static int read_same_filled_page(struct zram *zram, struct page *page,
 static int read_incompressible_page(struct zram *zram, struct page *page,
 				    u32 index)
 {
+	struct scatterlist sg[2];
 	struct zs_handle *handle;
 	void *src, *dst;
 
 	handle = &zram->table[index].handle;
-	src = zs_obj_read_begin(zram->mem_pool, handle, PAGE_SIZE, NULL);
+	zs_obj_read_sg_begin(zram->mem_pool, handle, sg, PAGE_SIZE);
+	/* An incompressible object never spans two pages. */
+	src = kmap(sg_page(sg));
 	dst = kmap_atomic(page);
 	copy_page(dst, src);
 	kunmap_atomic(dst);
-	zs_obj_read_end(zram->mem_pool, handle, PAGE_SIZE, src);
+	kunmap(sg_page(sg));
+	zs_obj_read_sg_end(zram->mem_pool, handle);
 
 	return 0;
 }
@@ -1604,10 +1609,11 @@ static int read_compressed_page(struct zram *zram, struct page *page, u32 index)
 {
 	enum zcomp_dstrm_mode mode = ZCOMP_DSTRM_EXCLUSIVE;
 	struct zcomp_dstrm *zstrm;
+	struct scatterlist sg[2];
 	struct zcomp *comp;
 	struct zs_handle *handle;
 	unsigned int size;
-	void *src, *dst, *tmp = NULL;
+	void *dst;
 	int ret, prio;
 
 	handle = &zram->table[index].handle;
@@ -1615,31 +1621,16 @@ static int read_compressed_page(struct zram *zram, struct page *page, u32 index)
 	prio = zram_get_priority(zram, index);
 	comp = zram->comps[prio];
 
-	/*
-	 * Shared mode needs its own bounce buffer.  zs_obj_read_begin()
-	 * linearizes spanning objects into the buffer passed to it, so
-	 * concurrent readers cannot share the per-CPU zstrm->local_copy.
-	 * Use a per-request kmalloc() for stateless backends; on alloc
-	 * failure, fall back to exclusive mode.
-	 */
-	if (zcomp_shared_decomp(comp) && size && size <= PAGE_SIZE) {
-		tmp = kmalloc(size, GFP_NOWAIT | __GFP_NOWARN);
-		if (tmp)
-			mode = ZCOMP_DSTRM_SHARED;
-	}
+	zs_obj_read_sg_begin(zram->mem_pool, handle, sg, size);
+	if (zcomp_shared_decomp(comp))
+		mode = ZCOMP_DSTRM_SHARED;
 
 	zstrm = zcomp_dstrm_get(comp, mode);
-	if (mode == ZCOMP_DSTRM_SHARED)
-		src = zs_obj_read_begin(zram->mem_pool, handle, size, tmp);
-	else
-		src = zs_obj_read_begin(zram->mem_pool, handle, size,
-					zstrm->local_copy);
 	dst = kmap_atomic(page);
-	ret = zcomp_decompress(comp, zstrm, src, size, dst);
+	ret = zcomp_decompress(comp, zstrm, sg, size, dst);
 	kunmap_atomic(dst);
-	zs_obj_read_end(zram->mem_pool, handle, size, src);
 	zcomp_dstrm_put(comp, zstrm, mode);
-	kfree(tmp);
+	zs_obj_read_sg_end(zram->mem_pool, handle);
 
 	return ret;
 }

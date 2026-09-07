@@ -8,6 +8,8 @@
 #include <linux/types.h>
 #include <linux/wait.h>
 
+struct scatterlist;
+
 #define ZCOMP_PARAM_NO_LEVEL	INT_MIN
 
 enum zcomp_dstrm_mode {
@@ -117,6 +119,6 @@ bool zcomp_shared_decomp(struct zcomp *comp);
 int zcomp_compress(struct zcomp *comp, struct zcomp_cstrm *zstrm,
 		   const void *src, unsigned int *dst_len);
 int zcomp_decompress(struct zcomp *comp, struct zcomp_dstrm *zstrm,
-		     const void *src, unsigned int src_len, void *dst);
+		     struct scatterlist *sg, unsigned int src_len, void *dst);
 
 #endif /* _ZCOMP_H_ */
