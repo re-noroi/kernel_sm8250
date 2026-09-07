@@ -76,7 +76,7 @@ static noinline int arm64_branch_patch(uintptr_t target_callsite, ptrdiff_t targ
 	uintptr_t end_addr = start_addr + target_width;
 	uintptr_t curr_addr = start_addr;
 	uint32_t raw_instruction; // arm64 wordsize
-	const ptrdiff_t bl_max_delta = (1L << 25) * sizeof(uint32_t); // 26 bits signed * insn size
+	constexpr ptrdiff_t bl_max_delta = (1L << 25) * sizeof(uint32_t); // 26 bits signed * insn size
 
 start_scan:
 	if (curr_addr >= end_addr)

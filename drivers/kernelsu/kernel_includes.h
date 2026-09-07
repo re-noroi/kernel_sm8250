@@ -14,6 +14,24 @@
 #ifndef __KSU_H_KERNEL_INCLUDES
 #define __KSU_H_KERNEL_INCLUDES
 
+// gcc -std=gnu23 -dM -E -x c /dev/null
+// NOTE: gcc14 uses 202000L on -std=gnu23
+#if (defined(__clang__) && defined(__STDC_VERSION__) && __STDC_VERSION__ >= 202311L) || \
+	(!defined(__clang__) && (defined(__STDC_VERSION__) && __STDC_VERSION__ >= 202000L))
+#define KSU_HAS_C23
+#endif
+
+#ifdef KSU_HAS_C23
+#define bool  __ksu_bool
+#define false __ksu_false
+#define true  __ksu_true
+#include <linux/types.h>
+#include <linux/stddef.h>
+#undef false
+#undef true
+#undef bool
+#endif // KSU_HAS_C23
+
 // common
 #include <asm/current.h>
 #include <asm/syscall.h>
@@ -182,6 +200,24 @@
 #define restrict __restrict
 
 /**
+ * emulate-able C23 features, should be fine on GNU11 compilers
+ *
+ */
+#if !defined(KSU_HAS_C23)
+#define nullptr ((void *)0)
+typedef typeof(nullptr) nullptr_t;
+#define constexpr const
+#define auto __auto_type
+#define alignas _Alignas
+#define alignof _Alignof
+#endif // KSU_HAS_C23
+
+// NOTE: clang < 19 has issues on constexpr even with -std=gnu23
+#if defined (KSU_HAS_C23) && defined(__clang__) && (__clang_major__ < 19)
+#define constexpr const
+#endif
+
+/**
  * old compilers does NOT know fallthrough, this is GNU/C23
  * however we can use a comment and it silences it
  * ref: https://elixir.bootlin.com/linux/v4.4.302/source/tools/include/linux/compiler.h#L121
@@ -262,9 +298,6 @@ static inline void kfree_byref(void *buf) { kfree(*(void **)buf); }
 #define KSU_HAS_INT128
 typedef __int128 int128_t;
 typedef unsigned __int128 uint128_t;
-
-// create 128-bit literals from two 64-bit literals
-// https://support.arm.com/documentation/ka004805/1-0/
 #define make128const(hi,lo) ((((int128_t)hi << 64) | lo))
 #endif
 
@@ -303,7 +336,6 @@ typedef unsigned __int128 uint128_t;
  *
  */
 #if !defined(CONFIG_KSU_DEBUG)
-
 #define memchr		__builtin_memchr
 #define memcmp		__builtin_memcmp
 #define memcpy		__builtin_memcpy
@@ -324,7 +356,6 @@ typedef unsigned __int128 uint128_t;
 #define strrchr		__builtin_strrchr
 #define strspn		__builtin_strspn
 #define strstr		__builtin_strstr
-
 #endif // !CONFIG_KSU_DEBUG
 
 /**

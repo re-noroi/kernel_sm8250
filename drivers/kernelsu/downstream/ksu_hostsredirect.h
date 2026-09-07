@@ -92,6 +92,7 @@ static __always_inline void ksu_hosts_file_redirect(const char __user *filename,
 #ifdef CONFIG_ARM64
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0)
 static syscall_fn_t aarch64_openat __read_mostly = NULL;
+extern long __arm64_sys_openat(const struct pt_regs *regs);
 asmlinkage long hook_aarch64_openat(const struct pt_regs *regs)
 {
 	const char __user *filename = (const char __user *)regs->regs[1];
@@ -107,6 +108,7 @@ orig_fn:
 
 #ifdef CONFIG_COMPAT
 static syscall_fn_t armeabi_openat __read_mostly = NULL;
+extern long __arm64_compat_sys_openat(const struct pt_regs *regs);
 asmlinkage long hook_armeabi_openat(const struct pt_regs *regs)
 {
 	const char __user *filename = (const char __user *)regs->regs[1];
@@ -151,6 +153,7 @@ orig_fn:
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0)
 static syscall_fn_t armeabi_openat __read_mostly = NULL;
+extern long sys_openat(const struct pt_regs *regs);
 asmlinkage long hook_armeabi_openat(const struct pt_regs *regs)
 {
 	const char __user *filename = (const char __user *)regs->regs[1];

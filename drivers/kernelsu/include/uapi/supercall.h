@@ -1,8 +1,8 @@
 #ifndef __KSU_UAPI_SUPERCALL_H
 #define __KSU_UAPI_SUPERCALL_H
 
-// 2: allowlist v4 root profile flags
-#define KERNEL_SU_UAPI_VERSION 2
+// 4: add KSU_GET_INFO_FLAG_BUNDLED
+#define KERNEL_SU_UAPI_VERSION 4
 
 /* Magic numbers for reboot hook to install fd */
 #define KSU_INSTALL_MAGIC1 0xDEADBEEF
@@ -20,6 +20,7 @@ struct ksu_become_daemon_cmd {
 #define KSU_GET_INFO_FLAG_MANAGER (1U << 1)
 #define KSU_GET_INFO_FLAG_LATE_LOAD (1U << 2)
 #define KSU_GET_INFO_FLAG_PR_BUILD (1U << 3)
+#define KSU_GET_INFO_FLAG_BUNDLED (1U << 4)
 
 struct ksu_get_info_cmd {
 	__u32 version; /* Output: KERNEL_SU_VERSION */

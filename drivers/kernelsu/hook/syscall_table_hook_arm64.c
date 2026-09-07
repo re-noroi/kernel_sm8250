@@ -311,6 +311,9 @@ asmlinkage long hook_armeabi_fstatat64(int dfd, const char __user * filename, st
 static void *armeabi_fstat64 __read_mostly = NULL;
 asmlinkage long hook_armeabi_fstat64_ret(unsigned long fd, struct stat64 __user * statbuf)
 {
+	// workaround for pre- torvalds/linux 54e45c169dbce43cf46d00eb1521b655b6e4f9e9
+	extern typeof(hook_armeabi_fstat64_ret) sys_fstat64;
+
 	// we handle it like rp
 	long ret = sys_fstat64(fd, statbuf);
 	ksu_handle_fstat64_ret(&fd, &statbuf);

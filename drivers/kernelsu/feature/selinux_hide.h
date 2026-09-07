@@ -39,14 +39,20 @@ static DEFINE_MUTEX(selinux_hide_list_mutex);
 
 /**
  * this has to be done due to how ARM/64 atomics work.
- * arm64 atomics promises exclusive cacheline access
+ * arm64 atomics promises exclusive cacheline access (mEsi)
  * so we need to align one ptr to one cacheline
  *
  * we assume max of 16 nproc, not a big deal for now
- * we can heapify once more are needed
+ * we can heapify once theres a real need for dynamic handling 
+ * (e.g. num_possible_cpus())
  *
  */
+#if CONFIG_NR_CPUS > 16
 #define KSU_MAX_HP_SLOTS 16
+#else
+#define KSU_MAX_HP_SLOTS CONFIG_NR_CPUS
+static_assert(KSU_MAX_HP_SLOTS > 0);
+#endif
 struct ksu_hazptr_slot {
 	struct ksu_hide_buf *ptr;
 } ____cacheline_aligned;
