@@ -1050,6 +1050,19 @@ ssize_t fuse_passthrough_read_iter(struct kiocb *iocb, struct iov_iter *to);
 ssize_t fuse_passthrough_write_iter(struct kiocb *iocb, struct iov_iter *from);
 ssize_t fuse_passthrough_mmap(struct file *file, struct vm_area_struct *vma);
 
+#define __fuse_wait_event(wq_head, condition)					\
+	___wait_event(wq_head, condition, TASK_UNINTERRUPTIBLE, 0, 0,		\
+		     freezable_schedule())
+
+#define fuse_wait_event(wq_head, condition)					\
+({										\
+	int __ret = 0;								\
+	might_sleep();								\
+	if (!(condition))							\
+		__ret = __fuse_wait_event(wq_head, condition);			\
+	__ret;									\
+})
+
 #define __fuse_wait_event_killable(wq_head, condition)				\
 	___wait_event(wq_head, condition, TASK_KILLABLE, 0, 0,			\
 		     freezable_schedule())
