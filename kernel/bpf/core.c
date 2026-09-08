@@ -1528,12 +1528,14 @@ bool bpf_prog_array_compatible(struct bpf_array *array,
 		 */
 		array->owner_prog_type = fp->type;
 		array->owner_jited = fp->jited;
+		array->owner_attach_type = fp->expected_attach_type;
 
 		return true;
 	}
 
 	return array->owner_prog_type == fp->type &&
-	       array->owner_jited == fp->jited;
+	       array->owner_jited == fp->jited &&
+	       array->owner_attach_type == fp->expected_attach_type;
 }
 
 static int bpf_check_tail_call(const struct bpf_prog *fp)

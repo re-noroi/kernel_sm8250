@@ -316,6 +316,7 @@ struct bpf_array {
 	 */
 	enum bpf_prog_type owner_prog_type;
 	bool owner_jited;
+	enum bpf_attach_type owner_attach_type;
 	union {
 		char value[0] __aligned(8);
 		void *ptrs[0] __aligned(8);
