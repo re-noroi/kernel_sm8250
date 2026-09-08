@@ -5133,12 +5133,13 @@ place_entity(struct cfs_rq *cfs_rq, struct sched_entity *se, int flags)
 	vslice = calc_delta_fair(se->slice, se);
 
 	/*
-	 * When joining the competition; the exisiting tasks will be,
-	 * on average, halfway through their slice, as such start tasks
-	 * off with half a slice to ease into the competition.
+	 * When joining the competition, or resuming after a sleep; the
+	 * existing tasks will be, on average, halfway through their
+	 * slice, as such (re)start with half a slice to ease into the
+	 * competition.
 	 */
-	if (sched_feat(PLACE_DEADLINE_INITIAL) && (flags & ENQUEUE_INITIAL))
-		vslice /= 2;
+	if (sched_feat(PLACE_DEADLINE_INITIAL) && (flags & (ENQUEUE_INITIAL | ENQUEUE_WAKEUP)))
+		vslice >>= 1;
 
 vslice_found:
 	/*
@@ -5173,7 +5174,7 @@ static inline void check_schedstat_required(void)
 static inline bool cfs_bandwidth_used(void);
 
 static void
-requeue_delayed_entity(struct sched_entity *se);
+requeue_delayed_entity(struct sched_entity *se, int flags);
 
 static void
 enqueue_entity(struct cfs_rq *cfs_rq, struct sched_entity *se, int flags)
@@ -6505,7 +6506,7 @@ static int choose_idle_cpu(int cpu, struct task_struct *p)
 }
 
 static void
-requeue_delayed_entity(struct sched_entity *se)
+requeue_delayed_entity(struct sched_entity *se, int flags)
 {
 	struct cfs_rq *cfs_rq = cfs_rq_of(se);
 
@@ -6523,7 +6524,7 @@ requeue_delayed_entity(struct sched_entity *se)
 		cfs_rq->nr_running--;
 		if (se != cfs_rq->curr)
 			__dequeue_entity(cfs_rq, se);
-		place_entity(cfs_rq, se, 0);
+		place_entity(cfs_rq, se, flags | ENQUEUE_WAKEUP);
 		if (se != cfs_rq->curr)
 			__enqueue_entity(cfs_rq, se);
 		cfs_rq->nr_running++;
@@ -6558,7 +6559,7 @@ enqueue_task_fair(struct rq *rq, struct task_struct *p, int flags)
 		util_est_enqueue(&rq->cfs, p);
 
 	if (flags & ENQUEUE_DELAYED) {
-		requeue_delayed_entity(se);
+		requeue_delayed_entity(se, flags);
 		return;
 	}
 
@@ -6576,7 +6577,7 @@ enqueue_task_fair(struct rq *rq, struct task_struct *p, int flags)
 	for_each_sched_entity(se) {
 		if (se->on_rq) {
 			if (se->sched_delayed)
-				requeue_delayed_entity(se);
+				requeue_delayed_entity(se, flags);
 			break;
 		}
 		cfs_rq = cfs_rq_of(se);
