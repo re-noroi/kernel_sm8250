@@ -270,7 +270,10 @@ static inline unsigned long apply_dvfs_headroom_cpu(struct sugov_cpu *sg_cpu,
 	const u16 *lut;
 	unsigned long headroom;
 	int scale = 0;
-	unsigned int mult = 100, level_limit;
+	unsigned int mult = 100, level_limit, skip_headroom = READ_ONCE(sysctl_hr_skip);
+
+	if (skip_headroom)
+		return util;
 
 	if (!util)
 		return 0;

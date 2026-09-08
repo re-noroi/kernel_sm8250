@@ -72,6 +72,7 @@ int sysctl_hr_scale_big __read_mostly = 20;
 int sysctl_hr_scale_prime __read_mostly = 3;
 unsigned int sysctl_hr_scaling __read_mostly = 1;
 unsigned int sysctl_hr_limit_level __read_mostly = 2;
+unsigned int sysctl_hr_skip __read_mostly = 0;
 static int zero		= 0;
 static int n_one	= 1;
 static int n_two	= 2;
@@ -177,6 +178,15 @@ static struct ctl_table sched_headroom_sysctls[] = {
 		.proc_handler   = proc_dointvec_minmax,
 		.extra1         = &zero,
 		.extra2         = &n_two,
+	},
+	{
+		.procname       = "sched_skip_headroom",
+		.data           = &sysctl_hr_skip,
+		.maxlen         = sizeof(unsigned int),
+		.mode           = 0644,
+		.proc_handler   = proc_dointvec_minmax,
+		.extra1         = &zero,
+		.extra2         = &n_one,
 	},
 	{}
 };
