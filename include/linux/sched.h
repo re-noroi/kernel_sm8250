@@ -760,6 +760,7 @@ struct task_struct {
 	int				normal_prio;
 	unsigned int			rt_priority;
 
+	bool				futex_waiting;
 	const struct sched_class	*sched_class;
 	struct sched_entity		se;
 	struct sched_rt_entity		rt;
