@@ -2184,6 +2184,7 @@ extern int sysctl_hr_scale_big;
 extern int sysctl_hr_scale_prime;
 extern unsigned int sysctl_hr_scaling;
 extern unsigned int sysctl_hr_limit_level;
+extern unsigned int sysctl_hr_skip;
 
 #ifdef CONFIG_SCHED_HRTICK
 
