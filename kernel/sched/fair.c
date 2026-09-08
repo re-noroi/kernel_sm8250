@@ -1273,7 +1273,8 @@ static struct sched_entity *pick_eevdf(struct cfs_rq *cfs_rq, bool protect)
 	if (curr && (!curr->on_rq || !entity_eligible(cfs_rq, curr)))
 		curr = NULL;
 
-	if (curr && protect && protect_slice(curr))
+	if (curr && protect && protect_slice(curr) &&
+		(!entity_is_task(curr) || !task_of(curr)->futex_waiting))
 		return curr;
 
 	/* Pick the leftmost entity if it's eligible */
