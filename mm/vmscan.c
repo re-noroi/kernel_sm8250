@@ -2405,6 +2405,46 @@ enum scan_balance {
 	SCAN_FILE,
 };
 
+#ifdef CONFIG_SWAP
+static inline bool reclaimable_anon_is_low(struct mem_cgroup *memcg,
+		int nid, struct scan_control *sc)
+{
+	pg_data_t *pgdat = NODE_DATA(nid);
+	unsigned long anon_pages, swapcache;
+
+	/*
+	 * A GFP_NOIO reclaimer can only reclaim anon that is already in the
+	 * swapcache (adding anon to the swapcache needs IO). When swapcache is
+	 * far below the anon LRU, scanning anon reclaims nothing and only burns
+	 * CPU. The 1/64 threshold keeps this to the case where anon is
+	 * effectively unreclaimable.
+	 */
+	if (!sc || (sc->gfp_mask & __GFP_IO))
+		return false;
+
+	if (memcg) {
+		struct lruvec *lruvec = mem_cgroup_lruvec(pgdat, memcg);
+
+		anon_pages = lruvec_page_state(lruvec, NR_INACTIVE_ANON) +
+			     lruvec_page_state(lruvec, NR_ACTIVE_ANON);
+	} else {
+		anon_pages = node_page_state(pgdat, NR_INACTIVE_ANON) +
+			     node_page_state(pgdat, NR_ACTIVE_ANON);
+	}
+
+	/* In 4.19, swapcache is tracked globally, not per-node */
+	swapcache = total_swapcache_pages();
+
+	return swapcache < (anon_pages >> 6);
+}
+#else
+static inline bool reclaimable_anon_is_low(struct mem_cgroup *memcg,
+		int nid, struct scan_control *sc)
+{
+	return true;
+}
+#endif /* CONFIG_SWAP */
+
 /*
  * Determine how aggressively the anon and file LRU lists should be
  * scanned.  The relative value of each set of LRU lists is determined
@@ -2436,7 +2476,8 @@ static void get_scan_count(struct lruvec *lruvec, struct mem_cgroup *memcg,
 #endif
 
 	/* If we have no swap space, do not bother scanning anon pages. */
-	if (!sc->may_swap || mem_cgroup_get_nr_swap_pages(memcg) <= 0) {
+	if (!sc->may_swap || mem_cgroup_get_nr_swap_pages(memcg) <= 0 ||
+		reclaimable_anon_is_low(memcg, pgdat->node_id, sc)) {
 		scan_balance = SCAN_FILE;
 		goto out;
 	}
