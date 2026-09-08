@@ -5779,7 +5779,7 @@ static bool shrink_node(pg_data_t *pgdat, struct scan_control *sc)
 					 sc->nr_scanned - nr_scanned, sc));
 
 	if (sc->priority < DEF_PRIORITY / 2)
-		simple_lmk_reclaim_needed();
+		simple_lmk_reclaim_needed(sc->order, !current_is_kswapd());
 
 	/*
 	 * Kswapd gives up on balancing particular nodes after too

@@ -116,6 +116,21 @@ config ANDROID_SIMPLE_LMK_TIMEOUT_MSEC
 	  needed. After the specified timeout elapses, Simple LMK will stop
 	  waiting and make itself available to kill more processes.
 
+config ANDROID_SIMPLE_LMK_COOLDOWN_MSEC
+	int "Cooldown between reclaim passes in milliseconds"
+	range 0 5000
+	default 1500
+	help
+	  Minimum quiet period after a reclaim pass before another
+	  order-0 pass may kill again. Transient bursts (e.g. camera)
+	  re-latch the shrink_node trigger while victims are still
+	  dying, so without spacing each pass walks further down the
+	  adj ladder to the foreground app.
+	  The first kill is never delayed; only back-to-back passes
+	  are coalesced. Critically low memory, high-order
+	  allocations and sustained pressure bypass the cooldown, so
+	  a true OOM still kills immediately. 0 disables coalescing.
+
 endif
 
 config ANDROID_KABI_RESERVE
