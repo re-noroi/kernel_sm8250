@@ -11,8 +11,8 @@ MDIR := $(realpath $(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
 $(info -- KDIR: $(KDIR))
 $(info -- MDIR: $(MDIR))
 
-# compliant to last upstream kernel change as of e727186
-CFLAGS_ksu.o += -DKSU_VERSION=32625
+# compliant to last upstream kernel change as of aa08b39
+CFLAGS_ksu.o += -DKSU_VERSION=32628
 
 ifndef KSU_EXPECTED_SIZE
 KSU_EXPECTED_SIZE := 0x033b
@@ -108,6 +108,7 @@ CFLAGS_ksu.o += $(call cc-option, -Wno-format)
 CFLAGS_ksu.o += $(call cc-option, -Wno-macro-redefined)
 CFLAGS_ksu.o += $(call cc-option, -Wno-incompatible-pointer-types-discards-qualifiers)
 CFLAGS_ksu.o += $(call cc-option, -Wno-discarded-qualifiers)
+CFLAGS_ksu.o += $(call cc-option, -Wno-deprecated-octal-literals)
 
 # dont be too strict
 CFLAGS_REMOVE_ksu.o += -Werror
@@ -125,12 +126,12 @@ CFLAGS_REMOVE_ksu.o += -Os
 CFLAGS_ksu.o += -O2
 endif
 
-# while we can flag for gnu11 if !gnu17, theres an issue GCC < 5.1 which is a bit nasty on mutexes with k3.x code.
-# so for those, we literally just dont flag anything, gnu17 flag wont exist on them.
-CFLAGS_ksu.o += $(call cc-option,-std=gnu17)
-
-# now attempt to enable gnu23
+# attempt to enable gnu11 up to gnu2y
+# we skip gnu2x here due to its inconsistency
+CFLAGS_ksu.o += $(call cc-option, -std=gnu11)
+CFLAGS_ksu.o += $(call cc-option, -std=gnu17)
 CFLAGS_ksu.o += $(call cc-option, -std=gnu23)
+CFLAGS_ksu.o += $(call cc-option, -std=gnu2y)
 
 #ifeq ($(shell $(CC) -v 2>&1 | grep -q 'clang'; echo $$?),0)
 # $(info -- KernelSU/CC: clang!)

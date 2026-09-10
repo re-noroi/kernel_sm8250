@@ -17,9 +17,6 @@ static int do_grant_root(void __user *arg)
 	return ret;
 }
 
-static uint32_t ksuver_override = 0;
-static uint32_t ksuflags_override = 0;
-
 static int do_get_info(void __user *arg)
 {
 	struct ksu_get_info_cmd cmd = { .version = KERNEL_SU_VERSION, .flags = 0 };

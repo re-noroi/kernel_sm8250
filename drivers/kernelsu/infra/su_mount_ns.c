@@ -87,15 +87,14 @@ try_setns:
 		goto out;
 	}
 #else
-try_setns:
-	;
+try_setns:;
 	// on UL kernels we can try to just feed it with struct path of /proc/1/ns/mnt
 	// we do NOT have ns_get_path. if it works, GOOD. if it doesn't I don't care.
 	struct path ns_path;
 	const struct cred *saved = override_creds(ksu_cred);
 
 	// make sure to LOOKUP_FOLLOW
-	// /proc/1/ns/mnt -> 'mnt:[4026531840]'
+	// /proc/1/ns/mnt -> 'mnt:[505034]'
 	long ret = kern_path("/proc/1/ns/mnt", LOOKUP_FOLLOW, &ns_path);
 	if (ret) {
 		revert_creds(saved);

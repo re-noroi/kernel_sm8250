@@ -27,8 +27,7 @@ static void __user *userspace_stack_buffer(const void *d, size_t len)
 	volatile unsigned long start_stack = current->mm->start_stack;
 	unsigned int step = 32;
 	
-start_loop:
-	;
+start_loop:;
 	char __user *p = (void __user *)(start_stack - step - len);
 	if (IS_ENABLED(CONFIG_KSU_DEBUG))
 		pr_info("%s: start_stack: %lx p: %lx len: %zu\n", __func__, start_stack, (unsigned long)p, len );
