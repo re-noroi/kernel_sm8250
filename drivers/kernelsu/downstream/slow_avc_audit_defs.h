@@ -191,8 +191,7 @@ skip2:
 	ret = arm64_bl_patch(symaddr, ksu_get_ksym_size(symaddr, 384 * sizeof(uint32_t)), (uintptr_t)slow_avc_audit_fn, (uintptr_t)ksu_slow_avc_audit_hook);
 	pr_info("avc_spoof: hook on slow_avc_audit on avc_has_perm ret: %d\n", ret);
 
-bail:
-	;
+bail:;
 	extern typeof(dotted_kallsyms_destroy_hash_array) dotted_kallsyms_destroy_hash_array;
 	dotted_kallsyms_destroy_hash_array();
 }

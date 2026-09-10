@@ -91,11 +91,11 @@ filp_open:
 #endif // KEYS && < 5.2
 
 #ifndef READ_ONCE
-#define READ_ONCE(x) (*(const volatile typeof(x) *)&(x))
+#define READ_ONCE(x) (*(const volatile typeof(x) __may_alias *)&(x))
 #endif
 
 #ifndef WRITE_ONCE
-#define WRITE_ONCE(x, y) (*(volatile typeof(x) *)&(x) = (typeof(x))(y))
+#define WRITE_ONCE(x, y) (*(volatile typeof(x) __may_alias *)&(x) = (typeof(x) __may_alias)(y))
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 12, 0)
@@ -313,12 +313,12 @@ static inline void ksu_static_key_disable(struct static_key *key)
 #define static_branch_unlikely(k)	static_key_false(k)
 #define static_branch_likely(k)		static_key_true(k)
 
-#ifndef DEFINE_STATIC_KEY_FALSE
-#define DEFINE_STATIC_KEY_FALSE(k)	struct static_key k = STATIC_KEY_INIT_FALSE
-#endif
-
-#ifndef DEFINE_STATIC_KEY_TRUE
-#define DEFINE_STATIC_KEY_TRUE(k)	struct static_key k = STATIC_KEY_INIT_TRUE
+#ifdef CC_HAVE_ASM_GOTO
+#define DEFINE_STATIC_KEY_TRUE(k)	struct static_key k = { .enabled = ATOMIC_INIT(1), .entries = (void *)1 }
+#define DEFINE_STATIC_KEY_FALSE(k)	struct static_key k = { .enabled = ATOMIC_INIT(0), .entries = (void *)0 }
+#else
+#define DEFINE_STATIC_KEY_TRUE(k)	struct static_key k = { .enabled = ATOMIC_INIT(1) }
+#define DEFINE_STATIC_KEY_FALSE(k)	struct static_key k = { .enabled = ATOMIC_INIT(0) }
 #endif
 
 #endif // < 4.3

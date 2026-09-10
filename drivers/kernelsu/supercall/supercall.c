@@ -77,19 +77,6 @@ bool ksu_is_su_session_fd(const struct file *filp)
 	return context && (context->permissions & KSU_DRIVER_PERMISSION_SU_SESSION);
 }
 
-static inline int ksu_handle_fd_request(void __user *arg4)
-{
-	int fd = ksu_install_fd();
-	pr_info("[%d] install ksu fd: %d\n", current->pid, fd);
-
-	if (copy_to_user(arg4, &fd, sizeof(fd))) {
-		pr_err("install ksu fd reply err\n");
-		ksu_close_fd(fd);
-	}
-
-	return 0;
-}
-
 // downstream: make sure to pass arg as reference, this can allow us to extend things.
 int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd, void __user **arg)
 {
@@ -107,129 +94,19 @@ int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd, void __user 
 	// downstream: dereference arg as arg4 so we can be inline to upstream
 	void __user *arg4 = (void __user *)*arg;
 
-	// Check if this is a request to install KSU fd
 	if (magic2 == KSU_INSTALL_MAGIC2) {
-		return ksu_handle_fd_request(arg4);
-	}
+		int fd = ksu_install_fd();
 
-	// only root is allowed for these commands
-	if (current_uid().val != 0)
-		return 0;
-	
-	// extensions
-	u64 reply = (u64)*arg;
-
-	if (magic2 == CHANGE_MANAGER_UID) {
-		pr_info("sys_reboot: ksu_set_manager_appid to: %d\n", cmd);
-		ksu_set_manager_appid(cmd);
-
-		if (cmd == ksu_get_manager_appid()) {
-			if (copy_to_user((void __user *)*arg, &reply, sizeof(reply)))
-				pr_info("sys_reboot: reply fail\n");
+		pr_info("[%d] install ksu fd: %d\n", current->pid, fd);
+		if (copy_to_user((void __user *)arg4, &fd, sizeof(fd))) {
+			pr_err("install ksu fd reply err\n");
+			ksu_close_fd(fd);
 		}
 
 		return 0;
 	}
 
-	if (magic2 == GET_SULOG_DUMP_V2) {
-
-		int ret = send_sulog_dump(*arg);
-		if (ret)
-			return 0;
-
-		if (copy_to_user((void __user *)*arg, &reply, sizeof(reply) ))
-			return 0;
-	}
-
-	if (magic2 == CHANGE_KSUVER) {
-		pr_info("sys_reboot: ksu_change_ksuver to: %d\n", cmd);
-		ksuver_override = cmd;
-
-		if (copy_to_user((void __user *)*arg, &reply, sizeof(reply) ))
-			return 0;
-	}
-
-	// WARNING!!! triple ptr zone! ***
-	// https://wiki.c2.com/?ThreeStarProgrammer
-	if (magic2 == CHANGE_SPOOF_UNAME) {
-
-		char release_buf[65];
-		char version_buf[65];
-		static char original_release_buf[65] = {0};
-		static char original_version_buf[65] = {0};
-
-		// basically void * void __user * void __user *arg
-		void ***ppptr = (void ***)(uintptr_t)arg;
-
-		// user pointer storage
-		// init this as zero so this works on 32-on-64 compat (LE)
-		uint64_t u_pptr = 0;
-		uint64_t u_ptr = 0;
-
-		pr_info("sys_reboot: ppptr: 0x%lx \n", (uintptr_t)ppptr);
-
-		// arg here is ***, dereference to pull out **
-		if (copy_from_user(&u_pptr, (void __user *)*ppptr, sizeof(u_pptr)))
-			return 0;
-
-		pr_info("sys_reboot: u_pptr: 0x%lx \n", (uintptr_t)u_pptr);
-
-		// now we got the __user **
-		// we cannot dereference this as this is __user
-		// we just do another copy_from_user to get it
-		if (copy_from_user(&u_ptr, (void __user *)u_pptr, sizeof(u_ptr)))
-			return 0;
-
-		pr_info("sys_reboot: u_ptr: 0x%lx \n", (uintptr_t)u_ptr);
-
-		// for release
-		if (strncpy_from_user(release_buf, (char __user *)u_ptr, sizeof(release_buf)) < 0)
-			return 0;
-		release_buf[sizeof(release_buf) - 1] = '\0'; 
-
-		// for version
-		if (strncpy_from_user(version_buf, (char __user *)(u_ptr + strlen(release_buf) + 1), sizeof(version_buf)) < 0)
-			return 0;
-		version_buf[sizeof(version_buf) - 1] = '\0'; 
-
-		if (original_release_buf[0] == '\0') {
-			struct new_utsname *u_curr = utsname();
-			// we save current version as the original before modifying
-			strscpy(original_release_buf, u_curr->release, sizeof(original_release_buf));
-			strscpy(original_version_buf, u_curr->version, sizeof(original_version_buf));
-			pr_info("sys_reboot: original uname saved: %s %s\n", original_release_buf, original_version_buf);
-		}
-
-		// so user can reset
-		if (!strcmp(release_buf, "default")) {
-			memcpy(release_buf, original_release_buf, sizeof(release_buf));
-		}
-		if (!strcmp(version_buf, "default")) {
-			memcpy(version_buf, original_version_buf, sizeof(version_buf));
-		}
-
-		pr_info("sys_reboot: spoofing kernel to: %s - %s\n", release_buf, version_buf);
-
-		struct new_utsname *u = utsname();
-
-		down_write(&uts_sem);
-		strscpy(u->release, release_buf, sizeof(u->release));
-		strscpy(u->version, version_buf, sizeof(u->version));
-		up_write(&uts_sem);
-
-		// we write our confirmation on **
-		if (copy_to_user((void __user *)*arg, &reply, sizeof(reply)))
-			return 0;
-	}
-
-	if (magic2 == CHANGE_KSUFLAGS) {
-		pr_info("sys_reboot: ksu_change_ksuflags to: %d\n", cmd);
-		ksuflags_override = cmd;
-
-		if (copy_to_user((void __user *)*arg, &reply, sizeof(reply) ))
-			return 0;
-	}
-
+	toolkit_handle_sys_reboot(magic1, magic2, cmd, arg);
 	return 0;
 }
 

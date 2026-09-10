@@ -53,7 +53,8 @@ static __always_inline int ksu_hide_setprocattr_inline(const char *name, void *v
 	if (!name)
 		return 0;
 
-	if (!!__builtin_memcmp(name, "current", sizeof("current")))
+	constexpr char c[] = "current";
+	if (!!__builtin_memcmp(name, c, sizeof(c)))
 		return 0;
 
 	char *str = (char *)value;
@@ -288,8 +289,7 @@ wait_start:
 
 	goto wait_start;
 
-init_hooks:
-	;
+init_hooks:;
 	// apply_kernelsu_rules_fn
 	const char *ksu_domain_args[] = { KERNEL_SU_DOMAIN, NULL };
 	ksu_add_shit_to_list(KSU_SEPOLICY_CMD_TYPE, ksu_domain_args);
@@ -361,6 +361,8 @@ static const struct ksu_feature_handler selinux_hide_handler = {
 
 void __init ksu_selinux_hide_init()
 {
+	ksu_selinux_hide_alloc_hazptr_slot();
+
 	// we init this on a kthread
 	kthread_run(ksu_selinux_hide_init_thread, NULL, "kthread");
 

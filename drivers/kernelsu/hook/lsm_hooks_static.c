@@ -108,7 +108,6 @@ static void __init ksu_core_init(void)
 	pr_info("lsm_hijack: security_inode_rename: ret %d \n", ret);
 
 rename_hook_done:
-	;
 
 	target_callsite = kallsyms_lookup_retry("__sys_setresuid");
 	if (!target_callsite)

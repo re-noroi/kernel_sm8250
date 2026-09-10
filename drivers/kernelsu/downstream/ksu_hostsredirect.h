@@ -27,7 +27,7 @@ static __always_inline void ksu_hosts_file_redirect(const char __user *filename,
 	if (likely(!ksu_kernel_umount_enabled))
 		return;
 
-	const char hf[] = "/system/etc/hosts";
+	constexpr char hf[] = "/system/etc/hosts";
 
 	uint64_t *hf_p = (uint64_t *)hf;
 	uint64_t __user *fn_p = (uint64_t __user *)untagged_addr((void *)filename);

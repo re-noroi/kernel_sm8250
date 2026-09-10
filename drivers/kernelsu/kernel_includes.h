@@ -46,6 +46,7 @@
 #include <linux/capability.h>
 #include <linux/compat.h>
 #include <linux/compiler.h>
+#include <linux/cpumask.h>
 #include <linux/cred.h>
 #include <linux/dcache.h>
 #include <linux/delay.h>
@@ -80,6 +81,7 @@
 #include <linux/namei.h>
 #include <linux/nsproxy.h>
 #include <linux/path.h>
+#include <linux/percpu.h>
 #include <linux/pid.h>
 #include <linux/poll.h>
 #include <linux/printk.h>
@@ -193,6 +195,30 @@
 #define __nocfi
 #endif
 
+#ifndef __has_builtin
+#define __has_builtin(x) (0)
+#endif
+
+#ifndef __has_feature
+#define __has_feature(x) (0)
+#endif
+
+#ifndef __has_c_attribute
+#define __has_c_attribute(x) (0)
+#endif
+
+#ifndef __has_include
+#define __has_include(x) (0)
+#endif
+
+#ifndef __has_extension
+#define __has_extension(x) (0)
+#endif
+
+#ifndef __has_attribute
+#define __has_attribute(x) (0)
+#endif
+
 /**
  * Linux kernel forbids c99 restrict
  * however we can use builtin's restrict
@@ -200,34 +226,31 @@
 #define restrict __restrict
 
 /**
- * emulate-able C23 features, should be fine on GNU11 compilers
+ * partially emulate-able C23 features, should be fine on GNU11 compilers
  *
+ * Limitations:
+ *	- do NOT use nullptr_t on _Generic overloading, it will fuck up on C11
+ *	- do NOT use constexpr as array size on C11, it will likely become a VLA
  */
 #if !defined(KSU_HAS_C23)
+
 #define nullptr ((void *)0)
 typedef typeof(nullptr) nullptr_t;
+
 #define constexpr const
 #define auto __auto_type
+
 #define alignas _Alignas
 #define alignof _Alignof
+
+// note: requires clang
+// #define typeof_unqual(a) typeof(0, (a))
+
 #endif // KSU_HAS_C23
 
 // NOTE: clang < 19 has issues on constexpr even with -std=gnu23
 #if defined (KSU_HAS_C23) && defined(__clang__) && (__clang_major__ < 19)
 #define constexpr const
-#endif
-
-/**
- * old compilers does NOT know fallthrough, this is GNU/C23
- * however we can use a comment and it silences it
- * ref: https://elixir.bootlin.com/linux/v4.4.302/source/tools/include/linux/compiler.h#L121
- */
-#ifndef fallthrough
-# if defined(__GNUC__) && __GNUC__ >= 7
-#  define fallthrough __attribute__ ((fallthrough))
-# else
-#  define fallthrough do {} while (0) /* fallthrough */
-# endif
 #endif
 
 /**
@@ -255,6 +278,96 @@ static __nocfi __always_inline void *memset_explicit(void *s, int c, size_t coun
 	static typeof(memset) *volatile memset_fnptr = memset;
 	return memset_fnptr(s, c, count);
 }
+
+/**
+ * old compilers does NOT know fallthrough, this is GNU/C23
+ * however we can use a comment and it silences it
+ * ref: https://elixir.bootlin.com/linux/v7.2.2/source/include/linux/compiler_attributes.h#L216
+ */
+#ifndef fallthrough
+#if __has_attribute(__fallthrough__)
+#define fallthrough __attribute__((__fallthrough__))
+#else
+#define fallthrough do { } while (0) /* fallthrough */
+#endif
+#endif
+
+/**
+ * C2y's countof
+ * 
+ * - this is literally like kernel's ARRAY_SIZE
+ */
+#if __has_feature(c_countof) || __has_extension(c_countof)
+#define countof(a) _Countof(a)
+#else
+#define countof(a) (sizeof(a) / sizeof(a[0]))
+#endif
+
+/**
+ * uint128_t / int128_t
+ *
+ * - _BitInt(x) on C23 or nonstandard __int128 
+ * - this exists as an extension on gcc and clang
+ * - can be used with atomics on arm64 via ldxp+stxp or LSE / LSE2, no neon entry required.
+ *
+ */
+#if __has_extension(_BitInt) || __has_feature(_BitInt)
+#define HAS_BITINT 1
+#endif
+
+#if __has_extension(_ExtInt)
+#define _BitInt(a) _ExtInt(a)
+#define HAS_BITINT 1
+#endif
+
+#if defined(KSU_HAS_C23) || defined(HAS_BITINT)
+#define KSU_HAS_INT128 1
+typedef _BitInt(128) int128_t;
+typedef unsigned _BitInt(128) uint128_t;
+#define make128const(hi,lo) ((((int128_t)hi << 64) | lo))
+#endif
+
+#if defined(CONFIG_64BIT) && defined(__SIZEOF_INT128__) && (__SIZEOF_INT128__ == 16) && !defined(KSU_HAS_INT128)
+#define KSU_HAS_INT128 1
+typedef __int128 int128_t;
+typedef unsigned __int128 uint128_t;
+#define make128const(hi,lo) ((((int128_t)hi << 64) | lo))
+#endif
+
+/**
+ * memcpy_inline / memset_inline
+ *
+ * - guaranteed inline builtin routines 
+ * - fallback to builtin + assert for constexpr sizes
+ *
+ * NOTE:
+ * 	- memcpy_inline/memset_inline IR generation tends to fail on older clang
+ */
+#if __has_builtin(__builtin_memcpy_inline) && defined(__clang__) && (__clang_major__ >= 17)
+#define memcpy_inline	__builtin_memcpy_inline
+#else
+#define memcpy_inline(to, from, sz) ({			\
+	static_assert(__builtin_constant_p(sz));	\
+	__builtin_memcpy((to), (from), (sz));		\
+})
+#endif
+
+#if __has_builtin(__builtin_memset_inline) && defined(__clang__) && (__clang_major__ >= 17)
+#define memset_inline	__builtin_memset_inline
+#else
+#define memset_inline(dst, val, sz) ({			\
+	static_assert(__builtin_constant_p(sz));	\
+	__builtin_memset((dst), (val), (sz));		\
+})
+#endif
+
+/**
+ * __may_alias to workaround "optimizations" even on -fno-strict-aliasing
+ *
+ */
+#ifndef __may_alias
+#define __may_alias __attribute__((__may_alias__))
+#endif
 
 /**
  * __attribute__((__cleanup__()))
@@ -287,44 +400,23 @@ static inline void kfree_byref(void *buf) { kfree(*(void **)buf); }
 #define __zoffstack(size) __cleanup(kfree_byref) = kzalloc(size, GFP_KERNEL)
 
 /**
- * uint128_t / int128_t
+ * workaround for gcc 4.9 and others with -std=gnu11 enabled
+ * - error: initializer element is not constant
  *
- * - nonstandard, we can use _BitInt(x) but it needs C23
- * - this exists as an extension on gcc and clang
- * - can be used with atomics on arm64 via ldxp+stxp or LSE / LSE2, no neon entry required.
- *
+ * we just remove (spinlock_t/raw_spinlock_t) cast
  */
-#if defined(CONFIG_64BIT) && defined(__SIZEOF_INT128__) && (__SIZEOF_INT128__ == 16)
-#define KSU_HAS_INT128
-typedef __int128 int128_t;
-typedef unsigned __int128 uint128_t;
-#define make128const(hi,lo) ((((int128_t)hi << 64) | lo))
-#endif
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0) && !defined(__clang__) && defined(__GNUC__) && (__GNUC__ < 8)
 
-// check for guaranteed inline routines
-// if unavailable, use plain builtin
-#ifndef __has_builtin
-#define __has_builtin(x) (0)
-#endif
+#undef __SPIN_LOCK_UNLOCKED
+#define __SPIN_LOCK_UNLOCKED(lockname) __SPIN_LOCK_INITIALIZER(lockname)
 
-// memcpy_inline IR generation tends to fail on older clang
-#if __has_builtin(__builtin_memcpy_inline) && defined(__clang__) && (__clang_major__ >= 17)
-#define memcpy_inline	__builtin_memcpy_inline
-#else
-#define memcpy_inline(to, from, sz) ({			\
-	static_assert(__builtin_constant_p(sz));	\
-	__builtin_memcpy((to), (from), (sz));		\
-})
-#endif
+#undef __RAW_SPIN_LOCK_UNLOCKED
+#define __RAW_SPIN_LOCK_UNLOCKED(lockname) __RAW_SPIN_LOCK_INITIALIZER(lockname)
 
-// memset_inline IR generation tends to fail on older clang
-#if __has_builtin(__builtin_memset_inline) && defined(__clang__) && (__clang_major__ >= 17)
-#define memset_inline	__builtin_memset_inline
-#else
-#define memset_inline(dst, val, sz) ({			\
-	static_assert(__builtin_constant_p(sz));	\
-	__builtin_memset((dst), (val), (sz));		\
-})
+// re-type so it can expand
+#undef raw_spin_lock_init
+#define raw_spin_lock_init(lock) do { *(lock) = (typeof(*(lock))) __RAW_SPIN_LOCK_UNLOCKED(lock); } while (0)
+
 #endif
 
 /**
