@@ -6558,7 +6558,6 @@ enqueue_task_fair(struct rq *rq, struct task_struct *p, int flags)
 	struct sched_entity *se = &p->se;
 	struct cfs_rq *cfs_rq = &rq->cfs;
 	unsigned long weight;
-	bool curr;
 
 	/*
 	 * The code below (indirectly) updates schedutil which looks at
@@ -6584,23 +6583,14 @@ enqueue_task_fair(struct rq *rq, struct task_struct *p, int flags)
 	if (p->in_iowait)
 		cpufreq_update_util(rq, SCHED_CPUFREQ_IOWAIT);
 
-	/*
-	 * XXX comment on the curr thing
-	 */
-	curr = (cfs_rq->curr == se);
-	if (curr)
-		place_entity(cfs_rq, se, flags);
-
 	if (se->on_rq && se->sched_delayed)
 		requeue_delayed_entity(cfs_rq, se, flags);
 
 	weight = enqueue_hierarchy(p, flags);
 
-	if (!curr) {
-		reweight_eevdf(cfs_rq, se, weight, false);
-		place_entity(cfs_rq, se, flags | ENQUEUE_QUEUED);
-		__enqueue_entity(cfs_rq, se);
-	}
+	reweight_eevdf(cfs_rq, se, weight, false);
+	place_entity(cfs_rq, se, flags | ENQUEUE_QUEUED);
+	__enqueue_entity(cfs_rq, se);
 
 	/* At this point se is NULL and we are at root level*/
 	add_nr_running(rq, 1);
