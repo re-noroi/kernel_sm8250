@@ -5786,6 +5786,8 @@ void unthrottle_cfs_rq(struct cfs_rq *cfs_rq)
 	runnable_delta = cfs_rq->h_nr_runnable;
 	idle_delta = cfs_rq->h_nr_idle;
 	for_each_sched_entity(se) {
+		struct cfs_rq *qcfs_rq = cfs_rq_of(se);
+
 		/* Handle any unfinished DELAY_DEQUEUE business first. */
 		if (se->sched_delayed) {
 			int flags = DEQUEUE_SLEEP | DEQUEUE_DELAYED;
@@ -5794,30 +5796,29 @@ void unthrottle_cfs_rq(struct cfs_rq *cfs_rq)
 		} else if (se->on_rq)
                         break;
 
-		cfs_rq = cfs_rq_of(se);
-		enqueue_entity(cfs_rq, se, ENQUEUE_WAKEUP);
+		enqueue_entity(qcfs_rq, se, ENQUEUE_WAKEUP);
 
-		cfs_rq->h_nr_queued += queued_delta;
-		cfs_rq->h_nr_runnable += runnable_delta;
-		cfs_rq->h_nr_idle += idle_delta;
+		qcfs_rq->h_nr_queued += queued_delta;
+		qcfs_rq->h_nr_runnable += runnable_delta;
+		qcfs_rq->h_nr_idle += idle_delta;
 
 		/* end evaluation on encountering a throttled cfs_rq */
-		if (cfs_rq_throttled(cfs_rq))
+		if (cfs_rq_throttled(qcfs_rq))
 			goto unthrottle_throttle;
 	}
 
 	for_each_sched_entity(se) {
-		cfs_rq = cfs_rq_of(se);
+		struct cfs_rq *qcfs_rq = cfs_rq_of(se);
 
-		update_load_avg(cfs_rq, se, UPDATE_TG);
+		update_load_avg(qcfs_rq, se, UPDATE_TG);
 		se_update_runnable(se);
 
-		cfs_rq->h_nr_queued += queued_delta;
-		cfs_rq->h_nr_runnable += runnable_delta;
-		cfs_rq->h_nr_idle += idle_delta;
+		qcfs_rq->h_nr_queued += queued_delta;
+		qcfs_rq->h_nr_runnable += runnable_delta;
+		qcfs_rq->h_nr_idle += idle_delta;
 
 		/* end evaluation on encountering a throttled cfs_rq */
-		if (cfs_rq_throttled(cfs_rq))
+		if (cfs_rq_throttled(qcfs_rq))
 			goto unthrottle_throttle;
 	}
 
