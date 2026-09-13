@@ -11668,10 +11668,7 @@ static DEFINE_SPINLOCK(balancing);
  */
 void update_max_interval(void)
 {
-	unsigned int available_cpus;
-	available_cpus = num_online_cpus();
-
-	max_load_balance_interval = HZ*available_cpus/10;
+	max_load_balance_interval = HZ*num_online_cpus()/10;
 }
 
 static inline void update_newidle_stats(struct sched_domain *sd, unsigned int success)
