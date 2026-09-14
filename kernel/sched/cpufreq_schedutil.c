@@ -247,21 +247,27 @@ static unsigned int get_next_freq(struct sugov_policy *sg_policy,
 static inline unsigned long calc_dvfs_headroom(unsigned long util,
 					unsigned long capacity)
 {
-	unsigned long delta;
-	unsigned long threshold = (capacity * 15) / 100;
-	unsigned long delta_t = capacity - threshold;
-	unsigned long capped_util = min(util, capacity);
-	unsigned long headroom;
+	unsigned long approx, h_max, growth, decay;
+	/*
+	 * Determine the worst-case time between util updates.
+	 * Default rate_limit_us is usually 2000. TICK_NSEC acts as the floor.
+	 */
+	u64 delay = max_t(u64, TICK_NSEC / 1000, 2000ULL);
 
-	delta = capacity - capped_util;
+	approx = approximate_util_avg(util, delay);
+	h_max = approximate_util_avg(0, delay);
 
-	headroom = (delta * delta * 14) / (delta_t * 64);
+	/*
+	 * Capacity-aware DVFS headroom based on PELT:
+	 * H_ideal = (C - util) * alpha, where alpha = h_max / 1024
+	 */
+	growth = mult_frac(h_max, capacity, SCHED_CAPACITY_SCALE);
+	decay = h_max + util - approx;
 
-	if (capped_util < threshold)
-		headroom = (headroom * capped_util * capped_util) /
-			   (threshold * threshold);
+	if (growth > decay)
+		return growth - decay; /* Return raw headroom amount */
 
-	return headroom;
+	return 0;
 }
 
 static inline unsigned long apply_dvfs_headroom_cpu(struct sugov_cpu *sg_cpu,
