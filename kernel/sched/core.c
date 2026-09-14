@@ -1496,14 +1496,23 @@ bool uclamp_boosted(struct task_struct *p)
 bool uclamp_latency_sensitive(struct task_struct *p)
 {
 #ifdef CONFIG_UCLAMP_TASK_GROUP
-	struct cgroup_subsys_state *css = task_css(p, cpu_cgrp_id);
+	struct cgroup_subsys_state *css;
 	struct task_group *tg;
+	bool ls;
 
-	if (!css)
+	rcu_read_lock();
+
+	css = task_css(p, cpu_cgrp_id);
+	if (!css) {
+		rcu_read_unlock();
 		return false;
-	tg = container_of(css, struct task_group, css);
+	}
 
-	return tg->latency_sensitive;
+	tg = container_of(css, struct task_group, css);
+	ls = tg->latency_sensitive;
+
+	rcu_read_unlock();
+	return ls;
 #else
 	return false;
 #endif
