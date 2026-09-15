@@ -13,7 +13,7 @@
 // k4.2 ~ 6.7, LSM Hijacking, pure function pointer edition.
 extern struct security_hook_heads security_hook_heads;
 
-static int (*task_fix_setuid_fn)(struct cred *new, const struct cred *old, int flags) __read_mostly = NULL;
+static int (*task_fix_setuid_fn)(struct cred *new, const struct cred *old, int flags) __read_mostly = nullptr;
 static __nocfi int ksu_task_fix_setuid(struct cred *new, const struct cred *old, int flags)
 {
 	// see sys_setresuid
@@ -23,14 +23,14 @@ static __nocfi int ksu_task_fix_setuid(struct cred *new, const struct cred *old,
 	return task_fix_setuid_fn(new, old, flags);
 }
 
-static int (*inode_rename_fn)(struct inode *old_inode, struct dentry *old_dentry, struct inode *new_inode, struct dentry *new_dentry) __read_mostly = NULL;
+static int (*inode_rename_fn)(struct inode *old_inode, struct dentry *old_dentry, struct inode *new_inode, struct dentry *new_dentry) __read_mostly = nullptr;
 static __nocfi int ksu_inode_rename(struct inode *old_inode, struct dentry *old_dentry, struct inode *new_inode, struct dentry *new_dentry)
 {
 	ksu_rename_observer(old_dentry, new_dentry);
 	return inode_rename_fn(old_inode, old_dentry, new_inode, new_dentry);
 }
 
-static void (*bprm_committing_creds_fn)(struct linux_binprm *bprm) __read_mostly = NULL;
+static void (*bprm_committing_creds_fn)(struct linux_binprm *bprm) __read_mostly = nullptr;
 static __nocfi void ksu_bprm_committing_creds(struct linux_binprm *bprm)
 {
 #ifdef CONFIG_KSU_FEATURE_SULOG
@@ -39,7 +39,7 @@ static __nocfi void ksu_bprm_committing_creds(struct linux_binprm *bprm)
 	bprm_committing_creds_fn(bprm); // NOTE: void LSM hook
 }
 
-static int (*file_permission_fn)(struct file *file, int mask) __read_mostly = NULL;
+static int (*file_permission_fn)(struct file *file, int mask) __read_mostly = nullptr;
 static __nocfi int ksu_file_permission(struct file *file, int mask)
 {
 	if (unlikely(ksu_vfs_read_hook))
@@ -49,7 +49,7 @@ static __nocfi int ksu_file_permission(struct file *file, int mask)
 }
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0)
-static int (*bprm_set_creds_fn)(struct linux_binprm *bprm) __read_mostly = NULL;
+static int (*bprm_set_creds_fn)(struct linux_binprm *bprm) __read_mostly = nullptr;
 static __nocfi int ksu_bprm_set_creds(struct linux_binprm *bprm)
 {
 	if (likely(ksu_boot_completed))
@@ -73,7 +73,7 @@ capability_fn:
 #endif
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0) || defined(KSU_COMPAT_SECURITY_ADD_HOOKS_V2)
-static int (*setprocattr_fn)(const char *name, void *value, size_t size) __read_mostly = NULL;
+static int (*setprocattr_fn)(const char *name, void *value, size_t size) __read_mostly = nullptr;
 static __nocfi int ksu_setprocattr(const char *name, void *value, size_t size)
 {
 	ksu_hide_setprocattr_inline(name, value, size);
@@ -81,7 +81,7 @@ static __nocfi int ksu_setprocattr(const char *name, void *value, size_t size)
 
 }
 #else
-static int (*setprocattr_fn)(struct task_struct *p, char *name, void *value, size_t size) __read_mostly = NULL;
+static int (*setprocattr_fn)(struct task_struct *p, char *name, void *value, size_t size) __read_mostly = nullptr;
 static __nocfi int ksu_setprocattr(struct task_struct *p, char *name, void *value, size_t size)
 {
 	ksu_hide_setprocattr_inline(name, value, size);

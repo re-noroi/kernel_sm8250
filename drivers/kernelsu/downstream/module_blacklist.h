@@ -78,7 +78,7 @@ static uintptr_t ksu_read_module_blacklist()
 }
 
 #define __AARCH64_init_module 105
-static syscall_fn_t aarch64_init_module __read_mostly = NULL;
+static syscall_fn_t aarch64_init_module __read_mostly = nullptr;
 asmlinkage long hook_aarch64_init_module_ret(const struct pt_regs *regs)
 {
 	extern long __arm64_sys_init_module(const struct pt_regs *regs);
@@ -89,7 +89,7 @@ asmlinkage long hook_aarch64_init_module_ret(const struct pt_regs *regs)
 }
 
 #define __AARCH64_finit_module 273
-static syscall_fn_t aarch64_finit_module __read_mostly = NULL;
+static syscall_fn_t aarch64_finit_module __read_mostly = nullptr;
 asmlinkage long hook_aarch64_finit_module_ret(const struct pt_regs *regs)
 {
 	extern long __arm64_sys_finit_module(const struct pt_regs *regs);

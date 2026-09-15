@@ -6,7 +6,8 @@ static struct kprobe *init_kprobe(const char *name, kprobe_pre_handler_t handler
 {
 	struct kprobe *kp = kzalloc(sizeof(struct kprobe), GFP_KERNEL);
 	if (!kp)
-		return NULL;
+		return nullptr;
+
 	kp->symbol_name = name;
 	kp->pre_handler = handler;
 

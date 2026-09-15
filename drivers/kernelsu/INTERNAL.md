@@ -1,20 +1,22 @@
 # Quirks / Adaptations
 ## C-style
-- GNU23, but it should work going back to GNU17 and even GNU11 compilers.
-- pointer-centric. pointer-heavy. cast-heavy. addresses first, types are suggestions.
-- assumes little endian on everything.
+- GNU23, but written in a way compatible to GNU17/GNU11 compilers.
+- pointer-heavy. assumes little endian on everything.
 - some metaprogramming is actually happening (redefines, compat hacks, backports)
-- plethora of compiler autism and builtins, this is by design. compiler output is king.
-- minimum is gcc 4.9 / clang 10
+- plethora of compiler attributes / builtins, this is intended.
+- minimum is GCC 4.9 / Clang 10
+
+## build system
+- unity build, single unit
+- causes heavy inlining (high stack overflow risk)
+- ensure inlining control (inline, noinline attributes)
+- stack safety is disabled
+- redefines str/mem fn's to builtins
 
 ## hooking
-- wired up for aarch64 + armeabi, k3.0 ~ mainline (7.2 as of current)
+- wired up for aarch64 and armeabi, k3.0 ~ mainline (7.2 as of current)
 - prefer syscalls and LSM always
 - syscall table hooking is implemented
-- theres partial kprobe/kretprobe support on boot-time hooks
-- on legacy theres no kprobes/kretprobes and syscall tracepoint guarantees!
-- theres no guarantee for kallsyms even!
-- lots have random backports left and right, theres no abi stability guarantee at all!
 - ARM64 'branch-link', callsite inline hooking support for sucompat and 6.8+ LSM.
 - real-deal-but-brittle kallsyms bruteforcer to hunt ksyms.
 - manual hooking is still supported and will be kept forever.
@@ -71,24 +73,8 @@
 - if theres no ksud to call it, it will disable itself 30s after init.rc load
 - this should be enough allowance time from init.rc to post-fs-data
 
-## build system
-- unity build, single unit
-- causes heavy inlining (high stack overflow risk)
-- ensure inlining control (inline, noinline attributes)
-- stack safety is disabled
-- redefines str/mem fn's to builtins
-
 ## kthreads
 - theres a lot of these on the codebase even for mundane tasks
-- fearless concurrency
-
-## hacks
-#### sleeping on spinlocks
-- on apply_kernelsu_rules and handle_sepolicy
-- pin task to x cpu, hold rwlock, enable preempt, apply rules, do the reverse.
-#### toolkit's uname hax
-- since we pass arg as reference of arg on sys_reboot
-- this is actually void * const char __user * const char __user *
 
 ## log / reminders
 - some kernels reads 'cold + noinline' as __init, which evicts our fn. avoid this combination.

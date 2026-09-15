@@ -11,8 +11,8 @@ MDIR := $(realpath $(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
 $(info -- KDIR: $(KDIR))
 $(info -- MDIR: $(MDIR))
 
-# compliant to last upstream kernel change as of aa08b39
-CFLAGS_ksu.o += -DKSU_VERSION=32628
+# compliant to last upstream kernel change as of 665fd96
+CFLAGS_ksu.o += -DKSU_VERSION=32630
 
 ifndef KSU_EXPECTED_SIZE
 KSU_EXPECTED_SIZE := 0x033b
@@ -58,6 +58,12 @@ ifeq ($(shell grep -q "struct selinux_state " $(srctree)/security/selinux/includ
 CFLAGS_ksu.o += -DKSU_COMPAT_HAS_SELINUX_STATE
 endif
 
+# UL, look for iterate_dir on ‎fs/readdir.c
+ifeq ($(shell grep -q "^int iterate_dir" $(srctree)/fs/readdir.c 2>/dev/null; echo $$?),0)
+$(info -- KernelSU/compat: iterate_dir found!)
+CFLAGS_ksu.o += -DKSU_HAS_ITERATE_DIR
+endif
+
 ifeq ($(shell grep -q "struct type_datum \*\*type_val_to_struct;" $(srctree)/security/selinux/ss/policydb.h; echo $$?),0)
 CFLAGS_ksu.o += -DKSU_TYPE_VAL_TO_STRUCT
 endif
@@ -86,12 +92,6 @@ endif
 ifeq ($(shell grep -q "read_iter" $(srctree)/include/linux/fs.h 2>/dev/null; echo $$?),0)
 $(info -- KernelSU/compat: f_op->read_iter found!)
 CFLAGS_ksu.o += -DKSU_HAS_FOP_READ_ITER
-endif
-
-# UL, look for iterate_dir on ‎fs/readdir.c
-ifeq ($(shell grep -q "^int iterate_dir" $(srctree)/fs/readdir.c 2>/dev/null; echo $$?),0)
-$(info -- KernelSU/compat: iterate_dir found!)
-CFLAGS_ksu.o += -DKSU_HAS_ITERATE_DIR
 endif
 
 CFLAGS_ksu.o += $(call cc-option, -Wno-declaration-after-statement)

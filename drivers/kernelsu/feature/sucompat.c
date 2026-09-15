@@ -12,8 +12,8 @@ static bool ksu_su_compat_enabled __read_mostly = true;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 static void __user *userspace_stack_buffer(const void *d, size_t len)
 {
-	/* To avoid having to mmap a page in userspace, just write below the stack
-   * pointer. */
+	// To avoid having to mmap a page in userspace, just write below the stack
+	// pointer.
 	char __user *p = (void __user *)current_user_stack_pointer() - len;
 
 	return copy_to_user(p, d, len) ? NULL : p;
@@ -46,15 +46,13 @@ start_loop:;
 
 static char __user *sh_user_path(void)
 {
-	static const char sh_path[] = "/system/bin/sh";
-
+	constexpr char sh_path[16] = SH_PATH;
 	return userspace_stack_buffer(sh_path, sizeof(sh_path));
 }
 
 static char __user *ksud_user_path(void)
 {
-	static const char ksud_path[] = KSUD_PATH;
-
+	constexpr char ksud_path[16] = KSUD_PATH;
 	return userspace_stack_buffer(ksud_path, sizeof(ksud_path));
 }
 
@@ -170,8 +168,8 @@ static __always_inline void ksu_sucompat_user_common(const char __user **filenam
 
 	/*
 	 * it seems this is actually the slowest part, so we peek last word first to speed it up
-	 * NOTE: get_user rets EFAULT on err, so if we are copying a pointer
-	 * that goes to nothing, we also detect that and ret fast
+	 * NOTE: get_user rets EFAULT on err, so if we are copying a pointer that points to nothing, 
+	 * we also detect that and ret fast
 	 *
 	 * first read overreads, reading 8 bytes, "bin/su\0?" /  4 bytes, "su\0?" when we only need 7/3
 	 * but this is fine as we are guaranteed alignment, hardware provides trailing garbeg
@@ -315,6 +313,7 @@ static __always_inline void ksu_sucompat_kernel_common(int *restrict fd, void **
 	constexpr char su[16] = SU_PATH;
 
 #if 0 // defined(KSU_HAS_INT128)
+// https://godbolt.org/z/j8Yovv6bE
 	uint128_t *su128 = (uint128_t *)su;
 	uint128_t *fn128 = (uint128_t *)*(char **)filename_ptr;
 	const uint128_t mask = make128const(0x00FFFFFFFFFFFFFFULL, 0xFFFFFFFFFFFFFFFFULL);

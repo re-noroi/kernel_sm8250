@@ -15,7 +15,7 @@
 
 static uintptr_t selinux_ops_addr = 0x0;
 
-static int (*orig_setprocattr) (struct task_struct *p, char *name, void *value, size_t size) __read_mostly = NULL;
+static int (*orig_setprocattr) (struct task_struct *p, char *name, void *value, size_t size) __read_mostly = nullptr;
 static int hook_setprocattr(struct task_struct *p, char *name, void *value, size_t size)
 {
 	ksu_hide_setprocattr_inline(name, value, size);
@@ -23,7 +23,7 @@ static int hook_setprocattr(struct task_struct *p, char *name, void *value, size
 }
 
 static int (*orig_inode_rename) (struct inode *old_dir, struct dentry *old_dentry,
-			     struct inode *new_dir, struct dentry *new_dentry) __read_mostly = NULL;
+			     struct inode *new_dir, struct dentry *new_dentry) __read_mostly = nullptr;
 static int hook_inode_rename(struct inode *old_inode, struct dentry *old_dentry,
 			    struct inode *new_inode, struct dentry *new_dentry)
 {
@@ -31,7 +31,7 @@ static int hook_inode_rename(struct inode *old_inode, struct dentry *old_dentry,
 	return orig_inode_rename(old_inode, old_dentry, new_inode, new_dentry);
 }
 
-static int (*orig_bprm_check_security)(struct linux_binprm *bprm) __read_mostly = NULL;
+static int (*orig_bprm_check_security)(struct linux_binprm *bprm) __read_mostly = nullptr;
 static int hook_bprm_check_security(struct linux_binprm *bprm)
 {
 #ifdef CONFIG_KSU_FEATURE_SULOG
@@ -40,7 +40,7 @@ static int hook_bprm_check_security(struct linux_binprm *bprm)
 	return orig_bprm_check_security(bprm);
 }
 
-static int (*orig_task_fix_setuid) (struct cred *new, const struct cred *old, int flags) __read_mostly = NULL;
+static int (*orig_task_fix_setuid) (struct cred *new, const struct cred *old, int flags) __read_mostly = nullptr;
 static int hook_task_fix_setuid(struct cred *new, const struct cred *old, int flags)
 {
 	// see sys_setresuid
@@ -50,7 +50,7 @@ static int hook_task_fix_setuid(struct cred *new, const struct cred *old, int fl
 	return orig_task_fix_setuid(new, old, flags);
 }
 
-static int (*orig_file_permission) (struct file *file, int mask) __read_mostly = NULL;
+static int (*orig_file_permission) (struct file *file, int mask) __read_mostly = nullptr;
 static int hook_file_permission(struct file *file, int mask)
 {
 	if (unlikely(ksu_vfs_read_hook))
@@ -59,7 +59,7 @@ static int hook_file_permission(struct file *file, int mask)
 	return orig_file_permission(file, mask);
 }
 
-static int (*orig_bprm_set_creds)(struct linux_binprm *bprm) __read_mostly = NULL;
+static int (*orig_bprm_set_creds)(struct linux_binprm *bprm) __read_mostly = nullptr;
 static int ksu_unregister_bprm_set_creds(void *data)
 {
 	struct security_operations *ops = (struct security_operations *)selinux_ops_addr;
@@ -114,7 +114,7 @@ static inline bool verify_selinux_cred_free(void *fn_ptr)
 	// make sure this happens!
 	// #1. it wont trigger BUG_ON
 	// #2. this way it will kfree(NULL), which does nothing
-	*(volatile void **)&dummy_cred.security = NULL;
+	*(volatile void **)&dummy_cred.security = nullptr;
 	barrier();
 
 	selinux_cred_free_fn(&dummy_cred);
@@ -272,7 +272,7 @@ static inline void set_selinux_ops()
 	extern struct list_head crypto_alg_list;
 	extern unsigned int avc_cache_threshold;
 	
-	struct security_operations *ops = NULL;
+	struct security_operations *ops = nullptr;
 
 // if user exports selinux_ops, we just go for it!
 #ifdef KSU_HAS_EXPORTED_SELINUX_OPS

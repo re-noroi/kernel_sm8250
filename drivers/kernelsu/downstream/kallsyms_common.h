@@ -27,7 +27,7 @@ struct symbol_hash_entry {
 	uintptr_t addr;
 };
 
-static void *kallsyms_hash_array = NULL;
+static void *kallsyms_hash_array = nullptr;
 static size_t kallsyms_hash_array_entry_count = 0;
 static size_t kallsyms_hash_array_capacity = 0;
 
@@ -436,7 +436,7 @@ static noinline void dotted_kallsyms_destroy_hash_array(void)
 
 	kvfree(kallsyms_hash_array);
 
-	kallsyms_hash_array = NULL;
+	kallsyms_hash_array = nullptr;
 	kallsyms_hash_array_entry_count = 0;
 	kallsyms_hash_array_capacity = 0;
 

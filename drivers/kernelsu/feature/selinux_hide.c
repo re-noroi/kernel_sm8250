@@ -78,7 +78,7 @@ static __always_inline int ksu_hide_setprocattr_inline(const char *name, void *v
 }
 
 // selinux_transaction_write hijack
-static ssize_t (*selinux_transaction_write_fn)(struct file *file, const char __user *buf, size_t size, loff_t *pos) __read_mostly = NULL;
+static ssize_t (*selinux_transaction_write_fn)(struct file *file, const char __user *buf, size_t size, loff_t *pos) __read_mostly = nullptr;
 static __nocfi ssize_t ksu_selinux_transaction_write(struct file *file, const char __user *buf, size_t size, loff_t *pos)
 {
 	if (unlikely(!ksu_selinux_hide_enabled))
@@ -178,7 +178,7 @@ extern struct selinux_state selinux_state;
 #define ksu_selinux_kernel_status_page() selinux_kernel_status_page()
 #endif
 
-static struct page *ksu_fake_status_page __read_mostly = NULL;
+static struct page *ksu_fake_status_page __read_mostly = nullptr;
 static int ksu_prepare_fake_status_page()
 {
 	struct page *real_page = ksu_selinux_kernel_status_page();
@@ -213,7 +213,7 @@ static int ksu_prepare_fake_status_page()
 	return 0;
 }
 
-static int (*sel_open_handle_status_fn)(struct inode *inode, struct file *filp) __read_mostly = NULL;
+static int (*sel_open_handle_status_fn)(struct inode *inode, struct file *filp) __read_mostly = nullptr;
 static __nocfi int ksu_sel_open_handle_status(struct inode *inode, struct file *filp)
 {
 	if (unlikely(!ksu_selinux_hide_enabled))
