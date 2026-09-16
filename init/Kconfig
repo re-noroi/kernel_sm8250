@@ -1298,7 +1298,7 @@ config SCHED_AUTOGROUP
 config SCHED_TUNE_DUMMY
 	bool "Dummy SCHEDTUNE nodes"
 	depends on SMP
-	depends on !SCHED_TUNE && !CGROUP_SCHEDTUNE
+	depends on UCLAMP_TASK
 	default y
 	help
 	  Create dummy SCHEDTUNE nodes to satisfy rom compability.
