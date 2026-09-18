@@ -12379,7 +12379,7 @@ static int newidle_balance(struct rq *this_rq, struct rq_flags *rf)
 	u64 t0, t1, curr_cost = 0;
 	struct sched_domain *sd;
 	int pulled_task = 0;
-        u64 avg_idle = this_rq->avg_idle;
+	u64 avg_idle = this_rq->avg_idle;
 
 	update_misfit_status(NULL, this_rq);
 
@@ -12417,7 +12417,7 @@ static int newidle_balance(struct rq *this_rq, struct rq_flags *rf)
 	}
 
 	if (!get_rd_overloaded(this_rq->rd) ||
-	    this_rq->avg_idle < sd->max_newidle_lb_cost) {
+	    avg_idle < sd->max_newidle_lb_cost) {
 		rcu_read_unlock();
 		goto out;
 	}
