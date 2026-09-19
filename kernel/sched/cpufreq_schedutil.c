@@ -45,17 +45,8 @@ struct sugov_policy {
 	bool			limits_changed;
 	bool			need_freq_update;
 
-	unsigned long		dvfs_capacity;
-	/*
-	 * Double-buffered headroom LUT: sugov_build_dvfs_headroom_lut()
-	 * always builds into the currently-inactive buffer and only
-	 * publishes it (via dvfs_headroom_lut_cur) once it is fully
-	 * populated, so readers on other CPUs never observe a table that
-	 * is torn between old- and new-capacity values.
-	 */
-	u16			dvfs_headroom_lut[2][SCHED_CAPACITY_SCALE + 1];
-	u16			*dvfs_headroom_lut_cur;
-	int			dvfs_headroom_lut_next;
+	u16			dvfs_headroom_lut[SCHED_CAPACITY_SCALE + 1];
+	u64			dvfs_headroom_lut_delay;
 };
 
 struct sugov_cpu {
@@ -68,11 +59,9 @@ struct sugov_cpu {
 	u64			last_update;
 
 	unsigned long		util;
-	unsigned long capacity;
-	unsigned long headroom_max;
-	int *sysctl_scale;
-
 	unsigned long		bw_min;
+
+	int *sysctl_scale;
 };
 
 static DEFINE_PER_CPU(struct sugov_cpu, sugov_cpu);
@@ -118,7 +107,7 @@ static inline void sugov_update_response_time_mult(struct sugov_policy *sg_polic
 	mult = sg_policy->freq_response_time_ms * SCHED_CAPACITY_SCALE;
 	mult /=	sg_policy->tunables->response_time_ms;
 
-	if (SCHED_WARN_ON(!mult))
+	if (WARN_ON_ONCE(!mult))
 		mult = SCHED_CAPACITY_SCALE;
 
 	for_each_cpu(cpu, sg_policy->policy->cpus)
@@ -143,10 +132,7 @@ static inline void sugov_update_response_time_mult(struct sugov_policy *sg_polic
 static inline unsigned long
 sugov_apply_response_time(unsigned long util, int cpu)
 {
-	unsigned long mult;
-
-	mult = per_cpu(response_time_mult, cpu) * util;
-
+	unsigned long mult = per_cpu(response_time_mult, cpu) * util;
 	return mult >> SCHED_CAPACITY_SHIFT;
 }
 
@@ -311,39 +297,52 @@ static unsigned int get_next_freq(struct sugov_policy *sg_policy,
 	return l_freq;
 }
 
-static inline unsigned long calc_dvfs_headroom(unsigned long util,
-					unsigned long capacity)
+/*
+ * Precompute the DVFS headroom lookup table when delay is one scheduler
+ * tick rate.
+ */
+#define SUGOV_RATE_LIMIT_US 2000ULL
+#ifdef CONFIG_HZ_1000
+#define SUGOV_DELAY_US SUGOV_RATE_LIMIT_US
+#else
+#define SUGOV_DELAY_US TICK_USEC
+#endif
+
+static void sugov_build_dvfs_headroom_lut(struct sugov_policy *sg_policy)
 {
-	unsigned long approx, h_max, growth, decay;
-	/*
-	 * Determine the worst-case time between util updates.
-	 * Default rate_limit_us is usually 2000. TICK_NSEC acts as the floor.
-	 */
-	u64 delay = max_t(u64, TICK_NSEC / 1000, 2000ULL);
+	unsigned int i;
+	u64 delay = SUGOV_DELAY_US;
 
-	approx = approximate_util_avg(util, delay);
-	h_max = approximate_util_avg(0, delay);
+	sg_policy->dvfs_headroom_lut_delay = delay;
 
-	/*
-	 * Capacity-aware DVFS headroom based on PELT:
-	 * H_ideal = (C - util) * alpha, where alpha = h_max / 1024
-	 */
-	growth = mult_frac(h_max, capacity, SCHED_CAPACITY_SCALE);
-	decay = h_max + util - approx;
-
-	if (growth > decay)
-		return growth - decay; /* Return raw headroom amount */
-
-	return 0;
+	for (i = 0; i <= SCHED_CAPACITY_SCALE; i++)
+		sg_policy->dvfs_headroom_lut[i] = (u16)approximate_util_avg(i, delay);
 }
 
-static inline unsigned long apply_dvfs_headroom(unsigned long util, int cpu)
+/*
+ * DVFS decision are made at discrete points. If CPU stays busy, the util will
+ * continue to grow, which means it could need to run at a higher frequency
+ * before the next decision point was reached. IOW, we can't follow the util as
+ * it grows immediately, but there's a delay before we issue a request to go to
+ * higher frequency. The headroom caters for this delay so the system continues
+ * to run at adequate performance point.
+ *
+ * This function provides enough headroom to provide adequate performance
+ * assuming the CPU continues to be busy. This headroom is based on the
+ * rate_limit_us of the cpufreq governor or min(curr.se.slice, TICK_US),
+ * whichever is higher.
+ *
+ * XXX: Should we provide headroom when the util is decaying?
+ */
+static inline unsigned long sugov_apply_dvfs_headroom(unsigned long util, int cpu)
 {
+	struct rq *rq = cpu_rq(cpu);
 	struct sugov_cpu *sg_cpu = &per_cpu(sugov_cpu, cpu);
-	const u16 *lut;
-	unsigned long headroom;
-	int scale = 0;
+	struct sugov_policy *sg_policy = sg_cpu->sg_policy;
+	unsigned long cap, approx, h_max, growth, decay, headroom = 0;
 	unsigned int mult = 100, level_limit, skip_headroom = READ_ONCE(sysctl_hr_skip);
+	int scale = 0;
+	u64 delay;
 
 	if (skip_headroom)
 		return util;
@@ -351,17 +350,50 @@ static inline unsigned long apply_dvfs_headroom(unsigned long util, int cpu)
 	if (!util)
 		return 0;
 
-	level_limit = READ_ONCE(sysctl_hr_limit_level);
+	/*
+	 * What is the possible worst case scenario for updating util_avg, ctx
+	 * switch or TICK?
+	 */
+	if (rq->cfs.h_nr_queued > 1) {
+		delay = min_t(u64, rq->curr->se.slice / 1000, TICK_USEC);
+		delay = max(delay, SUGOV_RATE_LIMIT_US);
+	} else {
+		delay = TICK_USEC;
+#ifdef CONFIG_HZ_1000
+		delay = max(delay, SUGOV_RATE_LIMIT_US);
+#endif
+	}
 
-	util = min(util, sg_cpu->capacity);
+	if (likely(delay == sg_policy->dvfs_headroom_lut_delay)) {
+		approx = sg_policy->dvfs_headroom_lut[util];
+		h_max = sg_policy->dvfs_headroom_lut[0];
+	} else {
+		approx = approximate_util_avg(util, delay);
+		h_max = approximate_util_avg(0, delay);
+	}
 
 	/*
-	 * Pairs with the WRITE_ONCE()/smp_wmb() in
-	 * sugov_build_dvfs_headroom_lut(): guarantees we see either the
-	 * previous, fully-built table or the new, fully-built one.
+	 * Capacity-aware DVFS headroom based on PELT for H_ideal = (C - util) * alpha
+	 *
+	 * alpha = h_max / 1024, where h_max = approximate_util_avg(0, delay) is the
+	 * maximum growth possible for this delay on a 1024-capacity core.
+	 *
+	 * To avoid division, rewrite (C - util) * alpha as:
+	 *   growth = h_max * C / 1024 (= C * alpha)
+	 *   decay  = h_max + util - approx (= util * alpha)
+	 *   H_ideal = growth - decay
+	 *
+	 * Derived from accumulate_sum() and approximate_util_avg() in pelt.c.
 	 */
-	lut = READ_ONCE(sg_cpu->sg_policy->dvfs_headroom_lut_cur);
-	headroom = lut[util];
+	cap = capacity_orig_of(cpu);
+	growth = mult_frac(h_max, cap, SCHED_CAPACITY_SCALE);
+	decay = h_max + util - approx;
+
+	if (growth > decay)
+		headroom = growth - decay;
+
+	if (!headroom)
+		return util;
 
 	/* User-configurable scaling */
 	if (READ_ONCE(sysctl_hr_scaling)) {
@@ -373,14 +405,15 @@ static inline unsigned long apply_dvfs_headroom(unsigned long util, int cpu)
 	headroom = (headroom * mult) / 100;
 
 	/* Limit headroom boost */
+	level_limit = READ_ONCE(sysctl_hr_limit_level);
 	if (level_limit) {
-		headroom = min(headroom, sg_cpu->headroom_max);
+		headroom = min(headroom, cap / 5);
 		if (level_limit == 2) {
 			headroom = min(headroom, (util * 768) >> SCHED_CAPACITY_SHIFT);
 		}
 	}
 
-	return min(util + headroom, sg_cpu->capacity);
+	return min(util + headroom, cap);
 }
 
 unsigned long sugov_effective_cpu_perf(int cpu, unsigned long actual,
@@ -389,7 +422,7 @@ unsigned long sugov_effective_cpu_perf(int cpu, unsigned long actual,
 {
 	/* Add dvfs headroom to actual utilization */
 	actual = sugov_apply_response_time(actual, cpu);
-	actual = apply_dvfs_headroom(actual, cpu);
+	actual = sugov_apply_dvfs_headroom(actual, cpu);
 
 	/*
 	 * Ensure at least minimum performance while providing more compute
@@ -723,18 +756,6 @@ static ssize_t rate_limit_us_show(struct gov_attr_set *attr_set, char *buf)
 static ssize_t
 rate_limit_us_store(struct gov_attr_set *attr_set, const char *buf, size_t count)
 {
-	struct sugov_tunables *tunables = to_sugov_tunables(attr_set);
-	struct sugov_policy *sg_policy;
-	unsigned int rate_limit_us;
-
-	if (kstrtouint(buf, 10, &rate_limit_us))
-		return -EINVAL;
-
-	tunables->rate_limit_us = rate_limit_us;
-
-	list_for_each_entry(sg_policy, &attr_set->policy_list, tunables_hook)
-		sg_policy->freq_update_delay_ns = rate_limit_us * NSEC_PER_USEC;
-
 	return count;
 }
 
@@ -743,7 +764,6 @@ static struct governor_attr rate_limit_us = __ATTR_RW(rate_limit_us);
 static ssize_t response_time_ms_show(struct gov_attr_set *attr_set, char *buf)
 {
 	struct sugov_tunables *tunables = to_sugov_tunables(attr_set);
-
 	return sprintf(buf, "%u\n", tunables->response_time_ms);
 }
 
@@ -758,7 +778,6 @@ response_time_ms_store(struct gov_attr_set *attr_set, const char *buf, size_t co
 		return -EINVAL;
 
 	/* XXX need special handling for high values? */
-
 	tunables->response_time_ms = response_time_ms;
 
 	list_for_each_entry(sg_policy, &attr_set->policy_list, tunables_hook) {
@@ -795,48 +814,6 @@ static struct kobj_type sugov_tunables_ktype = {
 /********************** cpufreq governor interface *********************/
 
 static struct cpufreq_governor schedutil_gov;
-
-static void sugov_build_dvfs_headroom_lut(struct sugov_policy *sg_policy)
-{
-	struct cpufreq_policy *policy = sg_policy->policy;
-	unsigned long capacity = capacity_orig_of(policy->cpu);
-	unsigned long util;
-	unsigned int cpu;
-	int next_idx;
-	u16 *new_lut;
-
-	if (sg_policy->dvfs_capacity == capacity)
-		return;
-
-	/*
-	 * Build into the buffer that isn't currently published, so any
-	 * in-flight reader on another CPU keeps using a fully-built table.
-	 */
-	next_idx = sg_policy->dvfs_headroom_lut_next;
-	new_lut = sg_policy->dvfs_headroom_lut[next_idx];
-
-	for (util = 0; util <= SCHED_CAPACITY_SCALE; util++)
-		new_lut[util] = calc_dvfs_headroom(util, capacity);
-
-	/* Publish the fully-populated table before anyone can see it. */
-	smp_wmb();
-	WRITE_ONCE(sg_policy->dvfs_headroom_lut_cur, new_lut);
-
-	sg_policy->dvfs_headroom_lut_next = !next_idx;
-	sg_policy->dvfs_capacity = capacity;
-
-	/*
-	 * Keep each CPU's clamp/limit bookkeeping in sync with the table we
-	 * just rebuilt. Previously these were only ever set once in
-	 * sugov_start().
-	 */
-	for_each_cpu(cpu, policy->cpus) {
-		struct sugov_cpu *sg_cpu = &per_cpu(sugov_cpu, cpu);
-
-		sg_cpu->capacity = capacity_orig_of(cpu);
-		sg_cpu->headroom_max = (sg_cpu->capacity * 20) / 100;
-	}
-}
 
 static struct sugov_policy *sugov_policy_alloc(struct cpufreq_policy *policy)
 {
@@ -955,8 +932,6 @@ static int sugov_init(struct cpufreq_policy *policy)
 		goto disable_fast_switch;
 	}
 
-	sugov_build_dvfs_headroom_lut(sg_policy);
-
 	ret = sugov_kthread_create(sg_policy);
 	if (ret)
 		goto free_sg_policy;
@@ -972,6 +947,7 @@ static int sugov_init(struct cpufreq_policy *policy)
 		sg_policy->tunables = global_tunables;
 
 		gov_attr_set_get(&global_tunables->attr_set, &sg_policy->tunables_hook);
+		sugov_build_dvfs_headroom_lut(sg_policy);
 		goto out;
 	}
 
@@ -987,6 +963,7 @@ static int sugov_init(struct cpufreq_policy *policy)
 	tunables->rate_limit_us = 2000;
 	tunables->response_time_ms = sugov_calc_freq_response_ms(sg_policy);
 	sugov_update_response_time_mult(sg_policy);
+	sugov_build_dvfs_headroom_lut(sg_policy);
 
 	ret = kobject_init_and_add(&tunables->attr_set.kobj, &sugov_tunables_ktype,
 				   get_governor_parent_kobj(policy), "%s",
@@ -1066,9 +1043,6 @@ static int sugov_start(struct cpufreq_policy *policy)
 		sg_cpu->cpu = cpu;
 		sg_cpu->sg_policy = sg_policy;
 
-		sg_cpu->capacity = capacity_orig_of(cpu);
-		sg_cpu->headroom_max = (sg_cpu->capacity * 20) / 100;
-
 		if (cpumask_test_cpu(cpu, cpu_lp_mask)) {
 			sg_cpu->sysctl_scale = &sysctl_hr_scale_lp;
 		} else if (cpumask_test_cpu(cpu, cpu_prime_mask)) {
@@ -1113,8 +1087,6 @@ static void sugov_limits(struct cpufreq_policy *policy)
 	struct sugov_policy *sg_policy = policy->governor_data;
 	unsigned long flags, now;
 	unsigned int freq;
-
-	sugov_build_dvfs_headroom_lut(sg_policy);
 
 	if (!policy->fast_switch_enabled) {
 		mutex_lock(&sg_policy->work_lock);
