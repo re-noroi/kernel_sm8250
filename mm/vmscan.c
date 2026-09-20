@@ -1928,7 +1928,19 @@ putback_inactive_pages(struct lruvec *lruvec, struct list_head *page_list)
 
 		SetPageLRU(page);
 		lru = page_lru(page);
-		add_page_to_lru_list(page, lruvec, lru);
+		/*
+		 * Put clean, unreferenced and unpinned pages that may have
+		 * missed folio_rotate_reclaimable() at the tail to avoid
+		 * cold/hot inversion.
+		 */
+		if (!PageActive(page) && !page_mapped(page) &&
+		    !PageDirty(page) && !PageWriteback(page) &&
+		    !PageReferenced(page) &&
+		    !PageCompound(page) &&
+		    page_count(page) == 1 + PageSwapCache(page))
+			add_page_to_lru_list_tail(page, lruvec, lru);
+		else
+			add_page_to_lru_list(page, lruvec, lru);
 
 		if (is_active_lru(lru)) {
 			int file = is_file_lru(lru);
