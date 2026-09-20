@@ -5187,11 +5187,12 @@ place_entity(struct cfs_rq *cfs_rq, struct sched_entity *se, int flags)
 	}
 
 	/*
-	 * When joining the competition; the exisiting tasks will be,
-	 * on average, halfway through their slice, as such start tasks
-	 * off with half a slice to ease into the competition.
+	 * When joining the competition, or resuming after a sleep; the
+	 * existing tasks will be, on average, halfway through their
+	 * slice, as such (re)start with half a slice to ease into the
+	 * competition.
 	 */
-	if (sched_feat(PLACE_DEADLINE_INITIAL) && (flags & ENQUEUE_INITIAL))
+	if (sched_feat(PLACE_DEADLINE_INITIAL) && (flags & (ENQUEUE_INITIAL | ENQUEUE_WAKEUP)))
 		vslice /= 2;
 
 	/*
@@ -6473,7 +6474,7 @@ static int choose_idle_cpu(int cpu, struct task_struct *p)
 }
 
 static void
-requeue_delayed_entity(struct cfs_rq *cfs_rq, struct sched_entity *se)
+requeue_delayed_entity(struct cfs_rq *cfs_rq, struct sched_entity *se, int flags)
 {
 	/*
 	 * se->sched_delayed should imply: se->on_rq == 1.
@@ -6487,7 +6488,7 @@ requeue_delayed_entity(struct cfs_rq *cfs_rq, struct sched_entity *se)
 		cfs_rq->h_nr_queued--;
 		if (se != cfs_rq->curr)
 			__dequeue_entity(cfs_rq, se);
-		place_entity(cfs_rq, se, 0);
+		place_entity(cfs_rq, se, flags | ENQUEUE_WAKEUP);
 		if (se != cfs_rq->curr)
 			__enqueue_entity(cfs_rq, se);
 		cfs_rq->h_nr_queued++;
@@ -6571,7 +6572,7 @@ enqueue_task_fair(struct rq *rq, struct task_struct *p, int flags)
 	update_curr_eevdf(cfs_rq);
 
 	if (flags & ENQUEUE_DELAYED) {
-		requeue_delayed_entity(cfs_rq, se);
+		requeue_delayed_entity(cfs_rq, se, flags);
 		return;
 	}
 
@@ -6591,7 +6592,7 @@ enqueue_task_fair(struct rq *rq, struct task_struct *p, int flags)
 		place_entity(cfs_rq, se, flags);
 
 	if (se->on_rq && se->sched_delayed)
-		requeue_delayed_entity(cfs_rq, se);
+		requeue_delayed_entity(cfs_rq, se, flags);
 
 	weight = enqueue_hierarchy(p, flags);
 
