@@ -24,17 +24,17 @@
  */
 /* max queue in one round of service */
 static const int cfq_quantum = 32;
-static const u64 cfq_fifo_expire[2] = { NSEC_PER_SEC / 4, NSEC_PER_SEC / 8 };
+static const u64 cfq_fifo_expire[2] = { NSEC_PER_SEC / 10, NSEC_PER_SEC / 20 };
 /* maximum backwards seek, in KiB */
-static const int cfq_back_max = 4096;
+static const int cfq_back_max = 0;
 /* penalty of a backwards seek */
-static const int cfq_back_penalty = 1;
+static const int cfq_back_penalty = 0;
 static const u64 cfq_slice_sync = NSEC_PER_SEC / 10;
 static u64 cfq_slice_async = NSEC_PER_SEC / 25;
 static const int cfq_slice_async_rq = 2;
 static u64 cfq_slice_idle = 0;
 static u64 cfq_group_idle = 0;
-static const u64 cfq_target_latency = (u64)NSEC_PER_SEC * 3/10; /* 300 ms */
+static const u64 cfq_target_latency = (u64)NSEC_PER_SEC * 15/100; /* 150 ms */
 static const int cfq_hist_divisor = 4;
 
 /*
