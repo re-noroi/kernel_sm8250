@@ -2524,24 +2524,6 @@ static void cfq_reposition_rq_rb(struct cfq_queue *cfqq, struct request *rq)
 				 rq->cmd_flags);
 }
 
-static struct request *
-cfq_find_rq_fmerge(struct cfq_data *cfqd, struct bio *bio)
-{
-	struct task_struct *tsk = current;
-	struct cfq_io_cq *cic;
-	struct cfq_queue *cfqq;
-
-	cic = cfq_cic_lookup(cfqd, tsk->io_context);
-	if (!cic)
-		return NULL;
-
-	cfqq = cic_to_cfqq(cic, op_is_sync(bio->bi_opf));
-	if (cfqq)
-		return elv_rb_find(&cfqq->sort_list, bio_end_sector(bio));
-
-	return NULL;
-}
-
 static void cfq_activate_request(struct request_queue *q, struct request *rq)
 {
 	struct cfq_data *cfqd = q->elevator->elevator_data;
@@ -2584,26 +2566,17 @@ static void cfq_remove_request(struct request *rq)
 static enum elv_merge cfq_merge(struct request_queue *q, struct request **req,
 		     struct bio *bio)
 {
-	struct cfq_data *cfqd = q->elevator->elevator_data;
-	struct request *__rq;
-
-	__rq = cfq_find_rq_fmerge(cfqd, bio);
-	if (__rq && elv_bio_merge_ok(__rq, bio)) {
-		*req = __rq;
-		return ELEVATOR_FRONT_MERGE;
-	}
-
+	/*
+	 * Front merges are disabled for UFS/flash workloads to avoid
+	 * expensive rbtree merge lookups.
+	 */
 	return ELEVATOR_NO_MERGE;
 }
 
 static void cfq_merged_request(struct request_queue *q, struct request *req,
 			       enum elv_merge type)
 {
-	if (type == ELEVATOR_FRONT_MERGE) {
-		struct cfq_queue *cfqq = RQ_CFQQ(req);
-
-		cfq_reposition_rq_rb(cfqq, req);
-	}
+	/* No-op: front merges are disabled in cfq_merge(). */
 }
 
 static void cfq_bio_merged(struct request_queue *q, struct request *req,
