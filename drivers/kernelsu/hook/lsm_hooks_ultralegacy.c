@@ -114,13 +114,13 @@ static inline bool verify_selinux_cred_free(void *fn_ptr)
 	// make sure this happens!
 	// #1. it wont trigger BUG_ON
 	// #2. this way it will kfree(NULL), which does nothing
-	*(volatile void **)&dummy_cred.security = nullptr;
+	*(void **)&dummy_cred.security = nullptr;
 	barrier();
 
 	selinux_cred_free_fn(&dummy_cred);
 
 	// check if selinux_cred_free is successful
-	if ((unsigned long)*(volatile void **)&dummy_cred.security == 0x7UL)
+	if ((unsigned long)*(void **)&dummy_cred.security == 0x7UL)
 		success = true;
 
 	pr_info("selinux_cred_free: 0x%lx cred->security: 0x%lx success: %d\n", (unsigned long)fn_ptr, (unsigned long)dummy_cred.security, success);

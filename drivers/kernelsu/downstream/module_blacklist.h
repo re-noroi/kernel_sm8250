@@ -24,9 +24,6 @@ static int ksu_prepare_new_blacklist(uintptr_t blacklist_pptr)
 
 	// + 2 for , and \0
 	char *memory __zoffstack(strlen(hardcoded) + strlen(ksu_block_modules) + 2);
-	if (!memory)
-		return -ENOMEM;
-
 	memcpy(memory, hardcoded, strlen(hardcoded));
 
 	if (!!ksu_block_modules[0]) {

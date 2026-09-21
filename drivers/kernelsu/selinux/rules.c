@@ -39,15 +39,27 @@ static inline rwlock_t *ksu_get_policy_rwlock() { return &selinux_state.ss->poli
 #elif defined(KSU_COMPAT_HAS_EXPORTED_POLICY_RWLOCK)
 static inline rwlock_t *ksu_get_policy_rwlock() { extern rwlock_t policy_rwlock; return &policy_rwlock; }
 #elif defined(CONFIG_KALLSYMS)
-static noinline rwlock_t *ksu_get_policy_rwlock() { return (rwlock_t *)kallsyms_lookup_name("policy_rwlock"); }
+static noinline rwlock_t *ksu_get_policy_rwlock()
+{
+	static rwlock_t *lock = nullptr;
+	static void *label = &&bootstrap;
+	goto *label;
+
+bootstrap:;
+	lock = (rwlock_t *)kallsyms_lookup_name("policy_rwlock");
+	if (lock)
+		label = &&lock_ok;
+	else
+		label = &&lock_null;
+
+	goto *label;
+lock_ok:
+	return lock;
+lock_null:
+	return nullptr;	
+}
 #else
 static inline rwlock_t *ksu_get_policy_rwlock() { return nullptr; }
-#endif
-
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 2, 0) || defined(KSU_COMPAT_HAS_BACKPORTED_CPUS_PTR)
-static inline const cpumask_t *ksu_get_current_cpumask_t() { return current->cpus_ptr; }
-#else
-static inline cpumask_t *ksu_get_current_cpumask_t() { return &current->cpus_allowed; }
 #endif
 
 #endif // < 5.10
@@ -177,11 +189,8 @@ out_unlock:
 	 * set_cpus_allowed_ptr() can sleep, use raw_smp_processor_id() to get
 	 * current CPU and bypass preemption checks.
 	 */
-	cpumask_t old_mask;
-	cpumask_copy(&old_mask, ksu_get_current_cpumask_t());
-	set_cpus_allowed_ptr(current, cpumask_of(raw_smp_processor_id()));
-
 	pr_info("%s: type: policy_rwlock \n", __func__);
+	set_cpus_allowed_ptr(current, cpumask_of(raw_smp_processor_id()));
 	write_lock(lock);
 	preempt_enable();
 
@@ -189,7 +198,7 @@ out_unlock:
 
 	preempt_disable();
 	write_unlock(lock);
-	set_cpus_allowed_ptr(current, &old_mask);
+	set_cpus_allowed_ptr(current, cpu_online_mask);
 	goto out_flush;
 
 do_stop_machine:
@@ -668,14 +677,12 @@ int handle_sepolicy(void __user *user_data, u64 data_len)
 	ctx.ctx_payload = (void *)payload;
 	ctx.ctx_data_len = (u64)data_len;
 
+	// HACK: lock is held with preempt enabled!
 	rwlock_t *lock = ksu_get_policy_rwlock();
 	if (!lock)
 		goto do_stop_machine;
 
-	cpumask_t old_mask;
-	cpumask_copy(&old_mask, ksu_get_current_cpumask_t());
 	set_cpus_allowed_ptr(current, cpumask_of(raw_smp_processor_id()));
-
 	write_lock(lock);
 	preempt_enable();
 
@@ -683,7 +690,7 @@ int handle_sepolicy(void __user *user_data, u64 data_len)
 
 	preempt_disable();
 	write_unlock(lock);
-	set_cpus_allowed_ptr(current, &old_mask);
+	set_cpus_allowed_ptr(current, cpu_online_mask);
 	goto out_done;
 
 do_stop_machine:

@@ -80,6 +80,14 @@ static noinline void read_and_replace_syscall(void *old_ptr, unsigned long sysca
 	if (!*syscall_slot_addr)
 		return;
 
+	// check that the pointer points inside kernel text
+	extern char _stext[], _etext[];
+	uintptr_t sc_slot = (uintptr_t)*syscall_slot_addr;
+	if (!(sc_slot > (uintptr_t)_stext && sc_slot < (uintptr_t)_etext)) {
+		pr_info("%s: syscall #%d at 0x%lx NOT pointing to kernel text!\n", __func__, syscall_nr, (long)syscall_slot_addr);
+		return;
+	}
+
 	pr_info("%s: hooking syscall #%d at 0x%lx\n", __func__, syscall_nr, (long)syscall_slot_addr);
 
 	/*

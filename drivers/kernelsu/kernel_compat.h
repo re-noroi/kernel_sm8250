@@ -112,7 +112,7 @@ static __always_inline long copy_from_user_retry(void *to, const void __user *fr
  */
 static __always_inline long memmove_user(void __user *dst, const void __user *src, size_t count)
 {
-	char *buf __offstack(count);
+	char *buf __offstack_flags(count, GFP_KERNEL);
 	if (!buf)
 		return -ENOMEM;
 
@@ -125,8 +125,9 @@ static __always_inline long memmove_user(void __user *dst, const void __user *sr
 	return 0;
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 18, 0)
-__weak void memzero_explicit(void *s, size_t count) { memset_explicit(s, 0, count); }
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0)
+static inline void ksu_memzero_explicit(void *s, size_t count) { memset_explicit(s, 0, count); }
+#define memzero_explicit ksu_memzero_explicit
 #endif
 
 #ifdef TIF_SECCOMP
@@ -138,19 +139,17 @@ __weak void memzero_explicit(void *s, size_t count) { memset_explicit(s, 0, coun
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0)
 // https://elixir.bootlin.com/linux/v4.14.336/source/fs/read_write.c#L418
 // https://elixir.bootlin.com/linux/v4.14.336/source/fs/read_write.c#L512
-static noinline ssize_t ksu_kernel_read_compat(struct file *p, void *buf, size_t count, loff_t *pos)
+static ssize_t ksu_kernel_read_compat(struct file *p, void *buf, size_t count, loff_t *pos)
 {
-	mm_segment_t old_fs;
-	old_fs = get_fs();
+	mm_segment_t old_fs = get_fs();
 	set_fs(get_ds());
 	ssize_t result = vfs_read(p, (void __user *)buf, count, pos);
 	set_fs(old_fs);
 	return result;
 }
-static noinline ssize_t ksu_kernel_write_compat(struct file *p, const void *buf, size_t count, loff_t *pos)
+static ssize_t ksu_kernel_write_compat(struct file *p, const void *buf, size_t count, loff_t *pos)
 {
-	mm_segment_t old_fs;
-	old_fs = get_fs();
+	mm_segment_t old_fs = get_fs();
 	set_fs(get_ds());
 	ssize_t res = vfs_write(p, (__force const char __user *)buf, count, pos);
 	set_fs(old_fs);
@@ -169,31 +168,47 @@ static noinline ssize_t ksu_kernel_write_compat(struct file *p, const void *buf,
 #define TWA_RESUME 1
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 11, 0)
-#define ksu_close_fd close_fd
-// this is ksys_close, however that is spotty to use, as 5.10 backported close_fd and rekt ksys_close
-#elif LINUX_VERSION_CODE < KERNEL_VERSION(5, 11, 0) && LINUX_VERSION_CODE >= KERNEL_VERSION(3, 7, 0)
-#define ksu_close_fd(fd) __close_fd(current->files, fd)
-#elif LINUX_VERSION_CODE < KERNEL_VERSION(3, 7, 0)
-#define ksu_close_fd sys_close
-#endif
-
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 6, 0)
+#if 0 // this does work, but less portable, we can override with d_path + filp_open instead
 static inline struct file *ksu_dentry_open(const struct path *path, int flags, const struct cred *cred)
 {
+	// old dentry_open consumes a reference either on failure or success, we have to take one
+	// see nameidata_to_filp
+	path_get(path); 
 	return dentry_open((*path).dentry, (*path).mnt, flags, cred);
 }
-#define dentry_open ksu_dentry_open
+#endif
+static struct file *ksu_dentry_open_filp(const struct path *path, int flags, const struct cred *cred)
+{
+	char *buf __offstack_flags(PATH_MAX, GFP_KERNEL);
+	if (!buf)
+		return ERR_PTR(-ENOMEM);
+
+	char *realpath = d_path(path, buf, PATH_MAX);
+	if (IS_ERR(realpath) || realpath == buf)
+		return ERR_PTR(-ENOENT);
+
+	const struct cred *c = nullptr;	
+	if (cred && cred != current_cred())
+		c = override_creds(cred);
+
+	struct file *f = filp_open(realpath, flags, 0);
+	if (c)
+		revert_creds(c);
+
+	return f;
+}
+#define dentry_open ksu_dentry_open_filp
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 9, 0)
 __weak int path_mount(const char *dev_name, struct path *path, const char *type_page, unsigned long flags, void *data_page)
 {
-	char *buf __zoffstack(PATH_MAX);
+	char *buf __offstack_flags(PATH_MAX, GFP_KERNEL);
 	if (!buf)
 		return -ENOMEM;
 
-	char *realpath = d_path(path, buf, PATH_MAX - 1);
+	char *realpath = d_path(path, buf, PATH_MAX);
 	if (IS_ERR(realpath) || realpath == buf)
 		return -ENOENT;
 
@@ -206,9 +221,11 @@ __weak int path_mount(const char *dev_name, struct path *path, const char *type_
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 9, 0)
+
+static __always_inline int ksu_sys_umount(char __user *name, int flags);
 __weak int path_umount(struct path *path, int flags)
 {
-	char buf[256] = {0};
+	char buf[256];
 	int ret = -ENOENT;
 
 	char *usermnt = d_path(path, buf, sizeof(buf) - 1);
@@ -217,14 +234,7 @@ __weak int path_umount(struct path *path, int flags)
 
 	mm_segment_t old_fs = get_fs();
 	set_fs(KERNEL_DS);
-
-	// https://github.com/rsuntk/KernelSU/commit/d20f15e
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 17, 0)
-	ret = ksys_umount((char __user *)usermnt, flags);
-#else
-	ret = (int)sys_umount((char __user *)usermnt, flags);
-#endif
-
+	ret = ksu_sys_umount((char __user *)usermnt, flags);
 	set_fs(old_fs);
 
 	// release ref here! user_path_at increases it
@@ -233,17 +243,14 @@ out:
 	path_put(path); 
 	return ret;
 }
-#endif
+#endif // < 5.9
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 13, 0)
-#ifndef replace_fops
-#define replace_fops(f, fops) \
-	do {	\
-		struct file *__file = (f); \
-		fops_put(__file->f_op); \
-		BUG_ON(!(__file->f_op = (fops))); \
-	} while(0)
-#endif
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 13, 0) && !defined(replace_fops)
+#define replace_fops(f, fops) do {		\
+	struct file *__file = (f);		\
+	fops_put(__file->f_op);			\
+	BUG_ON(!(__file->f_op = (fops))); 	\
+} while(0)
 #endif
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0) && defined(CONFIG_JUMP_LABEL)
@@ -361,11 +368,6 @@ static ssize_t ksu_strscpy_pad(char *dest, const char *src, size_t count)
 #define d_is_reg(dentry) S_ISREG((dentry)->d_inode->i_mode)
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 5, 0)
-struct user_struct *ksu_alloc_uid(kuid_t uid) { return alloc_uid(current_user_ns(), uid); }
-#define alloc_uid ksu_alloc_uid
-#endif
-
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 11, 0) && !defined(KSU_HAS_ITERATE_DIR)
 struct dir_context { const filldir_t actor; loff_t pos; };
 #define iterate_dir(file, ctx) vfs_readdir(file, (ctx)->actor, ctx)
@@ -384,7 +386,7 @@ __weak char *bin2hex(char *dst, const void *src, size_t count)
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 9, 0)
-#define file_inode(f) ((f)->f_path.dentry->d_inode)
+#define file_inode(file) ((file)->f_path.dentry->d_inode)
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 1, 0) && !defined(CONFIG_LSM)
@@ -415,7 +417,7 @@ __weak void groups_sort(struct group_info *group_info) { } // no-op
 #endif // < 4.12 && !EPOLLIN
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION (3, 15, 0)
-#define task_ppid_nr(a) (pid_t)sys_getppid()
+#define task_ppid_nr(a) ({ (pid_t)sys_getppid(); })
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION (3, 17, 0)
@@ -437,10 +439,8 @@ __weak unsigned long vm_mmap(struct file *file, unsigned long addr, unsigned lon
 }
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION (4, 12, 0)
-#ifndef ALIGN_DOWN
+#if LINUX_VERSION_CODE < KERNEL_VERSION (4, 12, 0) && !defined(ALIGN_DOWN)
 #define ALIGN_DOWN(x, a) __ALIGN_KERNEL((x) - ((a) - 1), (a))
-#endif
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION (3, 9, 0)
@@ -471,6 +471,11 @@ static inline ksu_kuid_t current_uid() { return *(ksu_kuid_t *)(&current_cred()-
 static inline ksu_kuid_t current_euid() { return *(ksu_kuid_t *)(&current_cred()->euid); }
 #endif // < 3.14
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 5, 0)
+static inline struct user_struct *ksu_alloc_uid(uid_t uid) { return alloc_uid(current_user_ns(), uid); }
+#define alloc_uid(uid) ksu_alloc_uid(ksu_get_uid_t(uid))
+#endif
+
 #if defined(CONFIG_KEYS) && LINUX_VERSION_CODE < KERNEL_VERSION(5, 2, 0)
 
 // up to 5.1, struct key __rcu *session_keyring; /* keyring inherited over fork */
@@ -481,8 +486,9 @@ static inline struct key *ksu_get_current_session_keyring() { return rcu_derefer
 static inline struct key *ksu_get_current_session_keyring() { return rcu_dereference(current->cred->tgcred->session_keyring); }
 #endif
 
-static noinline void ksu_grab_init_session_keyring()
+static void ksu_grab_init_session_keyring()
 {
+	extern struct cred* ksu_cred;
 	extern bool is_init(const struct cred* cred);
 	extern int install_session_keyring_to_cred(struct cred *, struct key *);
 	static struct key *init_session_keyring = nullptr;

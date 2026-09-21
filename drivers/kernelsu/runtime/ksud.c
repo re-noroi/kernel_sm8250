@@ -499,9 +499,8 @@ static inline void ksu_common_newfstat_ret(unsigned int fd_int, void **statbuf_p
 
 	goto out;
 
-stat_native:
+stat_native:;
 #endif
-	;
 
 	struct stat k_stat = { 0 };
 

@@ -267,6 +267,21 @@ typedef typeof(nullptr) nullptr_t;
 #endif
 
 /**
+ * hardcode assumptions for micro-opt
+ * - not used so much for now
+ */
+#if defined(__clang__)
+#define assume(expr) __builtin_assume(expr)
+#elif defined(__GNUC__) && (__GNUC__ >= 13)
+#define assume(expr) __attribute__((assume(expr)))
+#else
+#define assume(expr) do {			\
+	if (unlikely(!(expr)))			\
+		__builtin_unreachable();	\
+} while (0)
+#endif
+
+/**
  * we do NOT have memset_explicit on the linux kernel
  *
  * from: OPENSSL_cleanse, volatile function pointer prevents memset optimization
@@ -320,14 +335,24 @@ typedef unsigned __int128 uint128_t;
 #endif
 
 /**
- * memcpy_inline / memset_inline
+ * memcmp_inline / memcpy_inline / memset_inline
  *
- * - guaranteed inline builtin routines 
+ * - guaranteed inline builtin routines
+ * - https://github.com/llvm/llvm-project/blob/main/libc/docs/dev/builtin_compatibility.md
  * - fallback to builtin + assert for constexpr sizes
  *
  * NOTE:
- * 	- memcpy_inline/memset_inline IR generation tends to fail on older clang
+ * 	- IR generation tends to fail on older clang, we lock this to 17+
  */
+#if __has_builtin(__builtin_memcmp_inline) && defined(__clang__) && (__clang_major__ >= 17)
+#define memcmp_inline	__builtin_memcmp_inline
+#else
+#define memcmp_inline(cs, ct, count) ({			\
+	static_assert(__builtin_constant_p(count));	\
+	__builtin_memcmp((cs), (ct), (count));		\
+})
+#endif
+
 #if __has_builtin(__builtin_memcpy_inline) && defined(__clang__) && (__clang_major__ >= 17)
 #define memcpy_inline	__builtin_memcpy_inline
 #else
@@ -379,30 +404,12 @@ static inline void spin_unlock_byref(spinlock_t **lock) { spin_unlock(*lock); }
 #define deferred_spin_unlock(lock) spinlock_t *__ksu_dummy_var __cleanup(spin_unlock_byref) = (lock)
 #define guarded_spin_lock(lock) ({ spin_lock(lock); deferred_spin_unlock(lock); 1; })
 
-// basic stack offload.
+// scoped allocations and basic stack offload.
 static inline void kfree_byref(void *buf) { kfree(*(void **)buf); }
-#define __offstack(size) __cleanup(kfree_byref) = kmalloc(size, GFP_KERNEL)
-#define __zoffstack(size) __cleanup(kfree_byref) = kzalloc(size, GFP_KERNEL)
-
-/**
- * workaround for gcc 4.9 with -std=gnu11 enabled
- * - error: initializer element is not constant
- *
- * we just remove (spinlock_t/raw_spinlock_t) cast
- */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0) && !defined(__clang__) && defined(__GNUC__) && (__GNUC__ < 5)
-
-#undef __SPIN_LOCK_UNLOCKED
-#define __SPIN_LOCK_UNLOCKED(lockname) __SPIN_LOCK_INITIALIZER(lockname)
-
-#undef __RAW_SPIN_LOCK_UNLOCKED
-#define __RAW_SPIN_LOCK_UNLOCKED(lockname) __RAW_SPIN_LOCK_INITIALIZER(lockname)
-
-// re-type so it can expand
-#undef raw_spin_lock_init
-#define raw_spin_lock_init(lock) do { *(lock) = (typeof(*(lock))) __RAW_SPIN_LOCK_UNLOCKED(lock); } while (0)
-
-#endif
+#define __scoped_kmalloc(size, flags)	__cleanup(kfree_byref) = kmalloc(size, flags)
+#define __offstack_flags(size, flags)	__scoped_kmalloc(size, flags)
+#define __offstack(size)		__scoped_kmalloc(size, GFP_KERNEL | __GFP_NOFAIL)
+#define __zoffstack(size)		__scoped_kmalloc(size, GFP_KERNEL | __GFP_NOFAIL | __GFP_ZERO)
 
 /**
  * replace common mem/str functions with builtins
@@ -428,7 +435,6 @@ static inline void kfree_byref(void *buf) { kfree(*(void **)buf); }
 #define strncasecmp	__builtin_strncasecmp
 #define strncat		__builtin_strncat
 #define strncmp		__builtin_strncmp
-#define strncpy		__builtin_strncpy
 #define strpbrk		__builtin_strpbrk
 #define strrchr		__builtin_strrchr
 #define strspn		__builtin_strspn
@@ -441,6 +447,9 @@ static inline void kfree_byref(void *buf) { kfree(*(void **)buf); }
  *
  */
 #if defined(CONFIG_KSU_NOPRINTK) && !defined(CONFIG_KSU_DEBUG)
+#ifndef no_printk
+#define no_printk(...) do { } while (0)
+#endif
 #define pr_emerg(fmt, ...)	no_printk(fmt, ##__VA_ARGS__)
 #define pr_alert(fmt, ...)	no_printk(fmt, ##__VA_ARGS__)
 #define pr_crit(fmt, ...)	no_printk(fmt, ##__VA_ARGS__)
@@ -452,5 +461,47 @@ static inline void kfree_byref(void *buf) { kfree(*(void **)buf); }
 #define pr_devel(fmt, ...)	no_printk(fmt, ##__VA_ARGS__)
 #define printk(fmt, ...)	no_printk(fmt, ##__VA_ARGS__)
 #endif // CONFIG_KSU_NOPRINTK && !CONFIG_KSU_DEBUG
+
+/**
+ * disallow usage of old string functions removed on newer linux kernels
+ * 
+ * k7.2 deprecated strncpy, torvalds/linux 079a028
+ * k6.8 deprecated strlcpy, torvalds/linux d262700
+ *
+ */
+#define strncpy(...) static_assert(1 == 0, "strncpy has been deprecated, please use strscpy instead")
+#define strlcpy(...) static_assert(1 == 0, "strlcpy has been deprecated, please use strscpy instead")
+
+/**
+ * workaround for gcc 4.9 with -std=gnu11 enabled
+ * - error: initializer element is not constant
+ *
+ * we just remove (spinlock_t/raw_spinlock_t) cast
+ */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0) && !defined(__clang__) && defined(__GNUC__) && (__GNUC__ < 5)
+
+#undef __SPIN_LOCK_UNLOCKED
+#define __SPIN_LOCK_UNLOCKED(lockname) __SPIN_LOCK_INITIALIZER(lockname)
+
+#undef __RAW_SPIN_LOCK_UNLOCKED
+#define __RAW_SPIN_LOCK_UNLOCKED(lockname) __RAW_SPIN_LOCK_INITIALIZER(lockname)
+
+// re-type so it can expand
+#undef raw_spin_lock_init
+#define raw_spin_lock_init(lock) do { *(lock) = (typeof(*(lock))) __RAW_SPIN_LOCK_UNLOCKED(lock); } while (0)
+
+#endif
+
+/**
+ * enforce minimum compiler version
+ * if youre reading this: go and update your compiler
+ * gcc 4.9 / 5.1 should have no problems on 3.x kernels 
+ * go here: https://developer.arm.com/Downloads/-/Legacy%20Linaro%20GNU%20Toolchains
+ *
+ * NOTE: no need to actually enforce clang, minimum clang for gnu11 with _Generic is 3.1
+ */
+#if !defined(__clang__) && defined(__GNUC__) && ((__GNUC__ < 4) || (__GNUC__ == 4 && __GNUC_MINOR__ < 9))
+static_assert(1 == 0, "This codebase requires GCC 4.9 or newer.");
+#endif
 
 #endif // __KSU_H_KERNEL_INCLUDES

@@ -9,7 +9,7 @@
 
 static bool ksu_su_compat_enabled __read_mostly = true;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0)
 static void __user *userspace_stack_buffer(const void *d, size_t len)
 {
 	// To avoid having to mmap a page in userspace, just write below the stack

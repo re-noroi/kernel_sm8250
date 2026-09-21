@@ -20,18 +20,6 @@
 
 #include "kernel_includes.h"
 
-// uapi
-#include "include/uapi/app_profile.h"
-#include "include/uapi/feature.h"
-#include "include/uapi/selinux.h"
-#include "include/uapi/supercall.h"
-#include "include/uapi/sulog.h"
-
-// includes
-#include "include/klog.h"
-#include "include/arch.h"
-#include "include/ksu.h"
-
 // selinux includes
 #include "avc_ss.h"
 #include "objsec.h"
@@ -42,8 +30,21 @@
 #include "avc.h"
 #endif
 
+// uapi
+#include "include/uapi/app_profile.h"
+#include "include/uapi/feature.h"
+#include "include/uapi/selinux.h"
+#include "include/uapi/supercall.h"
+#include "include/uapi/sulog.h"
+
+// includes
+#include "include/arch.h"
+#include "include/klog.h"
+#include "include/ksu.h"
+
 // kernel compat
 #include "kernel_compat.h"
+#include "include/util.h"
 
 #include "policy/app_profile.h"
 #include "policy/allowlist.h"

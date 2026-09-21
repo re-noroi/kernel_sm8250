@@ -59,7 +59,7 @@ static __always_inline void ksu_hosts_file_redirect(const char __user *filename,
 	if (copy_from_user_retry(cbuf, (void __user *)fn_p, 16))
 		return;
 
-	if (!!__builtin_memcmp(cbuf, hf, 16))
+	if (!!memcmp_inline(cbuf, hf, 16))
 		return;
 #endif
 	//pr_info("%s: intercepting %s for comm: %s pid: %d\n", __func__, hf, current->comm, current->pid);

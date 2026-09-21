@@ -126,7 +126,7 @@ envp_count_done:
 	if (128 + array_bytes > PAGE_SIZE)
 		return -E2BIG;
 
-	void *buf __zoffstack(array_bytes);
+	void *buf __offstack_flags(array_bytes, GFP_KERNEL | __GFP_ZERO);
 	if (!buf)
 		return -ENOMEM;
 

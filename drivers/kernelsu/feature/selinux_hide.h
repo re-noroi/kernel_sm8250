@@ -130,8 +130,7 @@ static noinline void ksu_add_shit_to_list(u32 cmd, const char *args[])
 			offset = offset + strlen(current_type) + 1;
 		}
 
-	skip_type_dup_check:
-		;
+	skip_type_dup_check:;
 		size_t old_len = (ksu_hide_type_list) ? ksu_hide_type_list->len : 0;
 		size_t new_total_len = old_len + needed_len;
 
@@ -184,8 +183,7 @@ static noinline void ksu_add_shit_to_list(u32 cmd, const char *args[])
 			offset = offset + src_sz + tgt_sz;
 		}
 
-	skip_rule_dup_check:
-		;
+	skip_rule_dup_check:;
 		size_t old_len = (ksu_hide_rule_list) ? ksu_hide_rule_list->len : 0;
 		size_t new_total_len = old_len + needed_len;
 

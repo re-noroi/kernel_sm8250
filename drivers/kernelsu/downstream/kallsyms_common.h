@@ -139,10 +139,7 @@ static noinline void dotted_kallsyms_build_hash_array(void)
 
 	cond_resched();
 
-	char *membuf __zoffstack(KSYM_SYMBOL_LEN * 2);
-	if (!membuf)
-		return;
-
+	char *membuf __offstack(KSYM_SYMBOL_LEN * 2);
 	char *symbol_buf = membuf;
 	char *symbol_cache = membuf + KSYM_SYMBOL_LEN;
 
@@ -314,18 +311,14 @@ fn_ok:;
 }
 
 #ifdef CONFIG_KPROBES // kprobes based symbol resolver.
-static inline uintptr_t kp_kallsyms_lookup_name(const char *name)
+static uintptr_t kp_kallsyms_lookup_name(const char *name)
 {
-	struct kprobe *kp __zoffstack(sizeof(*kp));
-	if (!kp)
+	struct kprobe kp = { .symbol_name = name };
+	if (!!register_kprobe(&kp))
 		return 0x0;
 
-	kp->symbol_name = name;
-	if (!!register_kprobe(kp))
-		return 0x0;
-
-	uintptr_t addr = (uintptr_t)kp->addr;
-	unregister_kprobe(kp);
+	uintptr_t addr = (uintptr_t)kp.addr;
+	unregister_kprobe(&kp);
 
 	pr_info("%s: success! %s at 0x%lx\n", __func__, name, addr);
 	return addr;

@@ -11,8 +11,8 @@ MDIR := $(realpath $(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
 $(info -- KDIR: $(KDIR))
 $(info -- MDIR: $(MDIR))
 
-# compliant to last upstream kernel change as of 665fd96
-CFLAGS_ksu.o += -DKSU_VERSION=32630
+# compliant to last upstream kernel change as of 95b8714
+CFLAGS_ksu.o += -DKSU_VERSION=32643
 
 ifndef KSU_EXPECTED_SIZE
 KSU_EXPECTED_SIZE := 0x033b
@@ -32,18 +32,6 @@ $(info -- KernelSU Manager signature hash: $(KSU_EXPECTED_HASH))
 
 CFLAGS_ksu.o += -DEXPECTED_SIZE=$(KSU_EXPECTED_SIZE)
 CFLAGS_ksu.o += -DEXPECTED_HASH=\"$(KSU_EXPECTED_HASH)\"
-
-# uncommon, but wont hurt, check for 3-arg security_add_hooks
-ifeq ($(shell grep -A1 "void security_add_hooks" $(srctree)/include/linux/lsm_hooks.h 2>/dev/null | grep -q lsm 2>/dev/null; echo $$?),0)
-$(info -- KernelSU/compat: security_add_hooks v2 found!)
-CFLAGS_ksu.o += -DKSU_COMPAT_SECURITY_ADD_HOOKS_V2
-endif
-
-# see security_delete_hooks
-ifeq ($(shell grep -A5 "^struct security_hook_list" $(srctree)/include/linux/lsm_hooks.h 2>/dev/null | grep -q "struct hlist_node" 2>/dev/null; echo $$?),0)
-$(info -- KernelSU/compat: security_hook_list - hlist_node found!)
-CFLAGS_ksu.o += -DKSU_COMPAT_SECURITY_DELETE_HOOKS_HLIST
-endif
 
 ifeq ($(shell grep -q "^struct security_operations selinux_ops" $(srctree)/security/selinux/hooks.c; echo $$?),0)
 $(info -- KernelSU/compat: exported selinux_ops found!)
@@ -78,13 +66,15 @@ $(info -- KernelSU/compat: exported policy_rwlock found!)
 CFLAGS_ksu.o += -DKSU_COMPAT_HAS_EXPORTED_POLICY_RWLOCK
 endif
 
-ifeq ($(shell grep -q "cpus_ptr;" $(srctree)/include/linux/sched.h; echo $$?),0)
-$(info -- KernelSU/compat: backported cpus_ptr found!)
-CFLAGS_ksu.o += -DKSU_COMPAT_HAS_BACKPORTED_CPUS_PTR
+# branch link hook vfs_statx, this newer version uses struct filename
+ifeq ($(shell grep "int vfs_statx" $(srctree)/fs/stat.c 2>/dev/null | grep -q "struct filename" 2>/dev/null; echo $$?),0)
+# $(info -- KernelSU/compat: vfs_statx has struct filename argument!)
+CFLAGS_ksu.o += -DKSU_HAS_VFS_STATX2
 endif
 
 # branch link hook, do_faccessat
 ifeq ($(shell grep "long do_faccessat" $(srctree)/fs/open.c 2>/dev/null | grep -q "flags" 2>/dev/null; echo $$?),0)
+# $(info -- KernelSU/compat: do_faccessat has flags argument!)
 CFLAGS_ksu.o += -DKSU_HAS_FACCESSAT2
 endif
 

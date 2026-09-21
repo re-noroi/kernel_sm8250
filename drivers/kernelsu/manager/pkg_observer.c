@@ -69,14 +69,14 @@ static inline void ksu_rename_observer(struct dentry *old_dentry, struct dentry 
 	if (likely(current_uid().val != 1000))
 		return;
 
-	constexpr char plist[] = "packages.list";
+	constexpr unsigned char plist[] = "packages.list";
 
 	// HASH_LEN_DECLARE see dcache.h
 	if (likely(new_dentry->d_name.len != sizeof(plist) - 1  ))
 		return;
 
 	// /data/system/packages.list.tmp -> /data/system/packages.list
-	if (likely(!!__builtin_memcmp(new_dentry->d_iname, plist, sizeof(plist) - 1 )))
+	if (likely(!!memcmp_inline(new_dentry->d_iname, plist, sizeof(plist) - 1 )))
 		return;
 
 	// cache dir inode, we try to go for fast path, lockless

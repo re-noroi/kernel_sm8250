@@ -54,7 +54,7 @@ static __always_inline int ksu_hide_setprocattr_inline(const char *name, void *v
 		return 0;
 
 	constexpr char c[] = "current";
-	if (!!__builtin_memcmp(name, c, sizeof(c)))
+	if (!!memcmp_inline(name, c, sizeof(c)))
 		return 0;
 
 	char *str = (char *)value;
@@ -225,9 +225,9 @@ static __nocfi int ksu_sel_open_handle_status(struct inode *inode, struct file *
 	if (current_uid().val < 10000)
 		goto orig_page;
 
-	// won't happen! we check this on hook init!
-	// if (unlikely(!ksu_fake_status_page))
-	//	goto orig_page;
+	assume(!!ksu_fake_status_page);
+	if (unlikely(!ksu_fake_status_page))
+		goto orig_page;
 
 	filp->private_data = ksu_fake_status_page;
 
