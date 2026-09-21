@@ -2867,6 +2867,11 @@ static struct cfq_queue *cfq_close_cooperator(struct cfq_data *cfqd,
 {
 	struct cfq_queue *cfqq;
 
+	/* Close cooperators are an HDD seek-avoidance concept.
+	 * On flash, all sectors have equal access time. */
+	if (blk_queue_nonrot(cfqd->queue))
+		return NULL;
+
 	if (cfq_class_idle(cur_cfqq))
 		return NULL;
 	if (!cfq_cfqq_sync(cur_cfqq))
