@@ -5,16 +5,12 @@
  */
 
 #include <uapi/linux/sched/types.h>
-#include <linux/cpumask.h>
 #include <linux/ctype.h>
 #include <linux/debugfs.h>
 #include <linux/dma-buf.h>
 #include <linux/fdtable.h>
-#include <linux/interrupt.h>
 #include <linux/io.h>
 #include <linux/ion.h>
-#include <linux/irq.h>
-#include <linux/kthread.h>
 #include <linux/mman.h>
 #include <linux/module.h>
 #include <linux/msm-bus.h>
@@ -5146,36 +5142,6 @@ static int _register_device(struct kgsl_device *device)
 	return 0;
 }
 
-/*
- * Keep the KGSL SCHED_FIFO kthreads on the big cluster.
- *
- * The latency the GPU sees on the submission path is dominated by how quickly
- * the GPU interrupt is taken and the dispatcher kthread gets to run, and these
- * are ordinary SCHED_FIFO tasks free to land on a silver core. This restores
- * the placement that IRQF_PERF_AFFINE / kthread_run_perf_critical used to
- * provide before both helpers were dropped from this tree.
- *
- * cpu_perf_mask is the gold cluster (CONFIG_BIG_CPU_MASK). The prime core is
- * deliberately excluded: prio 16 SCHED_FIFO work there would preempt the
- * game's render thread, which is the opposite of what we want.
- *
- * set_cpus_allowed_ptr() rather than kthread_bind_mask() because these tasks
- * are already awake by this point, and because it leaves the affinity
- * overridable from userspace instead of setting PF_NO_SETAFFINITY.
- */
-static void kgsl_pin_to_perf_cpus(struct task_struct *task, const char *what)
-{
-	int ret;
-
-	if (IS_ERR_OR_NULL(task) || cpumask_empty(cpu_perf_mask))
-		return;
-
-	ret = set_cpus_allowed_ptr(task, cpu_perf_mask);
-	if (ret)
-		pr_warn("kgsl: unable to pin %s to the big cluster: %d\n",
-			what, ret);
-}
-
 int kgsl_request_irq(struct platform_device *pdev, const  char *name,
 		irq_handler_t handler, void *data)
 {
@@ -5262,31 +5228,6 @@ int kgsl_device_platform_probe(struct kgsl_device *device)
 	device->pwrctrl.interrupt_num = status;
 	disable_irq(device->pwrctrl.interrupt_num);
 
-	/*
-	 * Pin the GPU interrupt to the big cluster and take it out of
-	 * CONFIG_IRQ_SBALANCE's rotation, which otherwise re-spreads it every
-	 * CONFIG_IRQ_SBALANCE_POLL_MSEC and can park it on a silver core.
-	 *
-	 * Affinity first, then the flag: sbalance skips interrupts that report
-	 * !__irq_can_set_affinity(), which is what IRQ_NO_BALANCING drives.
-	 *
-	 * This also settles where the PM QoS vote set up below lands -
-	 * pm_qos_req_dma is PM_QOS_REQ_AFFINE_IRQ against this interrupt, so it
-	 * only applies to the CPU the interrupt is affine to.
-	 */
-	if (!cpumask_empty(cpu_perf_mask)) {
-		int aff = irq_set_affinity(device->pwrctrl.interrupt_num,
-				cpu_perf_mask);
-
-		if (aff)
-			dev_warn(device->dev,
-				"Unable to affine GPU irq to the big cluster: %d\n",
-				aff);
-		else
-			irq_set_status_flags(device->pwrctrl.interrupt_num,
-					IRQ_NO_BALANCING);
-	}
-
 	rwlock_init(&device->context_lock);
 	spin_lock_init(&device->submit_lock);
 
@@ -5334,7 +5275,6 @@ int kgsl_device_platform_probe(struct kgsl_device *device)
 
 	device->events_worker = kthread_create_worker(0, "kgsl-events");
 	sched_setscheduler(device->events_worker->task, SCHED_FIFO, &param);
-	kgsl_pin_to_perf_cpus(device->events_worker->task, "kgsl-events");
 	/* Initialize common sysfs entries */
 	kgsl_pwrctrl_init_sysfs(device);
 
@@ -5478,13 +5418,8 @@ static int __init kgsl_core_init(void)
 
 	INIT_LIST_HEAD(&kgsl_driver.pagetable_list);
 
-	/*
-	 * WQ_HIGHPRI matters here because adreno_dev->pwr_on_work runs on this
-	 * workqueue and sits on the submit fast path - it is queued when a
-	 * GPU_COMMAND ioctl arrives with the device not already ACTIVE.
-	 */
 	kgsl_driver.workqueue = alloc_workqueue("kgsl-workqueue",
-		WQ_HIGHPRI | WQ_UNBOUND | WQ_MEM_RECLAIM | WQ_SYSFS, 0);
+		WQ_UNBOUND | WQ_MEM_RECLAIM | WQ_SYSFS, 0);
 
 	kgsl_driver.mem_workqueue = alloc_workqueue("kgsl-mementry",
 		WQ_HIGHPRI | WQ_UNBOUND | WQ_MEM_RECLAIM, 0);
@@ -5502,7 +5437,6 @@ static int __init kgsl_core_init(void)
 	}
 
 	sched_setscheduler(kgsl_driver.worker_thread, SCHED_FIFO, &param);
-	kgsl_pin_to_perf_cpus(kgsl_driver.worker_thread, "kgsl_worker_thread");
 
 	kgsl_events_init();
 
