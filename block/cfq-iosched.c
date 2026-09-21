@@ -4718,8 +4718,10 @@ static void cfq_registered_queue(struct request_queue *q)
 	/*
 	 * Default to IOPS mode with no idling for SSDs
 	 */
-	if (blk_queue_nonrot(q))
+	if (blk_queue_nonrot(q)) {
 		cfqd->cfq_slice_idle = 0;
+		cfqd->hw_tag = 1;
+	}
 	wbt_disable_default(q);
 }
 
