@@ -3943,6 +3943,10 @@ static void
 cfq_update_io_seektime(struct cfq_data *cfqd, struct cfq_queue *cfqq,
 		       struct request *rq)
 {
+	/* Seek tracking is meaningless on non-rotational storage */
+	if (blk_queue_nonrot(cfqd->queue))
+		return;
+
 	sector_t sdist = 0;
 	sector_t n_sec = blk_rq_sectors(rq);
 	if (cfqq->last_request_pos) {
