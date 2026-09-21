@@ -2384,6 +2384,14 @@ static void cfq_prio_tree_add(struct cfq_data *cfqd, struct cfq_queue *cfqq)
 	struct rb_node **p, *parent;
 	struct cfq_queue *__cfqq;
 
+	/*
+	 * Priority trees are only consumed by cfq_close_cooperator(),
+	 * which is disabled for non-rotational storage. Skip the
+	 * rbtree maintenance entirely.
+	 */
+	if (blk_queue_nonrot(cfqd->queue))
+		return;
+
 	if (cfqq->p_root) {
 		rb_erase(&cfqq->p_node, cfqq->p_root);
 		cfqq->p_root = NULL;
