@@ -42,6 +42,9 @@
 	&& (!chg->typec_legacy || chg->typec_legacy_use_rp_icl))
 
 static bool off_charge_flag;
+#ifdef CONFIG_BYPASS_CHARGING
+static int bypass_charging = 0;
+#endif
 
 static void update_sw_icl_max(struct smb_charger *chg, int pst);
 static int smblib_get_prop_typec_mode(struct smb_charger *chg);
@@ -2542,8 +2545,17 @@ int smblib_vbus_regulator_is_enabled(struct regulator_dev *rdev)
 int smblib_get_prop_input_suspend(struct smb_charger *chg,
 				  union power_supply_propval *val)
 {
+#ifdef CONFIG_BYPASS_CHARGING
+	if ((get_client_vote(chg->chg_disable_votable, BYPASS_VOTER) == 1)) {
+		val->intval = 1;
+	} else if (bypass_charging) {
+		val->intval = 2;
+	} else {
+		val->intval = 0;
+	}
+#else
 	val->intval = get_effective_result(chg->input_suspend_votable);
-
+#endif
 	return 0;
 }
 
@@ -3295,10 +3307,32 @@ static void smblib_get_start_vbat_before_step_charge(struct smb_charger *chg)
 int smblib_set_prop_input_suspend(struct smb_charger *chg,
 				  const union power_supply_propval *val)
 {
-	int rc;
+#ifdef CONFIG_BYPASS_CHARGING
+	int rc = 0;
 
-	vote(chg->input_suspend_votable, USER_VOTER, val->intval ? true : false, 0);
+	rc = vote(chg->input_suspend_votable, USER_VOTER, false, 0);
 
+	if (val->intval == 1) {
+		rc = vote(chg->chg_disable_votable, BYPASS_VOTER, 1, 0);
+		bypass_charging = 0;
+	} else if (val->intval == 2) {
+		rc = vote(chg->chg_disable_votable, BYPASS_VOTER, 0, 0);
+		bypass_charging = 1;
+	} else {
+		rc = vote(chg->chg_disable_votable, BYPASS_VOTER, 0, 0);
+		bypass_charging = 0;
+	}
+
+ 	if (rc < 0) {
+  		pr_err(chg, "Couldn't vote to %d input_suspend rc=%d\n",
+  			val->intval, rc);
+  		return rc;
+  	}
+#else
+	int rc = 0;
+
+	rc = vote(chg->input_suspend_votable, USER_VOTER, val->intval ? true : false, 0);
+#endif
 	power_supply_changed(chg->batt_psy);
 
 	return rc;
@@ -3791,6 +3825,11 @@ int smblib_set_prop_system_temp_level(struct smb_charger *chg,
 			THERMAL_DAEMON_VOTER, true, 0);
 
 	vote(chg->chg_disable_votable, THERMAL_DAEMON_VOTER, false, 0);
+#endif
+
+#ifdef CONFIG_BYPASS_CHARGING
+	if (bypass_charging)
+		chg->system_temp_level = 0;
 #endif
 
 	if (chg->thermal_taper && chg->pd_active == POWER_SUPPLY_PD_PPS_ACTIVE) {

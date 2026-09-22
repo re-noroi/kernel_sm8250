@@ -648,6 +648,18 @@ config PERF_HELPER
 	help
 	  this module support record perf lock history and other perf messages.
 
+config NTSYNC
+	tristate "NT synchronization primitive emulation"
+	default y
+	help
+	  This module provides kernel support for emulation of Windows NT
+	  synchronization primitives. It is not a hardware driver.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called ntsync.
+
+	  If unsure, say N.
+
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"
 source "drivers/misc/cb710/Kconfig"
