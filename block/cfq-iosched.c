@@ -3937,6 +3937,10 @@ static void
 cfq_update_io_thinktime(struct cfq_data *cfqd, struct cfq_queue *cfqq,
 			struct cfq_io_cq *cic)
 {
+	/* Think-time math is dead code when slice_idle and group_idle are 0 */
+	if (blk_queue_nonrot(cfqd->queue))
+		return;
+
 	if (cfq_cfqq_sync(cfqq)) {
 		__cfq_update_io_thinktime(&cic->ttime, cfqd->cfq_slice_idle);
 		__cfq_update_io_thinktime(&cfqq->service_tree->ttime,
