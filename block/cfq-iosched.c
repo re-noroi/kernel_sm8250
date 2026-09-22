@@ -2522,6 +2522,7 @@ static void cfq_add_rq_rb(struct request *rq)
 	BUG_ON(!cfqq->next_rq);
 }
 
+#if 0 /* Dead code: Front merges disabled for flash storage */
 static void cfq_reposition_rq_rb(struct cfq_queue *cfqq, struct request *rq)
 {
 	elv_rb_del(&cfqq->sort_list, rq);
@@ -2531,6 +2532,7 @@ static void cfq_reposition_rq_rb(struct cfq_queue *cfqq, struct request *rq)
 	cfqg_stats_update_io_add(RQ_CFQG(rq), cfqq->cfqd->serving_group,
 				 rq->cmd_flags);
 }
+#endif
 
 static void cfq_activate_request(struct request_queue *q, struct request *rq)
 {
@@ -3955,12 +3957,13 @@ static void
 cfq_update_io_seektime(struct cfq_data *cfqd, struct cfq_queue *cfqq,
 		       struct request *rq)
 {
+	sector_t sdist = 0;
+	sector_t n_sec = blk_rq_sectors(rq);
+
 	/* Seek tracking is meaningless on non-rotational storage */
 	if (blk_queue_nonrot(cfqd->queue))
 		return;
 
-	sector_t sdist = 0;
-	sector_t n_sec = blk_rq_sectors(rq);
 	if (cfqq->last_request_pos) {
 		if (cfqq->last_request_pos < blk_rq_pos(rq))
 			sdist = blk_rq_pos(rq) - cfqq->last_request_pos;
