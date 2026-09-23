@@ -4556,8 +4556,10 @@ static void kgsl_gpumem_vm_open(struct vm_area_struct *vma)
 {
 	struct kgsl_mem_entry *entry = vma->vm_private_data;
 
-	if (kgsl_mem_entry_get(entry) == 0)
+	if (kgsl_mem_entry_get(entry) == 0) {
 		vma->vm_private_data = NULL;
+		return;
+	}
 
 	atomic_inc(&entry->map_count);
 }
