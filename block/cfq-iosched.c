@@ -29,8 +29,8 @@ static const u64 cfq_fifo_expire[2] = { NSEC_PER_SEC / 10, NSEC_PER_SEC / 20 };
 static const int cfq_back_max = 0;
 /* penalty of a backwards seek */
 static const int cfq_back_penalty = 0;
-static const u64 cfq_slice_sync = NSEC_PER_SEC / 25;
-static u64 cfq_slice_async = NSEC_PER_SEC / 60;
+static const u64 cfq_slice_sync = NSEC_PER_SEC / 10;
+static u64 cfq_slice_async = NSEC_PER_SEC / 25;
 static const int cfq_slice_async_rq = 2;
 static u64 cfq_slice_idle = 0;
 static u64 cfq_group_idle = 0;
