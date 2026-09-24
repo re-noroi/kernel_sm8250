@@ -20,7 +20,7 @@ static int sys_newfstat_handler_pre(struct kretprobe_instance *p, struct pt_regs
 
 	// grab ptr on entry
 	uintptr_t *arg = (uintptr_t *)p->data;
-	arg[0] = (uintptr_t)PT_REGS_PARM1(real_regs); 
+	arg[0] = (uintptr_t)PT_REGS_SYSCALL_PARM1(real_regs); 
 	arg[1] = (uintptr_t)PT_REGS_PARM2(real_regs); 
 
 	return 0;
@@ -51,7 +51,7 @@ static int sys_fstat64_handler_pre(struct kretprobe_instance *p, struct pt_regs 
 
 	// grab ptr on entry
 	uintptr_t *arg = (uintptr_t *)p->data;
-	arg[0] = (uintptr_t)PT_REGS_PARM1(real_regs); 
+	arg[0] = (uintptr_t)PT_REGS_SYSCALL_PARM1(real_regs); 
 	arg[1] = (uintptr_t)PT_REGS_PARM2(real_regs); 
 
 	return 0;
@@ -80,7 +80,7 @@ static struct kretprobe sys_fstat64_rp = {
 static int sys_reboot_handler_pre(struct kprobe *p, struct pt_regs *regs)
 {
 	struct pt_regs *real_regs = PT_REAL_REGS(regs);
-	int *magic1 = (int *)&PT_REGS_PARM1(real_regs); // ptr so we can mutate this
+	int *magic1 = (int *)&PT_REGS_SYSCALL_PARM1(real_regs); // ptr so we can mutate this
 	int magic2 = (int)PT_REGS_PARM2(real_regs);
 	int cmd = (int)PT_REGS_PARM3(real_regs);
 	void __user **arg = (void __user **)&PT_REGS_SYSCALL_PARM4(real_regs);
@@ -108,7 +108,7 @@ static int sys_reboot_handler_pre(struct kprobe *p, struct pt_regs *regs)
 }
 
 static struct kprobe sys_reboot_kp = {
-	.symbol_name = SYS_REBOOT_SYMBOL,
+	.symbol_name = REBOOT_SYMBOL,
 	.pre_handler = sys_reboot_handler_pre,
 };
 

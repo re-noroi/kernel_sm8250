@@ -6,7 +6,12 @@
 #define KSU_SYS_PREFIX(name) __arm64_sys_##name
 #elif defined(__x86_64__)
 #define KSU_SYS_PREFIX(name) __x64_sys_##name
-#else // arm / 32-bit
+#elif defined(__riscv)
+#define KSU_SYS_PREFIX(name) __riscv_sys_##name
+#elif defined(__arm__)
+#define KSU_SYS_PREFIX(name) sys_##name
+#else // wire up your arch here.
+static_assert(1 == 0, "Unsupported architecture!");
 #define KSU_SYS_PREFIX(name) sys_##name
 #endif
 
@@ -16,32 +21,86 @@
  *
  * usage: ksyscall(close, fd);
  */
-#define __ksyscall(name, a, b, c, d, e, f) ({			\
-	extern long KSU_SYS_PREFIX(name)(struct pt_regs *);	\
-	struct pt_regs regs = { 0 };				\
-	PT_REGS_PARM1(&regs) = (unsigned long)(a);		\
-	PT_REGS_PARM2(&regs) = (unsigned long)(b);		\
-	PT_REGS_PARM3(&regs) = (unsigned long)(c);		\
-	PT_REGS_SYSCALL_PARM4(&regs) = (unsigned long)(d);	\
-	PT_REGS_PARM5(&regs) = (unsigned long)(e);		\
-	PT_REGS_PARM6(&regs) = (unsigned long)(f);		\
-	(long)KSU_SYS_PREFIX(name)(&regs);			\
+#define __ksyscall(name, a, b, c, d, e, f) ({				\
+	extern long KSU_SYS_PREFIX(name)(const struct pt_regs *);	\
+	struct pt_regs __ksu_regs = { 0 };				\
+	PT_REGS_SYSCALL_PARM1(&__ksu_regs) = (unsigned long)(a);	\
+	PT_REGS_PARM2(&__ksu_regs) = (unsigned long)(b);		\
+	PT_REGS_PARM3(&__ksu_regs) = (unsigned long)(c);		\
+	PT_REGS_SYSCALL_PARM4(&__ksu_regs) = (unsigned long)(d);	\
+	PT_REGS_PARM5(&__ksu_regs) = (unsigned long)(e);		\
+	PT_REGS_PARM6(&__ksu_regs) = (unsigned long)(f);		\
+	(long)KSU_SYS_PREFIX(name)(&__ksu_regs);			\
 })
 
-#define __ksyscall_pad(a, b, c, d, e, f, ...)	a, b, c, d, e, f
-#define __ksyscall_exp(fn, args)		fn args
-#define ksyscall(name, ...)			__ksyscall_exp(__ksyscall, (name, __ksyscall_pad(__VA_ARGS__, 0, 0, 0, 0, 0, 0)))
-#endif // ksyscall end
+// https://elixir.bootlin.com/musl/v1.2.6/source/src/internal/syscall.h#L45
+#define ksyscall_0(name) __ksyscall(name, 0, 0, 0, 0, 0, 0)
+#define ksyscall_1(name, a) __ksyscall(name, a, 0, 0, 0, 0, 0)
+#define ksyscall_2(name, a, b) __ksyscall(name, a, b, 0, 0, 0, 0)
+#define ksyscall_3(name, a, b, c) __ksyscall(name, a, b, c, 0, 0, 0)
+#define ksyscall_4(name, a, b, c, d) __ksyscall(name, a, b, c, d, 0, 0)
+#define ksyscall_5(name, a, b, c, d, e) __ksyscall(name, a, b, c, d, e, 0)
+#define ksyscall_6(name, a, b, c, d, e, f) __ksyscall(name, a, b, c, d, e, f)
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0)
-static __always_inline int ksu_sys_umount(char __user *name, int flags) { return (int)ksyscall(umount, name, flags); }
-#define ksu_sys_setns(fd, flags)	ksyscall(setns, fd, flags)
-#define ksu_close_fd(fd)		ksyscall(close, fd)
-#else
-static __always_inline int ksu_sys_umount(char __user *name, int flags) { return (int)sys_umount(name, flags); }
-#define ksu_close_fd sys_close
-#define ksu_sys_setns sys_setns
-#define ksys_unshare sys_unshare
+#else /* < 4.19 */
+
+#define KSU_SYS_PREFIX(name) sys_##name
+
+#define ksyscall_0(name) ({						\
+	extern typeof(KSU_SYS_PREFIX(name)) KSU_SYS_PREFIX(name);	\
+	(long)KSU_SYS_PREFIX(name)();					\
+})
+
+#define ksyscall_1(name, a) ({						\
+	extern typeof(KSU_SYS_PREFIX(name)) KSU_SYS_PREFIX(name);	\
+	(long)KSU_SYS_PREFIX(name)(a);					\
+})
+
+#define ksyscall_2(name, a, b) ({					\
+	extern typeof(KSU_SYS_PREFIX(name)) KSU_SYS_PREFIX(name);	\
+	(long)KSU_SYS_PREFIX(name)(a, b);				\
+})
+
+#define ksyscall_3(name, a, b, c) ({					\
+	extern typeof(KSU_SYS_PREFIX(name)) KSU_SYS_PREFIX(name);	\
+	(long)KSU_SYS_PREFIX(name)(a, b, c);				\
+})
+
+#define ksyscall_4(name, a, b, c, d) ({					\
+	extern typeof(KSU_SYS_PREFIX(name)) KSU_SYS_PREFIX(name);	\
+	(long)KSU_SYS_PREFIX(name)(a, b, c, d);				\
+})
+
+#define ksyscall_5(name, a, b, c, d, e) ({				\
+	extern typeof(KSU_SYS_PREFIX(name)) KSU_SYS_PREFIX(name);	\
+	(long)KSU_SYS_PREFIX(name)(a, b, c, d, e);			\
+})
+
+#define ksyscall_6(name, a, b, c, d, e, f) ({				\
+	extern typeof(KSU_SYS_PREFIX(name)) KSU_SYS_PREFIX(name);	\
+	(long)KSU_SYS_PREFIX(name)(a, b, c, d, e, f);			\
+})
+
+#endif /* < 4.19 */
+
+#define __ksyscall_arg_n(_1, _2, _3, _4, _5, _6, _7, N, ...) N
+#define __ksyscall_count_args(...) __ksyscall_arg_n(__VA_ARGS__, 6, 5, 4, 3, 2, 1, 0)
+#define __ksyscall_concat(a, b) a##b
+#define __ksyscall_exp(func, arg) __ksyscall_concat(func, arg)
+#define ksyscall(...) __ksyscall_exp(ksyscall_, __ksyscall_count_args(__VA_ARGS__))(__VA_ARGS__)
+
+#define ksu_close_fd(fd) ({ ksyscall(close, fd); })
+#define ksu_sys_setns(fd, flags) ({ ksyscall(setns, fd, flags); })
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 9, 0)
+static __always_inline long ksu_sys_umount(char __user *name, int flags)
+{ 
+	return ksyscall(umount, name, flags);
+}
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 19, 0)
+#define ksys_unshare(flags) ({ ksyscall(unshare, flags); })
 #endif
 
 static inline struct file *ksu_filp_open_nonotify(const char *path, int flags)

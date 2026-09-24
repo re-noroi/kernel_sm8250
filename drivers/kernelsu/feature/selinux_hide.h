@@ -49,10 +49,10 @@ static inline void ksu_selinux_hide_alloc_hazptr_slot(void)
 		__builtin_unreachable();
 	}
 
-	int cpu;
+	unsigned int cpu;
 	for_each_possible_cpu(cpu) {
 		struct ksu_hide_buf **slot = per_cpu_ptr(ksu_selinux_hide_hazptr_slot, cpu);
-		pr_info("selinux_hide: hazptr_slot: 0x%llx cpu: %d \n", (uintptr_t)slot, cpu );
+		pr_info("selinux_hide: hazptr_slot: 0x%lx cpu: %u \n", (uintptr_t)slot, cpu );
 	}
 }
 
@@ -89,7 +89,7 @@ static inline void ksu_selinux_hide_hazptr_free(struct ksu_hide_buf *old_ptr)
 
 	// acquire it on ALL cpus!
 	// only free it once ALL slots say that their slot no longer contains old ptr
-	int cpu;
+	unsigned int cpu;
 	for_each_possible_cpu(cpu) {
 		struct ksu_hide_buf **slot = per_cpu_ptr(ksu_selinux_hide_hazptr_slot, cpu);
 		while (__atomic_load_n(slot, __ATOMIC_ACQUIRE) == old_ptr)
@@ -230,9 +230,8 @@ static bool ksu_should_destroy_context(char *str)
 	}
 } // scope--
 
-check_rule:;
-	// double strstr
-	char *str2 = strchr(str, ' ');
+check_rule:; // double strstr
+	const char *str2 = strnchr(str, 128, ' ');
 	if (!str2)
 		return false;
 
@@ -249,7 +248,7 @@ check_rule:;
 		const char *tgt_rule = src_rule + src_sz;
 		size_t tgt_sz = strlen(tgt_rule) + 1;
 
-		if (strstr(str, src_rule) && strstr(str2, tgt_rule))
+		if (strnstr(str, src_rule, str2 - str) && strstr(str2, tgt_rule))
 			return true;
 
 		offset = offset + src_sz + tgt_sz;

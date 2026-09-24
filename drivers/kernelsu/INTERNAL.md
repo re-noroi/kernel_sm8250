@@ -2,8 +2,9 @@
 ## C-style
 - GNU23, but written in a way compatible to GNU17/GNU11 compilers.
 - pointer-heavy. assumes little endian on everything.
-- some metaprogramming is actually happening (redefines, compat hacks, backports)
-- plethora of compiler attributes / builtins, this is intended.
+- metaprogramming is actually happening: compile-time overloading/reflection, RAII-like cleanup, template-like type trickery
+- compat and backports are also done through that metaprogramming (mostly redefinitions)
+- heavy use of compiler attributes / builtins, this is intended.
 - minimum is GCC 4.9 / Clang 10
 
 ## build system
@@ -78,6 +79,6 @@
 
 ## log / reminders
 - some kernels reads 'cold + noinline' as __init, which evicts our fn. avoid this combination.
-- some kernels have autistic inlining which also fucks up if we ever wanted to \__\attribute__((flatten)) (e.g. sultan and other 'optimization')
-
+- some kernels have autistic inlining which also fucks up if we ever wanted to \__attribute\_\_((flatten)) (e.g. sultan and other 'optimization')
+- static_assert on fn ptr (e.g. static_assert(!!&kernel_read);) on clang < 14? fails. compiler thinks it has to prove constness, it works like static_assert(!!__builtin_constant_p(expr)) NOT static_assert(__builtin_constant_p(!!expr))
 
