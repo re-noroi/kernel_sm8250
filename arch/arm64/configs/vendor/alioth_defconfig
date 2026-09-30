@@ -2717,7 +2717,7 @@ CONFIG_HL6111R=y
 #
 # TI Technologies, Inc. Charger support
 #
-CONFIG_BQ2597X_CHARGE_PUMP=y
+# CONFIG_BQ2597X_CHARGE_PUMP is not set
 # CONFIG_CHARGER_LN8000 is not set
 # CONFIG_BQ_PUMP_WIRELESS_CHARGE is not set
 # CONFIG_DUAL_BQ2597X is not set
