@@ -48,7 +48,6 @@ int pcibus_to_node(struct pci_bus *bus);
 
 /* Replace task scheduler's default frequency-invariant accounting */
 #define arch_scale_freq_capacity topology_get_freq_scale
-#define arch_scale_freq_invariant topology_scale_freq_invariant
 
 /* Replace task scheduler's default min-frequency-invariant accounting */
 #define arch_scale_min_freq_capacity topology_get_min_freq_scale
