@@ -1484,7 +1484,7 @@ menu "ARMv8.4 architectural features"
 
 config ARM64_AMU_EXTN
 	bool "Enable support for the Activity Monitors Unit CPU extension"
-	default y
+	default n
 	help
 	  The activity monitors extension is an optional extension introduced
 	  by the ARMv8.4 CPU architecture. This enables support for version 1
