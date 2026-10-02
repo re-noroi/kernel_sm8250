@@ -455,6 +455,7 @@ static void update_thermal_pressure(struct throt_data *t,
 				    enum cpu_throttle_src src, unsigned int cap)
 {
 	unsigned int capped_freq = UINT_MAX;
+	unsigned int prev_capped_freq = UINT_MAX;
 	int i;
 
 	/*
@@ -465,11 +466,33 @@ static void update_thermal_pressure(struct throt_data *t,
 	if (t->cap[src] == cap)
 		return;
 
+	/* Calculate the OLD aggregated cap before applying the new one */
+	for (i = 0; i < ARRAY_SIZE(t->cap); i++) {
+		if (t->cap[i] < prev_capped_freq)
+			prev_capped_freq = t->cap[i];
+	}
+
+	/* Apply the new cap for this specific source */
 	t->cap[src] = cap;
+
+	/* Calculate the NEW aggregated cap */
 	for (i = 0; i < ARRAY_SIZE(t->cap); i++) {
 		if (t->cap[i] < capped_freq)
 			capped_freq = t->cap[i];
 	}
+
+	/*
+	 * Log only when the final aggregated thermal pressure actually changes.
+	 * UINT_MAX (4294967295) means "no throttle applied".
+	 */
+	if (capped_freq != prev_capped_freq) {
+		pr_info_ratelimited("FIE: CPU%d thermal pressure updated [src=%s] -> src_cap=%u, aggregated=%u kHz\n",
+				t->cpu,
+				src == CPU_CPUFREQ_THROTTLE ? "LMh" : "HW-Measured",
+				cap, capped_freq);
+	}
+
+	/* Send the final aggregated limit to the scheduler */
 	arch_update_thermal_pressure(&t->cpus, capped_freq);
 }
 
