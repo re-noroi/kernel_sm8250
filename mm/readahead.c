@@ -153,7 +153,7 @@ out:
  */
 unsigned int __do_page_cache_readahead(struct address_space *mapping,
 		struct file *filp, pgoff_t offset, unsigned long nr_to_read,
-		unsigned long lookahead_size)
+		unsigned long lookahead_size, bool forced)
 {
 	struct inode *inode = mapping->host;
 	struct page *page;
@@ -199,6 +199,7 @@ unsigned int __do_page_cache_readahead(struct address_space *mapping,
 		list_add(&page->lru, &page_pool);
 		if (page_idx == nr_to_read - lookahead_size)
 			SetPageReadahead(page);
+
 		nr_pages++;
 	}
 
@@ -210,6 +211,25 @@ unsigned int __do_page_cache_readahead(struct address_space *mapping,
 	if (nr_pages)
 		read_pages(mapping, filp, &page_pool, nr_pages, gfp_mask);
 	BUG_ON(!list_empty(&page_pool));
+
+	/*
+	 * Stamp MADV_WILLNEED pages so MGLRU gives them an extra trip
+	 * in the active list before eviction.
+	 *
+	 * Run a post-readahead lookup so both newly read pages and pages
+	 * already present in the page cache receive the hint flag.
+	 */
+	if (forced && lru_gen_enabled()) {
+		unsigned long i;
+
+		for (i = 0; i < nr_to_read; i++) {
+			struct page *p = xa_load(&mapping->i_pages, offset + i);
+
+			if (p && !xa_is_value(p))
+				set_bit(PG_willneed_hint, &p->flags);
+		}
+	}
+
 out:
 	return nr_pages;
 }
@@ -239,7 +259,7 @@ int force_page_cache_readahead(struct address_space *mapping, struct file *filp,
 
 		if (this_chunk > nr_to_read)
 			this_chunk = nr_to_read;
-		__do_page_cache_readahead(mapping, filp, offset, this_chunk, 0);
+		__do_page_cache_readahead(mapping, filp, offset, this_chunk, 0, true);
 
 		offset += this_chunk;
 		nr_to_read -= this_chunk;
@@ -465,7 +485,7 @@ ondemand_readahead(struct address_space *mapping,
 	 * standalone, small random read
 	 * Read as is, and do not pollute the readahead state.
 	 */
-	return __do_page_cache_readahead(mapping, filp, offset, req_size, 0);
+	return __do_page_cache_readahead(mapping, filp, offset, req_size, 0, false);
 
 initial_readahead:
 	ra->start = offset;
