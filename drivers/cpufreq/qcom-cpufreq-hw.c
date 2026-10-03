@@ -217,8 +217,6 @@ static void qcom_lmh_dcvs_notify(struct cpufreq_qcom *c)
 	}
 
 	trace_dcvsh_freq(cpu, requested_freq, throttled_freq, thermal_pressure);
-
-	/* Update thermal pressure (boost frequencies are accepted). */
 	c->dcvsh_freq_limit = thermal_pressure;
 
 out:
