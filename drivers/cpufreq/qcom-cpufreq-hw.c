@@ -691,8 +691,13 @@ static int qcom_cpufreq_hw_read_lut(struct platform_device *pdev,
 			cur_freq = CPUFREQ_ENTRY_INVALID;
 			invalidate_freq = true;
 		} else {
-			/* Merge 6.1 boost row detection with 4.19 skip_data logic */
-			if (core_count < max_cc)
+			/*
+			 * Flag as boost if core count drops below the baseline, BUT
+			 * explicitly exclude the row used for the downstream thermal
+			 * cooling device (skip_data), which must remain a normal
+			 * selectable frequency for the thermal daemon to target.
+			*/
+			if (core_count < max_cc && core_count != (c->max_cores - 1))
 				c->table[i].flags = CPUFREQ_BOOST_FREQ;
 
 			if (core_count != c->max_cores) {
