@@ -8266,14 +8266,14 @@ static void uclamp_set(struct cgroup_subsys_state *css)
 
 	static struct uclamp_param tgts[] = {
 		{"top-app",             "0", "max", 1, 20480},
-		{"rt",			"0", "max", 1, 20480},
-		{"nnapi-hal",		"0", "max", 1, 20480},
-       		{"foreground",          "0", "60",  0, 12288},
-                {"camera-daemon",       "0", "max", 0, 20480},
-                {"system",              "0", "max", 0, 20480},
-                {"dex2oat",             "0", "10",  0, 	 512},
-        	{"background",          "0", "10",  0,  1024},
-        	{"system-background",   "0", "50",  0, 10240},
+		{"rt",			"0", "max", 0, 20480},
+		{"nnapi-hal",		"0", "max", 0, 20480},
+		{"foreground",          "0", "80",  0, 16384},
+		{"camera-daemon",       "0", "max", 0, 20480},
+		{"system",              "0", "max", 0, 20480},
+		{"dex2oat",             "0", "20",  0, 	 512},
+		{"background",          "0", "30",  0,  1024},
+		{"system-background",   "0", "50",  0, 10240},
 	};
 
         if(!css->cgroup->kn)
