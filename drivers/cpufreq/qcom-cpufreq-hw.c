@@ -561,7 +561,7 @@ static int qcom_cpufreq_hw_cpu_offline(struct cpufreq_policy *policy)
 	if (!irqd_irq_disabled(irq_get_irq_data(c->dcvsh_irq)))
 		disable_irq(c->dcvsh_irq);
 
-	fie_cpufreq_pressure(cpumask_first(policy->related_cpus), UINT_MAX);
+	fie_cpufreq_pressure(cpumask_first(&c->related_cpus), UINT_MAX);
 	c->last_lmh_freq = ULONG_MAX;
 	trace_dcvsh_throttle(cpumask_first(&c->related_cpus), 0);
 
