@@ -140,8 +140,8 @@ static inline bool is_selinux_ops_valid(uintptr_t addr)
 	uintptr_t member_ptr = 0;
 	uintptr_t current_slot_addr;
 
-	// we will be off by one or off by two due to sizeof("selinux")
-	// thats 8 bytes, on 32 bit, this is two pointers worth, not a big deal
+	// we will be off by two or three due to sizeof(security_operations.name)
+	// thats 11 bytes, on 32 bit, this is three pointers worth, not a big deal
 
 density_verify_start:
 	current_slot_addr = addr + (i * sizeof(void *));
@@ -198,10 +198,8 @@ static inline bool check_candidate(uintptr_t addr)
 
 	pr_info("%s: selinux_cred_free found via ksym_lookup: 0x%lx probe_result: 0x%lx \n", __func__, (long)ksym_ptr, (long)candidate->cred_free);
 	return true;
-
 test_fn:
 #endif
-
 	// oh yeah I am so confident that this is it
 	pr_info("%s: candidate selinux_cred_free at 0x%lx\n", __func__, (long)candidate->cred_free);
 	return verify_selinux_cred_free((void *)candidate->cred_free);

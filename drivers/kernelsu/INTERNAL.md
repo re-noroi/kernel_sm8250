@@ -80,5 +80,5 @@
 ## log / reminders
 - some kernels reads 'cold + noinline' as __init, which evicts our fn. avoid this combination.
 - some kernels have autistic inlining which also fucks up if we ever wanted to \__attribute\_\_((flatten)) (e.g. sultan and other 'optimization')
-- static_assert on fn ptr (e.g. static_assert(!!&kernel_read);) on clang < 14? fails. compiler thinks it has to prove constness, it works like static_assert(!!__builtin_constant_p(expr)) NOT static_assert(__builtin_constant_p(!!expr))
+- static_assert on fn ptr (e.g. static_assert(!!&kernel_read);) on clang < 14? fails. compiler thinks it has to prove constness, it works like assert(!!__builtin_constant_p(expr)) NOT assert(__builtin_constant_p(!!expr))
 

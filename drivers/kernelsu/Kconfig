@@ -15,9 +15,10 @@ config KSU_KPROBES_KSUD
 	depends on !KSU_TAMPER_SYSCALL_TABLE
 	depends on !KSU_HACK_ARM64_BRANCH_LINK
 	depends on KPROBES && KRETPROBES
+	depends on DEPRECATED
 	default n
 	help
-	  Use dynamic hooks via kprobes for functions only
+	  [deprecated] Use dynamic hooks via kprobes for functions only
 	  on early boot. Hooks are unregistered at boot complete
 	  to reduce overhead.
 

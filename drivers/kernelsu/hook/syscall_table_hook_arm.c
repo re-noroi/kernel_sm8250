@@ -21,6 +21,7 @@
 
 #define __ARMEABI_reboot	88
 #define __ARMEABI_execve	11
+#define __ARMEABI_execveat	387
 #define __ARMEABI_faccessat	334
 #define __ARMEABI_fstatat64	327
 #define __ARMEABI_fstat64	197
@@ -107,8 +108,13 @@ asmlinkage long hook_armeabi_read(const struct pt_regs *regs)
 }
 
 #else // END OF 4.19+ SYSCALL HANDLERS
- 
+
+// arch/arm/include/asm/syscall.h
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 7, 0)
+extern const unsigned long sys_call_table[];
+#else
 extern void *sys_call_table[];
+#endif
 
 static void *armeabi_reboot __read_mostly = nullptr;
 asmlinkage long hook_armeabi_reboot(int magic1, int magic2, unsigned int cmd, void __user *arg)

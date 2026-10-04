@@ -139,24 +139,6 @@ static inline void ksu_memzero_explicit(void *s, size_t count) { memset_explicit
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0)
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
-static __nocfi inline ssize_t ksu_kernel_read_compat(struct file *file, void *buf, size_t count, loff_t *pos)
-{
-	extern typeof(kernel_read) kernel_read;
-	assume((void *)&kernel_read != nullptr);
-	if (!__builtin_types_compatible_p(typeof(kernel_read), typeof(ksu_kernel_read_compat)))
-		goto compat;
-
-	return ((typeof(ksu_kernel_read_compat) *)&kernel_read)(file, buf, count, pos);
-
-compat:; // https://github.com/tiann/KernelSU/blob/v0.9.5/kernel/kernel_compat.c
-	loff_t offset = pos ? *pos : 0;
-	ssize_t result = ((int (*)(struct file *, loff_t, char *, unsigned long))&kernel_read)(file, offset, (char *)buf, count);
-	if (pos && result > 0)
-		*pos = offset + result;
-	return result;
-}
-#else // https://elixir.bootlin.com/linux/v4.14.336/source/fs/read_write.c#L418
 static noinline ssize_t ksu_kernel_read_compat(struct file *file, void *buf, size_t count, loff_t *pos)
 {
 	mm_segment_t old_fs = get_fs();
@@ -165,26 +147,8 @@ static noinline ssize_t ksu_kernel_read_compat(struct file *file, void *buf, siz
 	set_fs(old_fs);
 	return result;
 }
-#endif
+#define kernel_read ksu_kernel_read_compat
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
-static __nocfi inline ssize_t ksu_kernel_write_compat(struct file *file, const void *buf, size_t count, loff_t *pos)
-{
-	extern typeof(kernel_write) kernel_write;
-	assume((void *)&kernel_write != nullptr);
-	if (!__builtin_types_compatible_p(typeof(kernel_write), typeof(ksu_kernel_write_compat)))
-		goto compat;
-
-	return ((typeof(ksu_kernel_write_compat) *)&kernel_write)(file, buf, count, pos);
-
-compat:; // https://github.com/tiann/KernelSU/blob/v0.9.5/kernel/kernel_compat.c
-	loff_t offset = pos ? *pos : 0;
-	ssize_t result = ((ssize_t (*)(struct file *, const char *, size_t, loff_t))&kernel_write)(file, buf, count, offset);
-	if (pos && result > 0)
-		*pos = offset + result;
-	return result;
-}
-#else // https://elixir.bootlin.com/linux/v4.14.336/source/fs/read_write.c#L512
 static noinline ssize_t ksu_kernel_write_compat(struct file *file, const void *buf, size_t count, loff_t *pos)
 {
 	mm_segment_t old_fs = get_fs();
@@ -193,9 +157,6 @@ static noinline ssize_t ksu_kernel_write_compat(struct file *file, const void *b
 	set_fs(old_fs);
 	return res;
 }
-#endif
-
-#define kernel_read ksu_kernel_read_compat
 #define kernel_write ksu_kernel_write_compat
 #endif // < 4.14
 
@@ -249,28 +210,6 @@ __weak int path_mount(const char *dev_name, struct path *path, const char *type_
 	return ret;
 }
 #endif
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 9, 0)
-static __always_inline long ksu_sys_umount(char __user *name, int flags);
-__weak int path_umount(struct path *path, int flags)
-{
-	char buf[256];
-	int ret = -ENOENT;
-
-	char *usermnt = d_path(path, buf, sizeof(buf) - 1);
-	if (IS_ERR(usermnt) || usermnt == buf)
-		goto out;
-
-	mm_segment_t old_fs = get_fs();
-	set_fs(KERNEL_DS);
-	ret = (int)ksu_sys_umount((char __user *)usermnt, flags);
-	set_fs(old_fs);
-
-out: // release ref here! user_path_at increases it then only cleans for itself
-	path_put(path); 
-	return ret;
-}
-#endif // < 5.9
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 13, 0) && !defined(replace_fops)
 #define replace_fops(f, fops) do {		\
@@ -330,7 +269,7 @@ struct user_arg_ptr {
 
 #ifndef untagged_addr
 #ifdef CONFIG_ARM64
-static inline __s64 ksu_sign_extend64(__u64 value, int index)
+static __always_inline __s64 ksu_sign_extend64(__u64 value, int index)
 {
 	__u8 shift = 63 - index;
 	return (__s64)(value << shift) >> shift;
@@ -380,13 +319,14 @@ no_null_term:
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 2, 0) && !defined(strscpy_pad)
+// https://elixir.bootlin.com/linux/v5.2-rc1/source/lib/string.c#L259
 static ssize_t ksu_strscpy_pad(char *dest, const char *src, size_t count)
 {
-	if (!count)
-		return -E2BIG;
-
-	__builtin_memset(dest, 0, count);
-	return strscpy(dest, src, count);
+	ssize_t written = strscpy(dest, src, count);
+	if (written < 0 || written == count - 1)
+		return written;
+	memset(dest + written + 1, 0, count - written - 1);
+	return written;
 }
 #define strscpy_pad ksu_strscpy_pad
 #endif

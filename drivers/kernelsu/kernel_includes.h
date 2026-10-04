@@ -85,6 +85,7 @@
 #include <linux/percpu.h>
 #include <linux/pid.h>
 #include <linux/poll.h>
+#include <linux/prctl.h>
 #include <linux/printk.h>
 #include <linux/ptrace.h>
 #include <linux/rculist.h>
@@ -234,24 +235,38 @@
  *	- do NOT use constexpr as array size on C11, it will likely become a VLA
  */
 #if !defined(KSU_HAS_C23)
-
 #define nullptr ((void *)0)
 typedef typeof(nullptr) nullptr_t;
-
 #define constexpr const
 #define auto __auto_type
-
 #define alignas _Alignas
 #define alignof _Alignof
-
-// note: requires clang
-// #define typeof_unqual(a) typeof(0, (a))
-
 #endif // KSU_HAS_C23
 
 // NOTE: clang < 19 has issues on constexpr even with -std=gnu23
 #if defined (KSU_HAS_C23) && defined(__clang__) && (__clang_major__ < 19)
 #define constexpr const
+#endif
+
+/**
+ * typeof_unqual requires C23, we import kernel's typeof_unqual for !C23
+ * https://elixir.bootlin.com/linux/v7.3-rc4/source/include/linux/compiler_types.h#L616
+ *
+ */
+#if !defined(KSU_HAS_C23)
+#define __scalar_type_to_expr_cases(type)	\
+	unsigned type:	(unsigned type)0,	\
+	signed type:	(signed type)0
+
+#define typeof_unqual(x) typeof(				\
+	_Generic((x),						\
+		char:	(char)0,				\
+		__scalar_type_to_expr_cases(char),		\
+		__scalar_type_to_expr_cases(short),		\
+		__scalar_type_to_expr_cases(int),		\
+		__scalar_type_to_expr_cases(long),		\
+		__scalar_type_to_expr_cases(long long),		\
+		default: (x)))
 #endif
 
 /**
@@ -262,14 +277,40 @@ typedef typeof(nullptr) nullptr_t;
  * static_assert(condition); - condition becomes the comment
  * static_assert(condition, "comment");
  */
-#ifndef static_assert
+#if !defined(KSU_HAS_C23) && !defined(static_assert)
 #define __static_assert(expr, msg, ...) _Static_assert(expr, msg)
 #define static_assert(expr, ...) __static_assert(expr, ##__VA_ARGS__, #expr)
 #endif
+#if defined(KSU_HAS_C23) && defined(static_assert)
+#undef static_assert
+#endif
 
 /**
- * hardcode assumptions for micro-opt
- * - not used so much for now
+ * nodiscard is C23, we can fallback to __must_check
+ */
+#if __has_c_attribute(nodiscard)
+#define nodiscard [[nodiscard]]
+#else
+#define nodiscard __attribute__((__warn_unused_result__))
+#endif
+
+/**
+ * old compilers does NOT know fallthrough, this is GNU/C23
+ * however we can use a comment and it silences it (implicit fallthrough)
+ * ref: https://elixir.bootlin.com/linux/v7.2.2/source/include/linux/compiler_attributes.h#L216
+ */
+#ifndef fallthrough
+#if __has_c_attribute(fallthrough)
+#define fallthrough [[fallthrough]]
+#elif __has_attribute(__fallthrough__) || defined(__clang__)
+#define fallthrough __attribute__((__fallthrough__))
+#else
+#define fallthrough do {} while (0) /* fallthrough */
+#endif
+#endif
+
+/**
+ * hardcodable assumptions for micro-optimizations
  */
 #if defined(__clang__)
 #define assume(expr) __builtin_assume(expr)
@@ -294,21 +335,6 @@ static __nocfi __always_inline void *memset_explicit(void *s, int c, size_t coun
 	static typeof(memset) *volatile memset_fnptr = memset;
 	return memset_fnptr(s, c, count);
 }
-
-/**
- * old compilers does NOT know fallthrough, this is GNU/C23
- * however we can use a comment and it silences it (implicit fallthrough)
- * ref: https://elixir.bootlin.com/linux/v7.2.2/source/include/linux/compiler_attributes.h#L216
- */
-#ifndef fallthrough
-#if __has_c_attribute(fallthrough)
-#define fallthrough [[fallthrough]]
-#elif __has_attribute(__fallthrough__) || defined(__clang__)
-#define fallthrough __attribute__((__fallthrough__))
-#else
-#define fallthrough do {} while (0) /* fallthrough */
-#endif
-#endif
 
 /**
  * C2y's countof
@@ -376,9 +402,7 @@ typedef unsigned __int128 uint128_t;
  * __may_alias to workaround "optimizations" even on -fno-strict-aliasing
  *
  */
-#ifndef __may_alias
 #define __may_alias __attribute__((__may_alias__))
-#endif
 
 /**
  * __attribute__((__cleanup__()))

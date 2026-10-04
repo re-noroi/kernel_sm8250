@@ -206,6 +206,7 @@ static int ksu_hack_lsm_slot(void *hook_head, uintptr_t *old_ptr, uintptr_t new_
 #if defined(MODULE)
 static void ksu_bruteforce_lsm_slot(uintptr_t *old_ptr, uintptr_t new_ptr, const char *hook_name)
 {
+	// context: https://github.com/PhoenixKernel/linux-staging/commit/63074fbdb6971ec43f39934b96f4b475eedcaf7e
 	extern struct security_hook_heads security_hook_heads;
 
 	uintptr_t *heads_arr = (uintptr_t *)&security_hook_heads;
