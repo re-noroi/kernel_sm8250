@@ -96,7 +96,8 @@ bool cass_prime_cpu(const struct cass_cpu_cand *c)
 static __always_inline
 bool cass_cpu_better(const struct cass_cpu_cand *a,
 		     const struct cass_cpu_cand *b, unsigned long p_util,
-		     int this_cpu, int prev_cpu, int prev_llc_id, bool sync)
+		     int this_cpu, int prev_cpu, int prev_llc_id, bool sync,
+		     unsigned int *nr_cands)
 {
 #define cass_cmp(a, b) ({ res = (a) - (b); })
 #define cass_eq(a, b) ({ res = (a) == (b); })
@@ -159,8 +160,17 @@ bool cass_cpu_better(const struct cass_cpu_cand *a,
 
 	/* @a isn't a better CPU than @b. @res must be <=0 to indicate such. */
 done:
-	/* @a is a better CPU than @b if @res is positive */
-	return res > 0;
+	/* Strictly better candidate found, reset the reservoir counter */
+	if (res > 0) {
+		*nr_cands = 1;
+		return true;
+	}
+
+	/* Perfect tie, apply reservoir sampling for a 1/N chance to swap */
+	if (res == 0 && !reciprocal_scale(sched_rng(), ++(*nr_cands)))
+		return true;
+
+	return false;
 }
 
 static int cass_best_cpu(struct task_struct *p, int prev_cpu, bool sync, bool rt)
@@ -168,6 +178,7 @@ static int cass_best_cpu(struct task_struct *p, int prev_cpu, bool sync, bool rt
 	/* Initialize @best such that @best always has a valid CPU at the end */
 	struct cass_cpu_cand cands[2], *best = cands;
 	int this_cpu = raw_smp_processor_id();
+	unsigned int nr_cands = 1;
 	unsigned long p_util, uc_min;
 	bool has_idle = false;
 	int cidx = 0, cpu, prev_llc_id;
@@ -308,7 +319,7 @@ static int cass_best_cpu(struct task_struct *p, int prev_cpu, bool sync, bool rt
 		 */
 		if (best == curr ||
 		    cass_cpu_better(curr, best, p_util, this_cpu, prev_cpu,
-				    prev_llc_id, sync)) {
+				    prev_llc_id, sync, &nr_cands)) {
 			best = curr;
 			cidx ^= 1;
 		}
