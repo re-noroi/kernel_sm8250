@@ -77,8 +77,10 @@
 ## kthreads
 - theres a lot of these on the codebase even for mundane tasks
 
-## log / reminders
-- some kernels reads 'cold + noinline' as __init, which evicts our fn. avoid this combination.
-- some kernels have autistic inlining which also fucks up if we ever wanted to \__attribute\_\_((flatten)) (e.g. sultan and other 'optimization')
-- static_assert on fn ptr (e.g. static_assert(!!&kernel_read);) on clang < 14? fails. compiler thinks it has to prove constness, it works like assert(!!__builtin_constant_p(expr)) NOT assert(__builtin_constant_p(!!expr))
+## 'We need to see the compiler as an enemy' section.
+- constexpr is broken on clang < 19 even on -std=gnu23. IR generation fails.
+- gcc 4.9 has issues on casted designated init. [related](https://github.com/torvalds/linux/commit/e8c07082a810fbb9db303a2b66b66b8d7e588b53)
+- some have autistic inlining which will oom compilation for \__attribute\_\_((flatten)) (e.g. sultan). avoid.
+- some kernel+compiler combo reads \__attribute\_\_((cold, noinline)) as __init, which evicts our fn. avoid.
+- static_assert on fn ptr (e.g. static_assert(!!&fn);) on clang < 14? fails. compiler thinks it has to prove constness, it works like assert(!!__builtin_constant_p(fn)) NOT assert(__builtin_constant_p(!!fn))
 

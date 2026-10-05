@@ -173,12 +173,11 @@ static inline bool check_candidate(uintptr_t addr)
 {
 	struct security_operations *candidate = (struct security_operations *)addr;
 
-	char char_buf[sizeof("selinux")] = { 0 };
-
+	char char_buf[sizeof("selinux")];
 	if (copy_from_kernel_nofault(char_buf, (void *)addr, sizeof("selinux") ))
 		return false;
 
-	if (!!memcmp(char_buf, "selinux", sizeof("selinux")))
+	if (!!memcmp_inline(char_buf, "selinux", sizeof("selinux")))
 		return false;
 
 	// candidate found!

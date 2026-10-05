@@ -41,14 +41,14 @@ static void ksu_rename_observer_slow(struct dentry *old_dentry, struct dentry *n
 {
 	system_dir_inode_ptr = nullptr; // reset cached inode
 
-	char path[128] = { 0 };
+	char path[128];
 	char *buf = dentry_path_raw(new_dentry, path, sizeof(path) - 1);
 	if (IS_ERR(buf)) {
 		pr_err("dentry_path_raw failed.\n");
 		return;
 	}
 
-	if (!strstr(buf, "/system/packages.list"))
+	if (!strnstr(buf, "/system/packages.list", 128))
 		return;
 
 	pr_info("renameat: %s -> %s, new path: %s\n", old_dentry->d_iname, new_dentry->d_iname, buf);
