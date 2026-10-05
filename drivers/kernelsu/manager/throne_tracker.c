@@ -140,7 +140,7 @@ FILLDIR_RETURN_TYPE my_actor(MY_ACTOR_CTX_ARG, const char *name,
 
 static noinline void search_manager(const char *path, int depth, struct list_head *uid_data)
 {
-	int i, stop = 0;
+	int stop = 0;
 	struct list_head data_path_list;
 	INIT_LIST_HEAD(&data_path_list);
 	unsigned long data_app_magic = 0;
@@ -156,72 +156,69 @@ static noinline void search_manager(const char *path, int depth, struct list_hea
 	// we put the apk path we collected here
 	char *candidate_path = memory + sizeof(struct data_path);
 
-	for (i = depth; i >= 0; i--) {
-		struct data_path *pos, *n;
+	while (!list_empty(&data_path_list)) {
+		struct data_path *pos = list_first_entry(&data_path_list,
+							 struct data_path, list);
+		struct my_dir_context ctx = { .ctx.actor = my_actor,
+					      .data_path_list = &data_path_list,
+					      .parent_dir = pos->dirpath,
+					      .private_data = candidate_path,
+					      .depth = pos->depth,
+					      .stop = &stop };
 
-		list_for_each_entry_safe(pos, n, &data_path_list, list) {
-			struct my_dir_context ctx = { .ctx.actor = my_actor,
-						      .data_path_list = &data_path_list,
-						      .parent_dir = pos->dirpath,
-						      .private_data = candidate_path,
-						      .depth = pos->depth,
-						      .stop = &stop };
+		// destroy buffer on every iteration
+		candidate_path[0] = 0;
 
-			// destroy buffer on every iteration
-			candidate_path[0] = 0;
+		if (stop)
+			goto skip_iterate;
 
-			if (stop)
-				goto skip_iterate;
+		struct file *file = ksu_filp_open_nonotify(pos->dirpath, O_RDONLY | O_NOFOLLOW | O_NOATIME | O_DIRECTORY);
+		if (IS_ERR(file)) {
+			pr_err("Failed to open directory: %s, err: %ld\n", pos->dirpath, PTR_ERR(file));
+			goto skip_iterate;
+		}
 
-			struct file *file = file = ksu_filp_open_nonotify(pos->dirpath, O_RDONLY | O_NOFOLLOW | O_NOATIME | O_DIRECTORY);
-			if (IS_ERR(file)) {
-				pr_err("Failed to open directory: %s, err: %ld\n", pos->dirpath, PTR_ERR(file));
-				goto skip_iterate;
-			}
-
-			// grab magic on first folder, which is /data/app
-			if (!data_app_magic) {
-				if (ksu_get_magic(file)) {
-					data_app_magic = ksu_get_magic(file);
-					pr_info("%s: dir: %s got magic! 0x%lx\n", __func__, pos->dirpath, data_app_magic);
-				} else {
-					filp_close(file, NULL);
-					goto skip_iterate;
-				}
-			}
-				
-			if (ksu_get_magic(file) != data_app_magic) {
-				pr_info("%s: skip: %s magic: 0x%lx expected: 0x%lx\n", __func__, pos->dirpath, ksu_get_magic(file), data_app_magic);
+		// grab magic on first folder, which is /data/app
+		if (!data_app_magic) {
+			if (ksu_get_magic(file)) {
+				data_app_magic = ksu_get_magic(file);
+				pr_info("%s: dir: %s got magic! 0x%lx\n", __func__, pos->dirpath, data_app_magic);
+			} else {
 				filp_close(file, NULL);
 				goto skip_iterate;
 			}
-
-			iterate_dir(file, &ctx.ctx);
+		}
+			
+		if (ksu_get_magic(file) != data_app_magic) {
+			pr_info("%s: skip: %s magic: 0x%lx expected: 0x%lx\n", __func__, pos->dirpath, ksu_get_magic(file), data_app_magic);
 			filp_close(file, NULL);
+			goto skip_iterate;
+		}
 
-			// ^ oh so thats the issue!
-			// we were calling is_manager_apk inside iterate_dir
-			// now we defer file opens after iterate_dir
-			// this way we dont open apks while inside that
-			if (!strstarts(candidate_path, "/data/ap") )
-				goto skip_iterate;
+		iterate_dir(file, &ctx.ctx);
+		filp_close(file, NULL);
 
-			bool is_manager = is_manager_apk(candidate_path);
-			pr_info("Found new base.apk at path: %s, is_manager: %d\n", candidate_path, is_manager);
+		// ^ oh so thats the issue!
+		// we were calling is_manager_apk inside iterate_dir
+		// now we defer file opens after iterate_dir
+		// this way we dont open apks while inside that
+		if (!strstarts(candidate_path, "/data/ap") )
+			goto skip_iterate;
 
-			if (likely(!is_manager))
-				goto skip_iterate;
+		bool is_manager = is_manager_apk(candidate_path);
+		pr_info("Found new base.apk at path: %s, is_manager: %d\n", candidate_path, is_manager);
 
-			crown_manager(candidate_path, uid_data);
-			stop = 1;
+		if (likely(!is_manager))
+			goto skip_iterate;
+
+		crown_manager(candidate_path, uid_data);
+		stop = 1;
 
 skip_iterate:
-			list_del(&pos->list);
-			if (pos != data)
-				kfree(pos);
-		}
+		list_del(&pos->list);
+		if (pos != data)
+			kfree(pos);
 	}
-
 }
 
 static bool is_uid_exist(uid_t uid, char *package, void *data)
@@ -251,50 +248,55 @@ static void throne_tracker_fn(bool prune_only)
 	struct list_head uid_list;
 	INIT_LIST_HEAD(&uid_list);
 
-	char chr = 0;
 	loff_t pos = 0;
-	loff_t line_start = 0;
-	char buf[KSU_MAX_PACKAGE_NAME];
-	for (;;) {
-		ssize_t count = kernel_read(fp, &chr, sizeof(chr), &pos);
-		if (count != sizeof(chr))
-			break;
-		if (chr != '\n')
-			continue;
+	loff_t i_size = vfs_llseek(fp, 0, SEEK_END);
+	vfs_llseek(fp, 0, SEEK_SET);
 
-		count = kernel_read(fp, buf, sizeof(buf) - 1, &line_start);
-		if (count <= 0) {
-			break;
-		}
-		buf[count] = '\0';
+	if (i_size > 0) {
+		char *buf = kvmalloc(i_size + 1, GFP_KERNEL);
+		if (buf) {
+			ssize_t total_read = kernel_read(fp, buf, i_size, &pos);
+			if (total_read > 0) {
+				buf[total_read] = '\0';
+				char *line = buf;
+				while (line && *line) {
+					char *next_line = strchr(line, '\n');
+					if (next_line)
+						*next_line = '\0';
 
-		struct uid_data *data = kzalloc(sizeof(struct uid_data), GFP_KERNEL);
-		if (!data) {
-			filp_close(fp, 0);
-			goto out;
-		}
+					if (*line != '\0') {
+						char *tmp = line;
+						const char *delim = " ";
+						char *package = strsep(&tmp, delim);
+						char *uid = strsep(&tmp, delim);
+						if (package && uid) {
+							u32 res;
+							if (kstrtou32(uid, 10, &res)) {
+								pr_err("update_uid: uid parse err: %s\n", uid);
+								kvfree(buf);
+								filp_close(fp, 0);
+								goto out;
+							}
+							struct uid_data *data = kzalloc(sizeof(struct uid_data), GFP_KERNEL);
+							if (!data) {
+								pr_err("update_uid: OOM allocating uid_data!\n");
+								kvfree(buf);
+								filp_close(fp, 0);
+								goto out;
+							}
+							data->uid = res;
+							strscpy(data->package, package, sizeof(data->package));
+							list_add_tail(&data->list, &uid_list);
+						}
+					}
 
-		char *tmp = buf;
-		const char *delim = " ";
-		char *package = strsep(&tmp, delim);
-		char *uid = strsep(&tmp, delim);
-		if (!uid || !package) {
-			kfree(data);
-			pr_err("update_uid: package or uid is NULL!\n");
-			break;
+					if (!next_line)
+						break;
+					line = next_line + 1;
+				}
+			}
+			kvfree(buf);
 		}
-
-		u32 res;
-		if (kstrtou32(uid, 10, &res)) {
-			kfree(data);
-			pr_err("update_uid: uid parse err\n");
-			break;
-		}
-		data->uid = res;
-		strscpy(data->package, package, sizeof(data->package));
-		list_add_tail(&data->list, &uid_list);
-		// reset line start
-		line_start = pos;
 	}
 	filp_close(fp, 0);
 

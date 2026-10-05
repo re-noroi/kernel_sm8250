@@ -1,3 +1,9 @@
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0)
+#include <linux/unaligned.h>
+#else
+#include <asm/unaligned.h>
+#endif
+
 struct sdesc {
 	struct shash_desc shash;
 	char ctx[];
@@ -125,7 +131,7 @@ static __always_inline bool check_v2_signature(char *path, unsigned expected_siz
 	u32 zip64_locator_magic;
 	u64 size_of_block, size_of_block_at_head;
 
-	loff_t pos, pairs_end, file_size, eocd_offset;
+	loff_t pos, pairs_end, file_size, eocd_offset = -1;
 
 	bool v2_signing_valid = false;
 	int v2_signing_blocks = 0;
@@ -159,25 +165,55 @@ static __always_inline bool check_v2_signature(char *path, unsigned expected_siz
 	if (file_size < 0)
 		goto clean;
 
-	// https://en.wikipedia.org/wiki/Zip_(file_format)#End_of_central_directory_record_(EOCD)
-	for (i = 0;; ++i) {
-		unsigned short comment_size;
-		u32 magic;
-		pos = file_size - i - 2;
-		if (!read_exact(fp, &comment_size, sizeof(comment_size), &pos, file_size))
-			goto clean;
-		if (comment_size == i) {
-			pos -= 22;
-			if (!read_exact(fp, &magic, sizeof(magic), &pos, file_size))
-				goto clean;
-			if (magic == 0x06054b50) {
-				eocd_offset = pos - sizeof(magic);
-				break;
+	// Fast tail buffer search for EOCD magic
+	char eocd_buf[512] __aligned(8);
+	size_t read_len = (file_size < 512) ? (size_t)file_size : 512;
+	loff_t read_pos = file_size - read_len;
+	size_t total_tail_read = 0;
+
+	while (total_tail_read < read_len) {
+		ssize_t ret = kernel_read(fp, eocd_buf + total_tail_read,
+					  read_len - total_tail_read, &read_pos);
+		if (ret <= 0)
+			break;
+		total_tail_read += ret;
+	}
+
+	if (total_tail_read == read_len) {
+		int limit = (int)read_len - 22;
+		for (i = limit; i >= 0; i--) {
+			if (get_unaligned_le32(eocd_buf + i) == 0x06054b50) {
+				u16 comment_size = get_unaligned_le16(eocd_buf + i + 20);
+				if ((size_t)i + 22 + comment_size == read_len) {
+					eocd_offset = (file_size - read_len) + i;
+					break;
+				}
 			}
 		}
-		if (i == 0xffff) {
-			pr_info("error: cannot find eocd\n");
-			goto clean;
+	}
+
+	// Fallback byte scan if comment exceeds tail buffer
+	if (eocd_offset < 0) {
+		// https://en.wikipedia.org/wiki/Zip_(file_format)#End_of_central_directory_record_(EOCD)
+		for (i = 0;; ++i) {
+			unsigned short comment_size;
+			u32 magic;
+			pos = file_size - i - 2;
+			if (!read_exact(fp, &comment_size, sizeof(comment_size), &pos, file_size))
+				goto clean;
+			if (comment_size == i) {
+				pos -= 22;
+				if (!read_exact(fp, &magic, sizeof(magic), &pos, file_size))
+					goto clean;
+				if (magic == 0x06054b50) {
+					eocd_offset = pos - sizeof(magic);
+					break;
+				}
+			}
+			if (i == 0xffff) {
+				pr_info("error: cannot find eocd\n");
+				goto clean;
+			}
 		}
 	}
 
