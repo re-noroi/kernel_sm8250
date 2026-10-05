@@ -5780,8 +5780,17 @@ static bool shrink_node(pg_data_t *pgdat, struct scan_control *sc)
 	} while (should_continue_reclaim(pgdat, sc->nr_reclaimed - nr_reclaimed,
 					 sc->nr_scanned - nr_scanned, sc));
 
-	if (sc->priority < DEF_PRIORITY / 2)
-		simple_lmk_reclaim_needed(sc->order, !current_is_kswapd());
+#ifdef CONFIG_LRU_GEN
+	if (lru_gen_enabled()) {
+		if (sc->priority <= DEF_PRIORITY - 2 ||
+		    (sc->priority < DEF_PRIORITY && !reclaimable))
+			simple_lmk_reclaim_needed(sc->order, !current_is_kswapd());
+	} else
+#endif
+	{
+		if (sc->priority < DEF_PRIORITY / 2)
+			simple_lmk_reclaim_needed(sc->order, !current_is_kswapd());
+	}
 
 	/*
 	 * Kswapd gives up on balancing particular nodes after too
