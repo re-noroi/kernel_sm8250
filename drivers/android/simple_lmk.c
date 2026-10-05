@@ -410,7 +410,7 @@ static int simple_lmk_reclaim_thread(void *data)
 
 		target = kill_target(avail, total);
 		floor = PROTECT_ADJ;
-		if (critical || order > PAGE_ALLOC_COSTLY_ORDER || episode_kills) {
+		if (critical || order > PAGE_ALLOC_COSTLY_ORDER || episode_kills >= 2) {
 			pr_info_ratelimited("escalating below adj %d (critical=%d order=%d streak=%d)\n",
 					    PROTECT_ADJ, critical, order,
 					    episode_kills);
