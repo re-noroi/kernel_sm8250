@@ -108,7 +108,7 @@ config KSU_NOPRINTK
 	bool "disable ALL dmesg logging"
 	depends on KSU
 	depends on !KSU_DEBUG
-	default n
+	default y
 	help
 	  Disable KernelSU dmesg output.
 
