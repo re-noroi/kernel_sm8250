@@ -202,7 +202,8 @@
 
 static inline void ksu_print_build_info(void)
 {
-	pr_info("Initialized on: %s (%s) with ksuver: %s%s\n", UTS_RELEASE, UTS_MACHINE, __stringify(KSU_VERSION), EXTRA_FEATURES);
+	pr_info("welcome to KernelSU version " __stringify(KERNEL_SU_VERSION) ", package name " KSU_PACKAGE_NAME "\n");
+	pr_info("Initialized on: %s (%s)%s\n", UTS_RELEASE, UTS_MACHINE, EXTRA_FEATURES);
 
 #if defined(__VERSION__) && defined(__STDC_VERSION__)
 #if defined(__clang_version__)
