@@ -1115,7 +1115,7 @@ struct key *find_keyring_by_name(const char *name, bool uid_keyring)
 				    &keyring_name_hash[bucket],
 				    name_link
 				    ) {
-			if (!kuid_has_mapping(current_user_ns(), keyring->user->uid))
+			if (!kuid_has_mapping(current_user_ns(), keyring->uid))
 				continue;
 
 			if (test_bit(KEY_FLAG_REVOKED, &keyring->flags))
