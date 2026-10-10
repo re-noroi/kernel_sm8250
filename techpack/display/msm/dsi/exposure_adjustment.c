@@ -61,7 +61,10 @@ static int ea_panel_send_pcc(u32 bl_lvl)
 	pr_debug("%s: Backlight = %d\n", __func__, bl_lvl);
 
 	if (bl_lvl < ELVSS_OFF_THRESHOLD) {
-		ea_coeff = bl_lvl * PCC_BACKLIGHT_SCALE + EXPOSURE_ADJUSTMENT_MIN;
+		/* Divide after multiplying to keep the threshold continuous. */
+		ea_coeff = EXPOSURE_ADJUSTMENT_MIN +
+			DIV_ROUND_CLOSEST(bl_lvl * (EXPOSURE_ADJUSTMENT_MAX -
+			EXPOSURE_ADJUSTMENT_MIN), ELVSS_OFF_THRESHOLD);
 	} else {
 		ea_coeff = EXPOSURE_ADJUSTMENT_MAX;
 	}
