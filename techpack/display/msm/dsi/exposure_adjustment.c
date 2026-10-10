@@ -40,9 +40,10 @@ static int ea_panel_send_pcc(u32 bl_lvl)
 	struct dsi_display *display = NULL;
 	struct msm_drm_private *priv;
 	u32 ea_coeff;
-	uint64_t val;
 
- 	display = get_main_display();
+	display = get_main_display();
+	if (!display || !display->drm_conn || !display->drm_conn->state)
+		return -ENODEV;
 	crtc = display->drm_conn->state->crtc;
 	if (!crtc) {
 		pr_err("ERROR: Cannot find display panel with CRTC\n");
@@ -55,11 +56,6 @@ static int ea_panel_send_pcc(u32 bl_lvl)
 	if (prop == NULL) {
 		pr_err("FAIL! PCC is not supported!!?!?!\n");
 		return -EINVAL;
-	}
-
-	rc = sde_cp_crtc_get_property(crtc, prop, &val);
-	if (rc) {
-		pr_err("Cannot get CRTC property. Things may go wrong.\n");
 	}
 
 	pr_debug("%s: Backlight = %d\n", __func__, bl_lvl);
@@ -89,6 +85,8 @@ static int ea_panel_send_pcc(u32 bl_lvl)
 		pr_err("DSPP: Cannot set PCC: %d.\n", rc);
 	}
 
+	/* The color-processing node retains its own reference on success. */
+	drm_property_blob_put(blob);
 	return rc;
 }
 
