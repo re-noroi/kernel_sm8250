@@ -1323,10 +1323,8 @@ static int do_cpu_nanosleep(const clockid_t which_clock, int flags,
 		 */
 		expires = timer.it.cpu.expires;
 		error = posix_cpu_timer_set(&timer, 0, &zero_it, &it);
-		if (!error) {
-			/*
-			 * Timer is now unarmed, deletion can not fail.
-			 */
+		if (error != TIMER_RETRY) {
+			/* Unarmed or target gone (-ESRCH), deletion can not fail. */
 			posix_cpu_timer_del(&timer);
 		}
 		spin_unlock_irq(&timer.it_lock);
