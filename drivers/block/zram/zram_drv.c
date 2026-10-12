@@ -1756,9 +1756,9 @@ static int write_incompressible_page(struct zram *zram, struct page *page,
 	 * to do optimistic and fallback to pessimistic handle allocation,
 	 * like we do for compressible pages.
 	 */
-	handle = zram_zs_malloc(zram, PAGE_SIZE,
-				GFP_NOIO | __GFP_NOWARN |
-				__GFP_HIGHMEM | __GFP_MOVABLE);
+	handle = zs_malloc(zram->mem_pool, PAGE_SIZE,
+			   GFP_NOIO | __GFP_NOWARN |
+			   __GFP_HIGHMEM | __GFP_MOVABLE);
 	if (IS_ERR_VALUE(handle))
 		return PTR_ERR((void *)handle);
 
