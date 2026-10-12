@@ -1931,16 +1931,8 @@ static int _map_to_one_page(struct kgsl_pagetable *pt, uint64_t addr,
 	if (pages == NULL)
 		return -ENOMEM;
 
-	for (i = 0; i < count; i++) {
-		if (pg_sz != PAGE_SIZE) {
-			struct page *tmp_page = page;
-			int j;
-
-			for (j = 0; j < 16; j++, tmp_page += PAGE_SIZE)
-				pages[i++] = tmp_page;
-		} else
-			pages[i] = page;
-	}
+	for (i = 0; i < count; i++)
+		pages[i] = nth_page(page, i % (pg_sz >> PAGE_SHIFT));
 
 	ret = sg_alloc_table_from_pages(&sgt, pages, count,
 			0, size, GFP_KERNEL);
