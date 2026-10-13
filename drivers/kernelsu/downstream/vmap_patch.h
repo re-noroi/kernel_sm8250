@@ -16,15 +16,6 @@
 
 // vmap_patch.h safely write to read-only fn_ptr slots or syscall table.
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 5, 0) 
-static noinline void ksu_do_nothing(void *unused) { };
-__weak void kick_all_cpus_sync(void)
-{
-	smp_mb();
-	smp_call_function(ksu_do_nothing, NULL, 1);
-}
-#endif
-
 /**
  * normally we want this on stop_machine, but we don't need HARD synchronization
  * we just let !cpuX use what they have in cache while we patch what is on cpuX.

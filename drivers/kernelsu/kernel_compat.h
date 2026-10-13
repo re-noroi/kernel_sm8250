@@ -30,6 +30,19 @@
 #define WRITE_ONCE(x, y) (*(volatile typeof(x) __may_alias *)&(x) = (typeof(x) __may_alias)(y))
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 14, 0) && !defined(smp_store_release)
+#define smp_store_release(p, v) do { smp_mb(); WRITE_ONCE(*p, v); } while (0)
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 5, 0)
+static noinline void ksu_do_nothing(void *unused) { };
+__weak void kick_all_cpus_sync(void)
+{
+	smp_mb();
+	smp_call_function(ksu_do_nothing, NULL, 1);
+}
+#endif
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 12, 0)
 static void *ksu_kvmalloc(size_t size, gfp_t flags)
 {
@@ -128,8 +141,7 @@ static __always_inline long memmove_user(void __user *dst, const void __user *sr
 }
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0)
-static inline void ksu_memzero_explicit(void *s, size_t count) { memset_explicit(s, 0, count); }
-#define memzero_explicit ksu_memzero_explicit
+#define memzero_explicit(ptr, count) memset_explicit(ptr, 0, count)
 #endif
 
 #ifdef TIF_SECCOMP
@@ -178,7 +190,8 @@ static __nocfi struct file *ksu_dentry_open(const struct path *path, int flags, 
 	if (!__builtin_types_compatible_p(typeof(dentry_open), typeof(ksu_dentry_open)))
 		goto old_fn;
 
-	return ((typeof(ksu_dentry_open) *)&dentry_open)(path, flags, cred);
+	typeof(ksu_dentry_open) *fn_new = (void *)&dentry_open;
+	return fn_new(path, flags, cred);
 
 old_fn:; // old type: struct file * dentry_open(struct dentry *, struct vfsmount *, int, const struct cred *);
 	struct file *(*fn_old)(struct dentry *, struct vfsmount *, int, const struct cred *) = (void *)&dentry_open;
@@ -186,7 +199,7 @@ old_fn:; // old type: struct file * dentry_open(struct dentry *, struct vfsmount
 	 * old dentry_open consumes a reference regardless of failure or success (dput/mntput)
 	 * we have take one before calling it, else it releases caller's reference. see nameidata_to_filp
 	 */
-	path_get(path); 
+	path_get((struct path *)path); // unqual
 	return fn_old((*path).dentry, (*path).mnt, flags, cred);
 }
 #define dentry_open ksu_dentry_open
@@ -329,6 +342,17 @@ static ssize_t ksu_strscpy_pad(char *dest, const char *src, size_t count)
 	return written;
 }
 #define strscpy_pad ksu_strscpy_pad
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 16, 0)
+// https://elixir.bootlin.com/linux/v3.16/source/lib/string.c#L305
+static char *ksu_strchrnul(const char *s, int c)
+{
+	while (*s && *s != (char)c)
+		s++;
+	return (char *)s;
+}
+#define strchrnul ksu_strchrnul
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 0, 0)

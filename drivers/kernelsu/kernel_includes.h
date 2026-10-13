@@ -42,6 +42,7 @@
 #include <linux/anon_inodes.h>
 #include <linux/atomic.h>
 #include <linux/binfmts.h>
+#include <linux/bitmap.h>
 #include <linux/cache.h>
 #include <linux/capability.h>
 #include <linux/compat.h>
@@ -310,7 +311,7 @@ typedef typeof(nullptr) nullptr_t;
 #endif
 
 /**
- * hardcodable assumptions for micro-optimizations
+ * expr assumptions for micro-optimizations
  */
 #if defined(__clang__)
 #define assume(expr) __builtin_assume(expr)
@@ -321,6 +322,24 @@ typedef typeof(nullptr) nullptr_t;
 	if (unlikely(!(expr)))			\
 		__builtin_unreachable();	\
 } while (0)
+#endif
+
+/**
+ * *ptr + sizeof(*ptr) assumptions for micro-optimizations
+ */
+#if defined(__clang__) && __has_builtin(__builtin_assume_dereferenceable)
+#define assume_dereferenceable(ptr, size) __builtin_assume_dereferenceable(ptr, size)
+#else
+#define assume_dereferenceable(ptr, size) do { } while (0)
+#endif
+
+/**
+ * restriction assumptions for micro-optimizations
+ */
+#if defined(__clang__) && __has_builtin(__builtin_assume_separate_storage)
+#define assume_restricted(ptr1, ptr2) __builtin_assume_separate_storage(ptr1, ptr2)
+#else
+#define assume_restricted(ptr1, ptr2) do { } while (0)
 #endif
 
 /**

@@ -96,15 +96,14 @@ KEEP_SYMBOL int ksu_vfs_statx(int dfd, struct filename *restrict filename, int f
 
 	// see sucompat.c
 	constexpr char su[16] = SU_PATH;
-#if 0
-	uint128_t *su128 = (uint128_t *)su;
-	uint128_t *fn128 = (uint128_t *)*(char **)filename_ptr;
-	const uint128_t mask = make128const(0x00FFFFFFFFFFFFFFULL, 0xFFFFFFFFFFFFFFFFULL);
-	if (likely((*fn128 & mask) != (*su128 & mask)))
-		return;
-#endif
 	uint64_t *su_p = (uint64_t *)su;
 	uint64_t *fn_p = (uint64_t *)filename_ptr;
+
+	// getname_flags pads this so nothing to worry about
+	assume_restricted((void *)su_p, (void *)fn_p);
+	assume_dereferenceable((void *)fn_p, 16);
+
+	// https://godbolt.org/z/j8Yovv6bE
 	if (likely((fn_p[1] & 0x00FFFFFFFFFFFFFFULL) != (su_p[1] & 0x00FFFFFFFFFFFFFFULL)))
 		goto orig_fn;
 

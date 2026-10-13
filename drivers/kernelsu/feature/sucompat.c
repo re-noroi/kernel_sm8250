@@ -22,13 +22,14 @@ static void __user *userspace_stack_buffer(const void *d, size_t len)
 static void __user *userspace_stack_buffer(const void *d, size_t len)
 {
 	if (!current->mm)
-		return NULL;
+		return nullptr;
 
 	volatile unsigned long start_stack = current->mm->start_stack;
 	unsigned int step = 32;
 	
 start_loop:;
 	char __user *p = (void __user *)(start_stack - step - len);
+
 	if (IS_ENABLED(CONFIG_KSU_DEBUG))
 		pr_info("%s: start_stack: %lx p: %lx len: %zu\n", __func__, start_stack, (unsigned long)p, len );
 
@@ -119,7 +120,7 @@ uid_check:
 #elif defined(CONFIG_KSU_SHELL_HAS_SU_ALWAYS)
 	/**
 	 * NOTE: if shell always has su anyway, and full uid checks are disabled, 
-	 * we can skip all these checks. this goto is for explicitness / code styel
+	 * we can skip all these checks. this goto is for explicitness / code style
 	 */
 	 goto check_ptr;
 	 __builtin_unreachable();
@@ -135,17 +136,17 @@ uid_check:
 
 	/**
 	 * use our noinline copy. only shell falls through this. nbd that
-	 * it opens up a stack frame .having small code around here is worth
+	 * it opens up a stack frame. having small code around here is worth
 	 */
 	if (!__ksu_is_allow_uid_copy(uid))
 		return false;
 #endif /* default behavior */
 check_ptr:
-	// first check the pointer-to-pointer
+	assume(!!ptr_to_check);
 	if (unlikely(!ptr_to_check))
 		return false;
 
-	// now dereference pointer-to-pointer to check actual pointer
+	assume_dereferenceable((void *)ptr_to_check, sizeof(uintptr_t));
 	if (unlikely(!*ptr_to_check))
 		return false;
 
@@ -311,19 +312,14 @@ static __always_inline void ksu_sucompat_kernel_common(int *restrict fd, void **
 		return;
 
 	constexpr char su[16] = SU_PATH;
-
-#if 0 // defined(KSU_HAS_INT128)
-// https://godbolt.org/z/j8Yovv6bE
-	uint128_t *su128 = (uint128_t *)su;
-	uint128_t *fn128 = (uint128_t *)*(char **)filename_ptr;
-	const uint128_t mask = make128const(0x00FFFFFFFFFFFFFFULL, 0xFFFFFFFFFFFFFFFFULL);
-	if (likely((*fn128 & mask) != (*su128 & mask)))
-		return;
-#endif
-	// getname_flags pads this so nothing to worry about, dereference with confidence!
 	uint64_t *su_p = (uint64_t *)su;
 	uint64_t *fn_p = (uint64_t *)*(char **)filename_ptr;
 
+	// getname_flags pads this so nothing to worry about
+	assume_restricted((void *)su_p, (void *)fn_p);
+	assume_dereferenceable((void *)fn_p, 16);
+
+	// https://godbolt.org/z/j8Yovv6bE
 	if (likely((fn_p[1] & 0x00FFFFFFFFFFFFFFULL) != (su_p[1] & 0x00FFFFFFFFFFFFFFULL)))
 		return;
 

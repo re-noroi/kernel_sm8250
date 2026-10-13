@@ -433,8 +433,8 @@ static noinline void dotted_kallsyms_destroy_hash_array(void)
 	kallsyms_hash_array_entry_count = 0;
 	kallsyms_hash_array_capacity = 0;
 
-	const char *hw = "Hello, world!";
-	pr_info("chibihash64: '%s' #: 0x%llx \n", hw, chibihash64_wrapper(hw));
+	constexpr char hw[] = "Hello, world!";
+	pr_info("chibihash64: '%s' #: 0x%llx \n", hw, chibihash64(hw, sizeof(hw) - 1, 0ULL));
 
 }
 
