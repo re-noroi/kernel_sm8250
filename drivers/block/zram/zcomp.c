@@ -132,6 +132,8 @@ struct zcomp_strm *zcomp_stream_get(struct zcomp *comp)
 			preempt_disable();
 		if (likely(zstrm->buffer))
 			return zstrm;
+		if (!comp->ops->async && !IS_ENABLED(CONFIG_PREEMPT_RT))
+			preempt_enable();
 		mutex_unlock(&zstrm->lock);
 	}
 }
