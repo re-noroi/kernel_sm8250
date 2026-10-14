@@ -661,6 +661,8 @@ static int snd_soc_clip_to_platform_max(struct snd_kcontrol *kctl)
 		uctl->value.integer.value[1] = mc->platform_max;
 
 	ret = kctl->put(kctl, uctl);
+	if (ret >= 0)
+		ret = 0;
 
 out:
 	kfree(uctl);
