@@ -476,8 +476,8 @@ int smp_call_function_any(const struct cpumask *mask,
 	/* Any online will do: smp_call_function_single handles nr_cpu_ids. */
 	cpu = cpumask_any_and(mask, cpu_online_mask);
 call:
-	ret = smp_call_function_single(cpu, func, info, wait);
 	put_cpu();
+	ret = smp_call_function_single(cpu, func, info, wait);
 	return ret;
 }
 EXPORT_SYMBOL_GPL(smp_call_function_any);
@@ -881,22 +881,30 @@ void on_each_cpu_cond(bool (*cond_func)(int cpu, void *info),
 		for_each_online_cpu(cpu)
 			if (cond_func(cpu, info))
 				cpumask_set_cpu(cpu, cpus);
-		on_each_cpu_mask(cpus, func, info, wait);
 		preempt_enable();
+
+		/*
+		 * on_each_cpu_mask() handles its own CPU pinning and releases
+		 * preemption before the wait. We no longer hold it here.
+		 */
+		on_each_cpu_mask(cpus, func, info, wait);
 		free_cpumask_var(cpus);
 	} else {
 		/*
 		 * No free cpumask, bother. No matter, we'll
 		 * just have to IPI them one by one.
 		 */
-		preempt_disable();
-		for_each_online_cpu(cpu)
+		for_each_online_cpu(cpu) {
+			preempt_disable();
 			if (cond_func(cpu, info)) {
+				preempt_enable();
 				ret = smp_call_function_single(cpu, func,
 								info, wait);
 				WARN_ON_ONCE(ret);
+			} else {
+				preempt_enable();
 			}
-		preempt_enable();
+		}
 	}
 }
 EXPORT_SYMBOL(on_each_cpu_cond);
