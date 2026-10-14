@@ -502,6 +502,86 @@ EXPORT_SYMBOL_GPL(smp_call_function_any);
 #define SCF_PRIVATE_WAIT_MASK	0
 #endif
 
+static void __smp_call_function_many(const struct cpumask *mask,
+				     smp_call_func_t func, void *info,
+				     bool wait, bool run_local)
+{
+	struct call_function_data *cfd;
+	int cpu, next_cpu, this_cpu;
+	struct cpumask *wait_mask;
+	bool run_remote = false;
+#if SCF_PRIVATE_WAIT_MASK
+	cpumask_t wait_mask_stack;
+#endif
+
+	this_cpu = get_cpu();
+
+	WARN_ON_ONCE(cpu_online(this_cpu) && irqs_disabled()
+		     && !oops_in_progress && !early_boot_irqs_disabled);
+
+	cfd = this_cpu_ptr(&cfd_data);
+#if SCF_PRIVATE_WAIT_MASK
+	wait_mask = &wait_mask_stack;
+#else
+	wait_mask = cfd->cpumask;
+#endif
+
+	cpumask_and(wait_mask, mask, cpu_online_mask);
+	__cpumask_clear_cpu(this_cpu, wait_mask);
+
+	if (likely(cpumask_weight(wait_mask))) {
+		run_remote = true;
+
+		/* Fastpath: do that cpu by itself. */
+		if (!run_local) {
+			cpu = cpumask_first(wait_mask);
+			next_cpu = cpumask_next(cpu, wait_mask);
+			if (next_cpu >= nr_cpu_ids) {
+				put_cpu();
+				smp_call_function_single(cpu, func, info, wait);
+				return;
+			}
+		}
+
+		cpumask_clear(cfd->cpumask_ipi);
+		for_each_cpu(cpu, wait_mask) {
+			call_single_data_t *csd = per_cpu_ptr(cfd->csd, cpu);
+
+			csd_lock(csd);
+			if (wait)
+				csd->flags |= CSD_TYPE_SYNC;
+			csd->func = func;
+			csd->info = info;
+			if (llist_add(&csd->llist, &per_cpu(call_single_queue, cpu)))
+				__cpumask_set_cpu(cpu, cfd->cpumask_ipi);
+		}
+
+		arch_send_call_function_ipi_mask(cfd->cpumask_ipi);
+	}
+
+	/* Execute locally while preemption is still disabled to prevent migration */
+	if (run_local && cpumask_test_cpu(this_cpu, mask)) {
+		unsigned long flags;
+		local_irq_save(flags);
+		func(info);
+		local_irq_restore(flags);
+	}
+
+	/* Drop preemption BEFORE the potentially long wait */
+	if (SCF_PRIVATE_WAIT_MASK)
+		put_cpu();
+
+	if (run_remote && wait) {
+		for_each_cpu(cpu, wait_mask) {
+			call_single_data_t *csd = per_cpu_ptr(cfd->csd, cpu);
+			csd_lock_wait(csd);
+		}
+	}
+
+	if (!SCF_PRIVATE_WAIT_MASK)
+		put_cpu();
+}
+
 /**
  * smp_call_function_many(): Run a function on a set of other CPUs.
  * @mask: The set of cpus to run on (only runs on online subset).
@@ -524,100 +604,7 @@ EXPORT_SYMBOL_GPL(smp_call_function_any);
 void smp_call_function_many(const struct cpumask *mask,
 			    smp_call_func_t func, void *info, bool wait)
 {
-	struct call_function_data *cfd;
-	int cpu, next_cpu, this_cpu;
-	struct cpumask *wait_mask;
-#if SCF_PRIVATE_WAIT_MASK
-	cpumask_t wait_mask_stack;
-#endif
-
-	this_cpu = get_cpu();
-
-	/*
-	 * Can deadlock when called with interrupts disabled.
-	 * We allow cpu's that are not yet online though, as no one else can
-	 * send smp call function interrupt to this cpu and as such deadlocks
-	 * can't happen.
-	 */
-	WARN_ON_ONCE(cpu_online(this_cpu) && irqs_disabled()
-		     && !oops_in_progress && !early_boot_irqs_disabled);
-
-	/* Try to fastpath.  So, what's a CPU they want? Ignoring this one. */
-	cpu = cpumask_first_and(mask, cpu_online_mask);
-	if (cpu == this_cpu)
-		cpu = cpumask_next_and(cpu, mask, cpu_online_mask);
-
-	/* No online cpus?  We're done. */
-	if (cpu >= nr_cpu_ids)
-		goto out;
-
-	/* Do we have another CPU which isn't us? */
-	next_cpu = cpumask_next_and(cpu, mask, cpu_online_mask);
-	if (next_cpu == this_cpu)
-		next_cpu = cpumask_next_and(next_cpu, mask, cpu_online_mask);
-
-	/* Fastpath: do that cpu by itself. */
-	if (next_cpu >= nr_cpu_ids) {
-		put_cpu();
-		smp_call_function_single(cpu, func, info, wait);
-		return;
-	}
-
-	cfd = this_cpu_ptr(&cfd_data);
-#if SCF_PRIVATE_WAIT_MASK
-	wait_mask = &wait_mask_stack;
-#else
-	wait_mask = cfd->cpumask;
-#endif
-
-	cpumask_and(wait_mask, mask, cpu_online_mask);
-	__cpumask_clear_cpu(this_cpu, wait_mask);
-
-	/* Some callers race with other cpus changing the passed mask */
-	if (unlikely(!cpumask_weight(wait_mask)))
-		goto out;
-
-	cpumask_clear(cfd->cpumask_ipi);
-	for_each_cpu(cpu, wait_mask) {
-		call_single_data_t *csd = per_cpu_ptr(cfd->csd, cpu);
-
-		csd_lock(csd);
-		if (wait)
-			csd->flags |= CSD_TYPE_SYNC;
-		csd->func = func;
-		csd->info = info;
-		if (llist_add(&csd->llist, &per_cpu(call_single_queue, cpu)))
-			__cpumask_set_cpu(cpu, cfd->cpumask_ipi);
-	}
-
-	/* Send a message to all CPUs in the map */
-	arch_send_call_function_ipi_mask(cfd->cpumask_ipi);
-
-	/*
-	 * The IPIs are on their way and @wait_mask is private to this call, so
-	 * this CPU no longer needs to be pinned. @cfd itself addresses static
-	 * per-CPU memory and cfd->csd is allocated once and never freed (see
-	 * smpcfd_prepare_cpu()), so both stay valid below even if this CPU is
-	 * taken offline while we wait.
-	 */
-	if (SCF_PRIVATE_WAIT_MASK)
-		put_cpu();
-
-	if (wait) {
-		for_each_cpu(cpu, wait_mask) {
-			call_single_data_t *csd;
-
-			csd = per_cpu_ptr(cfd->csd, cpu);
-			csd_lock_wait(csd);
-		}
-	}
-
-	if (!SCF_PRIVATE_WAIT_MASK)
-		put_cpu();
-	return;
-
-out:
-	put_cpu();
+	__smp_call_function_many(mask, func, info, wait, false);
 }
 EXPORT_SYMBOL(smp_call_function_many);
 
@@ -795,16 +782,8 @@ void __init smp_init(void)
  */
 int on_each_cpu(void (*func) (void *info), void *info, int wait)
 {
-	unsigned long flags;
-	int ret = 0;
-
-	preempt_disable();
-	ret = smp_call_function(func, info, wait);
-	local_irq_save(flags);
-	func(info);
-	local_irq_restore(flags);
-	preempt_enable();
-	return ret;
+	on_each_cpu_mask(cpu_online_mask, func, info, wait);
+	return 0;
 }
 EXPORT_SYMBOL(on_each_cpu);
 
@@ -827,16 +806,7 @@ EXPORT_SYMBOL(on_each_cpu);
 void on_each_cpu_mask(const struct cpumask *mask, smp_call_func_t func,
 			void *info, bool wait)
 {
-	int cpu = get_cpu();
-
-	smp_call_function_many(mask, func, info, wait);
-	if (cpumask_test_cpu(cpu, mask)) {
-		unsigned long flags;
-		local_irq_save(flags);
-		func(info);
-		local_irq_restore(flags);
-	}
-	put_cpu();
+	__smp_call_function_many(mask, func, info, wait, true);
 }
 EXPORT_SYMBOL(on_each_cpu_mask);
 
