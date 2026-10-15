@@ -753,6 +753,9 @@ struct task_struct {
 	 */
 	int				recent_used_cpu;
 	int				wake_cpu;
+	/* CPU charged while in_iowait. */
+	int				iowait_cpu;
+	int				iowait_started;
 #endif
 	int				on_rq;
 

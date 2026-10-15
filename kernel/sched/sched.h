@@ -2165,11 +2165,6 @@ static inline void __block_task(struct rq *rq, struct task_struct *p)
 	if (p->sched_contributes_to_load)
 		rq->nr_uninterruptible++;
 
-	if (p->in_iowait) {
-		atomic_inc(&rq->nr_iowait);
-		delayacct_blkio_start();
-	}
-
 	/*
 	 * The moment this write goes through, ttwu() can swoop in and migrate
 	 * this task, rendering our rq->__lock ineffective.
