@@ -47,10 +47,7 @@ static int xfrm6_local_dontfrag(struct sk_buff *skb)
 static void xfrm6_local_rxpmtu(struct sk_buff *skb, u32 mtu)
 {
 	struct flowi6 fl6;
-	struct sock *sk = skb_to_full_sk(skb);
-
-	if (!sk)
-		return;
+	struct sock *sk = skb->sk;
 
 	fl6.flowi6_oif = sk->sk_bound_dev_if;
 	fl6.daddr = ipv6_hdr(skb)->daddr;
@@ -62,10 +59,7 @@ void xfrm6_local_error(struct sk_buff *skb, u32 mtu)
 {
 	struct flowi6 fl6;
 	const struct ipv6hdr *hdr;
-	struct sock *sk = skb_to_full_sk(skb);
-
-	if (!sk)
-		return;
+	struct sock *sk = skb->sk;
 
 	hdr = skb->encapsulation ? inner_ipv6_hdr(skb) : ipv6_hdr(skb);
 	fl6.fl6_dport = inet_sk(sk)->inet_dport;
