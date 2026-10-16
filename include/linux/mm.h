@@ -559,6 +559,8 @@ static inline void vma_init_lock(struct vm_area_struct *vma)
  */
 static inline bool vma_start_read(struct vm_area_struct *vma)
 {
+	int vm_lock_seq;
+
 	/*
 	 * Check before locking. A race might cause false locked result.
 	 * We can use READ_ONCE() for the mm_lock_seq here, and don't need
@@ -573,7 +575,6 @@ static inline bool vma_start_read(struct vm_area_struct *vma)
 		return false;
 
 	/*
-	 * Overflow might produce false locked result.
 	 * False unlocked result is impossible because we modify and check
 	 * vma->vm_lock_seq under vma->lock protection and mm->mm_lock_seq
 	 * modification invalidates all existing locks.
@@ -582,8 +583,14 @@ static inline bool vma_start_read(struct vm_area_struct *vma)
 	 * racing with vma_end_write_all(), we only start reading from the VMA
 	 * after it has been unlocked.
 	 * This pairs with RELEASE semantics in vma_end_write_all().
+	 *
+	 * vm_lock_seq needs ACQUIRE semantics too: __mm_reset_vma_seqcounts()
+	 * may store -1 after a wrap, and a reader observing that value must
+	 * also observe the VMA modifications made under the write lock which
+	 * just ended. Pairs with the smp_wmb() in __mm_reset_vma_seqcounts().
 	 */
-	if (unlikely(vma->vm_lock_seq == smp_load_acquire(&vma->vm_mm->mm_lock_seq))) {
+	vm_lock_seq = smp_load_acquire(&vma->vm_lock_seq);
+	if (unlikely(vm_lock_seq == smp_load_acquire(&vma->vm_mm->mm_lock_seq))) {
 		up_read(&vma->lock);
 		return false;
 	}

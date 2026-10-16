@@ -36,17 +36,38 @@ static inline void mmap_assert_write_locked(struct mm_struct *mm)
  * If you want to call this manually anyway, keep in mind that this will release
  * *all* VMA write locks, including ones from further up the stack.
  */
+void __mm_reset_vma_seqcounts(struct mm_struct *mm);
+
 static inline void vma_end_write_all(struct mm_struct *mm)
 {
+	int seq;
+
 	mmap_assert_write_locked(mm);
 	/*
 	 * Nobody can concurrently modify mm->mm_lock_seq due to exclusive
 	 * mmap_write_lock being held.
+	 * -1 is the vm_lock_seq of a never write-locked VMA and the value
+	 * __mm_reset_vma_seqcounts() stores, so mm_lock_seq must never take it.
+	 */
+	seq = mm->mm_lock_seq + 1;
+	if (unlikely(seq == -1))
+		seq = 0;
+	/*
 	 * We need RELEASE semantics here to ensure that preceding stores into
 	 * the VMA take effect before we unlock it with this store.
 	 * Pairs with ACQUIRE semantics in vma_start_read().
 	 */
-	smp_store_release(&mm->mm_lock_seq, mm->mm_lock_seq + 1);
+	smp_store_release(&mm->mm_lock_seq, seq);
+
+	/*
+	 * VMA seqcounts are not updated on unlock, so once mm_lock_seq has
+	 * wrapped, a VMA still carrying a value from before the wrap would look
+	 * write-locked when that value comes round again, and vma_start_write()
+	 * would then not exclude readers. Reset every VMA's seqcount so that no
+	 * stale value survives the wrap.
+	 */
+	if (unlikely(!seq))
+		__mm_reset_vma_seqcounts(mm);
 }
 #else
 static inline void vma_end_write_all(struct mm_struct *mm) {}

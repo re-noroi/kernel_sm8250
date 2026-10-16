@@ -4542,6 +4542,31 @@ inval:
 	count_vm_vma_lock_event(VMA_LOCK_ABORT);
 	return NULL;
 }
+
+/*
+ * Called from vma_end_write_all() with the mmap write lock held, after
+ * mm->mm_lock_seq wrapped to zero and all VMA write locks were released.
+ * Store -1 (never used as an mm_lock_seq) into every VMA so that no stale
+ * vm_lock_seq can alias mm_lock_seq later in the new cycle.
+ *
+ * Readers observe either -1 (not write-locked) or the previous value, which
+ * now differs from mm_lock_seq or equals a stale zero (spurious fallback).
+ * No other writer can run: the mmap write lock is still held.
+ */
+void __mm_reset_vma_seqcounts(struct mm_struct *mm)
+{
+	struct vm_area_struct *vma;
+	VMA_ITERATOR(vmi, mm, 0);
+
+	mmap_assert_write_locked(mm);
+	VM_WARN_ON_ONCE(mm->mm_lock_seq);
+
+	/* Order this cycle's VMA modifications before the reset stores. */
+	smp_wmb();
+	for_each_vma(vmi, vma)
+		WRITE_ONCE(vma->vm_lock_seq, -1);
+}
+EXPORT_SYMBOL(__mm_reset_vma_seqcounts);
 #endif /* CONFIG_PER_VMA_LOCK */
 
 #ifndef __PAGETABLE_P4D_FOLDED
