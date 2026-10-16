@@ -25,12 +25,12 @@
 #include <linux/llc.h>
 #include <linux/slab.h>
 
-static int llc_mac_header_len(struct net_device *dev)
+static int llc_mac_header_len(unsigned short devtype)
 {
-	switch (dev->type) {
+	switch (devtype) {
 	case ARPHRD_ETHER:
 	case ARPHRD_LOOPBACK:
-		return LL_RESERVED_SPACE(dev);
+		return sizeof(struct ethhdr);
 	}
 	return 0;
 }
@@ -50,7 +50,7 @@ struct sk_buff *llc_alloc_frame(struct sock *sk, struct net_device *dev,
 	int hlen = type == LLC_PDU_TYPE_U ? 3 : 4;
 	struct sk_buff *skb;
 
-	hlen += llc_mac_header_len(dev);
+	hlen += llc_mac_header_len(dev->type);
 	skb = alloc_skb(hlen + data_size, GFP_ATOMIC);
 
 	if (skb) {
