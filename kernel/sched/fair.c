@@ -3691,11 +3691,14 @@ static void reweight_eevdf(struct cfs_rq *cfs_rq, struct sched_entity *se,
 	update_load_set(&se->h_load, weight);
 
 	if (on_rq) {
-		if (rel_vprot)
-			se->vprot += avruntime;
 		se->deadline += avruntime;
 		se->rel_deadline = 0;
 		se->vruntime = avruntime - se->vlag;
+
+		if (rel_vprot)
+			se->vprot += avruntime;
+		else if (curr)
+			se->vprot = se->vruntime;
 
 		if (!curr)
 			__enqueue_entity(cfs_rq, se);
@@ -6614,6 +6617,14 @@ enqueue_task_fair(struct rq *rq, struct task_struct *p, int flags)
 	if (!curr) {
 		reweight_eevdf(cfs_rq, se, weight, false);
 		place_entity(cfs_rq, se, flags | ENQUEUE_QUEUED);
+		/*
+		 * During a sched_change pattern, current is dequeued and
+		 * cfs_rq->curr becomes NULL while rq->curr == p. As all
+		 * properties can change, cancel slice protection which is
+		 * not reliable anymore.
+		 */
+		if (task_current(rq, p))
+			cancel_protect_slice(se);
 		__enqueue_entity(cfs_rq, se);
 	}
 
