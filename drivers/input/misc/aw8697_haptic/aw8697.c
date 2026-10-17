@@ -4098,7 +4098,7 @@ static int aw8697_parse_dt_common(struct device *dev, struct aw8697 *aw8697,
 				  struct device_node *np)
 {
 	unsigned int val = 0;
-	unsigned int rtp_time[175];
+	unsigned int rtp_time[AW8697_RTP_TIME_MAX];
 	struct qti_hap_config *config = &aw8697->config;
 	struct device_node *child_node;
 	struct qti_hap_effect *effect;
@@ -4131,11 +4131,22 @@ static int aw8697_parse_dt_common(struct device *dev, struct aw8697 *aw8697,
 	if (val != 0)
 		pr_debug("vib_f0_cali_percen not found\n");
 
-	val =
-	    of_property_read_u32_array(np, "vib_rtp_time", rtp_time,
-				       ARRAY_SIZE(rtp_time));
-	if (val != 0)
+	/* vib_rtp_time is indexed by effect id, so read however many entries the
+	 * DT provides and leave the rest zero. A short property is valid: every
+	 * id at or above the provided count reports a zero duration, which only
+	 * affects the value echoed back through FF_CUSTOM.
+	 */
+	memset(rtp_time, 0, sizeof(rtp_time));
+	rc = of_property_count_u32_elems(np, "vib_rtp_time");
+	if (rc > 0) {
+		if (rc > ARRAY_SIZE(rtp_time))
+			rc = ARRAY_SIZE(rtp_time);
+		val = of_property_read_u32_array(np, "vib_rtp_time", rtp_time, rc);
+		if (val != 0)
+			pr_debug("%s vib_rtp_time read failed\n", __func__);
+	} else {
 		pr_debug("%s vib_rtp_time not found\n", __func__);
+	}
 	memcpy(aw8697->info.rtp_time, rtp_time, sizeof(rtp_time));
 
 	val =
@@ -4288,7 +4299,7 @@ static int aw8697_parse_dt_common(struct device *dev, struct aw8697 *aw8697,
 		effect->brake_pattern_length = tmp;
 	}
 
-	for (j = 0; j < 175; j++)
+	for (j = 0; j < ARRAY_SIZE(aw8697->info.rtp_time); j++)
 		aw_dev_info(aw8697->dev,
 			    "20190420_dt aw8697->info.rtp_time[%d]: %d\n", j,
 			    aw8697->info.rtp_time[j]);
