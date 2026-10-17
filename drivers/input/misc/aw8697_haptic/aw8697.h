@@ -507,6 +507,9 @@ struct aw8697 {
 	int effect_id;
 	int test_val;
 	int is_custom_wave;
+	/* Set when the HAL supplies an explicit RAM gain with the waveform. */
+	bool ram_gain_override;
+	u8 ram_gain;
 #endif
 };
 

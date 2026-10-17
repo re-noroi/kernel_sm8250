@@ -41,6 +41,7 @@
 #include "aw8697_reg.h"
 #include "aw869xx_reg.h"
 #include "aw8697.h"
+#include "aw8697_gain.h"
 #include  "ringbuffer.h"
 
 
@@ -2090,7 +2091,8 @@ static int aw8697_haptic_play_effect_seq(struct aw8697 *aw8697,
 				aw8697_haptic_set_bst_vol(aw8697, aw8697->vmax);
 
 			aw8697_haptic_effect_strength(aw8697);
-			aw8697_haptic_set_gain(aw8697, aw8697->level);
+			aw8697_haptic_set_gain(aw8697, aw8697->ram_gain_override ?
+					     aw8697->ram_gain : aw8697->level);
 			aw8697_haptic_start(aw8697);
 		}
 		if (aw8697->activate_mode ==
@@ -4619,6 +4621,8 @@ static int aw8697_haptics_upload_effect(struct input_dev *dev,
 	struct aw8697 *aw8697 = input_get_drvdata(dev);
 	struct qti_hap_play_info *play = &aw8697->play;
 	s16 data[CUSTOM_DATA_LEN];
+	s16 gain_word;
+	int gain = -1;
 	ktime_t rem;
 	s64 time_us;
 	int ret;
@@ -4666,10 +4670,35 @@ static int aw8697_haptics_upload_effect(struct input_dev *dev,
 		}
 
 		pr_debug("%s: effect_type is  FF_PERIODIC!\n", __func__);
+		/* Accept the legacy six-byte declaration plus the negotiated
+		 * eight-byte direct RAM gain extension.
+		 */
+		if (effect->u.periodic.waveform != FF_CUSTOM ||
+		    (effect->u.periodic.custom_len != sizeof(data) &&
+		     effect->u.periodic.custom_len != sizeof(data) + sizeof(gain_word))) {
+			mutex_unlock(&aw8697->lock);
+			return -EINVAL;
+		}
 		if (copy_from_user(data, effect->u.periodic.custom_data,
 				   sizeof(s16) * CUSTOM_DATA_LEN)) {
 			mutex_unlock(&aw8697->lock);
 			return -EFAULT;
+		}
+		if (effect->u.periodic.custom_len == sizeof(data) + sizeof(gain_word)) {
+			if (copy_from_user(&gain_word,
+					   effect->u.periodic.custom_data + CUSTOM_DATA_LEN,
+					   sizeof(gain_word))) {
+				mutex_unlock(&aw8697->lock);
+				return -EFAULT;
+			}
+			gain = aw8697_decode_ram_gain(gain_word);
+			/* Gain applies to the RAM bank only; RTP streams the
+			 * samples verbatim and must not carry a gain word.
+			 */
+			if (gain < 0 || data[0] >= aw8697->info.effect_id_boundary) {
+				mutex_unlock(&aw8697->lock);
+				return -EINVAL;
+			}
 		}
 
 		aw8697->effect_id = data[0];
@@ -4683,41 +4712,54 @@ static int aw8697_haptics_upload_effect(struct input_dev *dev,
 			return 0;
 		}
 		aw8697->is_custom_wave = 0;
+		aw8697->ram_gain_override = gain >= 0;
+		if (gain >= 0)
+			aw8697->ram_gain = gain;
 
 		if (aw8697->effect_id < aw8697->info.effect_id_boundary) {
+			unsigned int us;
+
 			aw8697->activate_mode = AW8697_HAPTIC_ACTIVATE_RAM_MODE;
 			pr_debug("%s: aw8697->effect_id=%d",
 					"aw8697->activate_mode = %d\n",
 					__func__, aw8697->effect_id,
 					aw8697->activate_mode);
+			us = aw8697->predefined[aw8697->effect_id].play_rate_us;
 			/*second data*/
-			data[1] =
-			aw8697->predefined[aw8697->effect_id].play_rate_us/1000000;
-			/*millisecond data*/
-			data[2] =
-			aw8697->predefined[aw8697->effect_id].play_rate_us/1000;
+			data[1] = us / 1000000;
+			/*millisecond data, must not overflow the second field*/
+			data[2] = (us / 1000) % 1000;
 		}
 		if (aw8697->effect_id >= aw8697->info.effect_id_boundary) {
+			unsigned int ms;
+
 			aw8697->activate_mode = AW8697_HAPTIC_ACTIVATE_RTP_MODE;
 			pr_debug("%s: aw8697->effect_id=%d",
 					"aw8697->activate_mode = %d\n",
 					__func__, aw8697->effect_id,
 					aw8697->activate_mode);
+			/* rtp_time only covers effect ids present in the DT. */
+			ms = aw8697->effect_id < AW8697_RTP_TIME_MAX ?
+			     aw8697->info.rtp_time[aw8697->effect_id] : 0;
 			/*second data*/
-			data[1] = aw8697->info.rtp_time[aw8697->effect_id]/1000;
+			data[1] = ms / 1000;
 			/*millisecond data*/
-			data[2] = aw8697->info.rtp_time[aw8697->effect_id];
+			data[2] = ms % 1000;
 		}
 		if (aw8697->effect_id == CUSTOME_WAVE_ID) {
+			unsigned int ms;
+
 			aw8697->activate_mode = AW8697_HAPTIC_ACTIVATE_RTP_MODE;
 			pr_debug("%s: aw8697->effect_id=%d",
 					"aw8697->activate_mode = %d\n",
 					__func__, aw8697->effect_id,
 					aw8697->activate_mode);
+			ms = aw8697->effect_id < AW8697_RTP_TIME_MAX ?
+			     aw8697->info.rtp_time[aw8697->effect_id] : 0;
 			/*second data*/
-			data[1] = aw8697->info.rtp_time[aw8697->effect_id]/1000;
+			data[1] = ms / 1000;
 			/*millisecond data*/
-			data[2] = aw8697->info.rtp_time[aw8697->effect_id];
+			data[2] = ms % 1000;
 			aw8697->is_custom_wave = 1;
 			rb_init();
 		}
@@ -4796,9 +4838,21 @@ static int aw8697_haptics_erase(struct input_dev *dev, int effect_id)
 	if (aw8697->osc_cali_run != 0)
 		return 0;
 
-	pr_debug("%s: enter\n", __func__);
+	/* Drain queued playback and IRQ readers before changing their buffer mode. */
+	aw8697_haptics_playback(dev, effect_id, 0);
+	flush_work(&aw8697->vibrator_work);
+	/* An already-running start worker can arm its timer after playback(0)
+	 * cancelled it. Drain that worker first, then cancel and drain again.
+	 */
+	hrtimer_cancel(&aw8697->timer);
+	flush_work(&aw8697->vibrator_work);
+	flush_work(&aw8697->rtp_work);
+	flush_work(&aw8697->set_gain_work);
+	if (gpio_is_valid(aw8697->irq_gpio))
+		synchronize_irq(gpio_to_irq(aw8697->irq_gpio));
 	aw8697->effect_type = 0;
 	aw8697->is_custom_wave = 0;
+	aw8697->ram_gain_override = false;
 	aw8697->duration = 0;
 	return rc;
 }
@@ -5765,17 +5819,35 @@ static ssize_t custom_wave_show(struct device *dev,
 {
 	struct aw8697 *aw8697 = dev_get_drvdata(dev);
 	ssize_t len = 0;
+	int active = 1;
+	u8 state = 0;
 
+	/* Report queued/startup work as active as well as hardware playback.
+	 * Never block a userspace cancellation behind the RTP worker lock.
+	 */
+	if (!work_busy(&aw8697->rtp_work) && mutex_trylock(&aw8697->lock)) {
+		if (!work_busy(&aw8697->rtp_work)) {
+			int ret = aw8697_i2c_read(aw8697,
+				aw8697->chip_version == AW8697_CHIP_9X ?
+				AW8697_REG_GLB_STATE : AW869XX_REG_GLBRD5, &state);
+			active = ret < 0 ? -1 : !!(state & 0x0f);
+		}
+		mutex_unlock(&aw8697->lock);
+	}
+	/* A zero period means the RAM image is not resident yet, so the HAL must
+	 * not treat the ring buffer as usable.
+	 */
 	len +=
 		snprintf(buf + len, PAGE_SIZE - len, "period_size=%d;",
-		aw8697->ram.base_addr >> 2);
+		smp_load_acquire(&aw8697->ram_init) ? aw8697->ram.base_addr >> 2 : 0);
 	len +=
 		snprintf(buf + len, PAGE_SIZE - len,
 		"max_size=%d;free_size=%d;",
 		get_rb_max_size(), get_rb_free_size());
 	len +=
 		snprintf(buf + len, PAGE_SIZE - len,
-		"custom_wave_id=%d;", CUSTOME_WAVE_ID);
+		"custom_wave_id=%d;abi_version=2;ram_gain_abi=1;", CUSTOME_WAVE_ID);
+	len += snprintf(buf + len, PAGE_SIZE - len, "playback_active=%d;", active);
 	return len;
 }
 
