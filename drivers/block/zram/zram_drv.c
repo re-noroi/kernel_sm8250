@@ -1611,7 +1611,7 @@ static int read_incompressible_page(struct zram *zram, struct page *page,
 
 static int read_compressed_page(struct zram *zram, struct page *page, u32 index)
 {
-	struct zcomp_strm *zstrm;
+	struct zcomp_dstrm *zstrm;
 	unsigned long handle;
 	unsigned int size;
 	void *src, *dst;
@@ -1621,14 +1621,14 @@ static int read_compressed_page(struct zram *zram, struct page *page, u32 index)
 	size = zram_get_obj_size(zram, index);
 	prio = zram_get_priority(zram, index);
 
-	zstrm = zcomp_stream_get(zram->comps[prio]);
+	zstrm = zcomp_dstrm_get(zram->comps[prio]);
 	src = zs_obj_read_begin(zram->mem_pool, handle, size,
 				zstrm->local_copy);
 	dst = kmap_atomic(page);
 	ret = zcomp_decompress(zram->comps[prio], zstrm, src, size, dst);
 	kunmap_atomic(dst);
 	zs_obj_read_end(zram->mem_pool, handle, size, src);
-	zcomp_stream_put(zstrm);
+	zcomp_dstrm_put(zstrm);
 
 	return ret;
 }
@@ -1767,7 +1767,7 @@ static int zram_write_page(struct zram *zram, struct page *page, u32 index)
 	unsigned long handle;
 	unsigned int comp_len;
 	void *mem;
-	struct zcomp_strm *zstrm;
+	struct zcomp_cstrm *zstrm;
 	unsigned long element;
 	bool same_filled;
 
@@ -1777,20 +1777,20 @@ static int zram_write_page(struct zram *zram, struct page *page, u32 index)
 	if (same_filled)
 		return write_same_filled_page(zram, element, index);
 
-	zstrm = zcomp_stream_get(zram->comps[ZRAM_PRIMARY_COMP]);
+	zstrm = zcomp_cstrm_get(zram->comps[ZRAM_PRIMARY_COMP]);
 	mem = kmap_atomic(page);
 	ret = zcomp_compress(zram->comps[ZRAM_PRIMARY_COMP], zstrm,
 			     mem, &comp_len);
 	kunmap_atomic(mem);
 
 	if (unlikely(ret)) {
-		zcomp_stream_put(zstrm);
+		zcomp_cstrm_put(zstrm);
 		pr_err("Compression failed! err=%d\n", ret);
 		return ret;
 	}
 
 	if (comp_len >= huge_class_size) {
-		zcomp_stream_put(zstrm);
+		zcomp_cstrm_put(zstrm);
 		return write_incompressible_page(zram, page, index);
 	}
 
@@ -1798,18 +1798,18 @@ static int zram_write_page(struct zram *zram, struct page *page, u32 index)
 			   GFP_NOIO | __GFP_NOWARN |
 			   __GFP_HIGHMEM | __GFP_MOVABLE | __GFP_CMA);
 	if (IS_ERR_VALUE(handle)) {
-		zcomp_stream_put(zstrm);
+		zcomp_cstrm_put(zstrm);
 		return PTR_ERR((void *)handle);
 	}
 
 	if (!zram_can_store_page(zram)) {
-		zcomp_stream_put(zstrm);
+		zcomp_cstrm_put(zstrm);
 		zs_free(zram->mem_pool, handle);
 		return -ENOMEM;
 	}
 
 	zs_obj_write(zram->mem_pool, handle, zstrm->buffer, comp_len);
-	zcomp_stream_put(zstrm);
+	zcomp_cstrm_put(zstrm);
 
 	zram_slot_lock(zram, index);
 	zram_free_page(zram, index);
@@ -1908,7 +1908,7 @@ static int recompress_slot(struct zram *zram, u32 index, struct page *page,
 			   u64 *num_recomp_pages, u32 threshold, u32 prio,
 			   u32 prio_max)
 {
-	struct zcomp_strm *zstrm = NULL;
+	struct zcomp_cstrm *zstrm = NULL;
 	unsigned long handle_old;
 	unsigned long handle_new;
 	unsigned int comp_len_old;
@@ -1959,14 +1959,14 @@ static int recompress_slot(struct zram *zram, u32 index, struct page *page,
 		if (!zram->comps[prio])
 			continue;
 
-		zstrm = zcomp_stream_get(zram->comps[prio]);
+		zstrm = zcomp_cstrm_get(zram->comps[prio]);
 		src = kmap_atomic(page);
 		ret = zcomp_compress(zram->comps[prio], zstrm,
 				     src, &comp_len_new);
 		kunmap_atomic(src);
 
 		if (ret) {
-			zcomp_stream_put(zstrm);
+			zcomp_cstrm_put(zstrm);
 			zstrm = NULL;
 			break;
 		}
@@ -1977,7 +1977,7 @@ static int recompress_slot(struct zram *zram, u32 index, struct page *page,
 		/* Continue until we make progress */
 		if (class_index_new >= class_index_old ||
 		    (threshold && comp_len_new >= threshold)) {
-			zcomp_stream_put(zstrm);
+			zcomp_cstrm_put(zstrm);
 			zstrm = NULL;
 			continue;
 		}
@@ -2022,12 +2022,12 @@ static int recompress_slot(struct zram *zram, u32 index, struct page *page,
 			       GFP_NOIO | __GFP_NOWARN |
 			       __GFP_HIGHMEM | __GFP_MOVABLE);
 	if (IS_ERR_VALUE(handle_new)) {
-		zcomp_stream_put(zstrm);
+		zcomp_cstrm_put(zstrm);
 		return PTR_ERR((void *)handle_new);
 	}
 
 	zs_obj_write(zram->mem_pool, handle_new, zstrm->buffer, comp_len_new);
-	zcomp_stream_put(zstrm);
+	zcomp_cstrm_put(zstrm);
 
 	zram_free_page(zram, index);
 	zram_set_handle(zram, index, handle_new);
