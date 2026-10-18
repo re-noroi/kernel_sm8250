@@ -1,16 +1,8 @@
 #include <linux/kernel.h>
 #include <linux/lz4.h>
-#include <linux/slab.h>
 #include <linux/vmalloc.h>
 
 #include "backend_lz4.h"
-
-struct lz4_ctx {
-	void *mem;
-
-	LZ4_streamDecode_t *dstrm;
-	LZ4_stream_t *cstrm;
-};
 
 static void lz4_release_params(struct zcomp_params *params)
 {
@@ -20,7 +12,7 @@ static void lz4_release_params(struct zcomp_params *params)
 	if (!dict_stream)
 		return;
 
-	kfree(dict_stream);
+	vfree(dict_stream);
 }
 
 static int lz4_setup_params(struct zcomp_params *params)
@@ -34,14 +26,14 @@ static int lz4_setup_params(struct zcomp_params *params)
 	if (!params->dict || !params->dict_sz)
 		return 0;
 
-	dict_stream = kzalloc(sizeof(*dict_stream), GFP_KERNEL);
+	dict_stream = vzalloc(sizeof(*dict_stream));
 	if (!dict_stream)
 		return -ENOMEM;
 
 	ret = LZ4_loadDict(dict_stream,
 			   params->dict, params->dict_sz);
 	if (ret != params->dict_sz) {
-		kfree(dict_stream);
+		vfree(dict_stream);
 		return -EINVAL;
 	}
 	params->drv_data = dict_stream;
@@ -51,61 +43,32 @@ static int lz4_setup_params(struct zcomp_params *params)
 
 static void lz4_destroy(struct zcomp_ctx *ctx)
 {
-	struct lz4_ctx *zctx = ctx->context;
-
-	if (!zctx)
-		return;
-
-	vfree(zctx->mem);
-	kfree(zctx->dstrm);
-	kfree(zctx->cstrm);
-	kfree(zctx);
+	vfree(ctx->context);
 }
 
 static int lz4_create(struct zcomp_params *params, struct zcomp_ctx *ctx)
 {
-	struct lz4_ctx *zctx;
+	BUILD_BUG_ON(sizeof(LZ4_stream_t) != LZ4_MEM_COMPRESS);
 
-	zctx = kzalloc(sizeof(*zctx), GFP_KERNEL);
-	if (!zctx)
+	ctx->context = vmalloc(LZ4_MEM_COMPRESS);
+	if (!ctx->context)
 		return -ENOMEM;
-
-	ctx->context = zctx;
-	if (params->dict_sz == 0) {
-		zctx->mem = vmalloc(LZ4_MEM_COMPRESS);
-		if (!zctx->mem)
-			goto error;
-	} else {
-		zctx->dstrm = kzalloc(sizeof(*zctx->dstrm), GFP_KERNEL);
-		if (!zctx->dstrm)
-			goto error;
-
-		zctx->cstrm = kzalloc(sizeof(*zctx->cstrm), GFP_KERNEL);
-		if (!zctx->cstrm)
-			goto error;
-	}
-
 	return 0;
-
-error:
-	lz4_destroy(ctx);
-	return -ENOMEM;
 }
 
 static int lz4_compress(struct zcomp_params *params, struct zcomp_ctx *ctx,
 			struct zcomp_req *req)
 {
-	struct lz4_ctx *zctx = ctx->context;
 	int ret;
 
-	if (!zctx->cstrm) {
+	if (!params->drv_data) {
 		ret = LZ4_compress_fast(req->src, req->dst, req->src_len,
 					req->dst_len, params->level,
-					zctx->mem);
+					ctx->context);
 	} else {
 		/* Cstrm needs to be reset */
-		memcpy(zctx->cstrm, params->drv_data, sizeof(*zctx->cstrm));
-		ret = LZ4_compress_fast_continue(zctx->cstrm, req->src,
+		memcpy(ctx->context, params->drv_data, sizeof(LZ4_stream_t));
+		ret = LZ4_compress_fast_continue(ctx->context, req->src,
 						 req->dst, req->src_len,
 						 req->dst_len, params->level);
 	}
@@ -118,45 +81,22 @@ static int lz4_compress(struct zcomp_params *params, struct zcomp_ctx *ctx,
 static int lz4_decompress(struct zcomp_params *params, struct zcomp_ctx *ctx,
 			  struct zcomp_req *req)
 {
-	struct lz4_ctx *zctx = ctx->context;
 	int ret;
 
-	if (!zctx->dstrm) {
 #if defined(CONFIG_ARM64) && defined(CONFIG_KERNEL_MODE_NEON)
-		/*
-		 * Use the ARM64 NEON assembly decoder, exactly as crypto/lz4.c,
-		 * f2fs, erofs and incfs already do.  zram was the only in-tree
-		 * LZ4 consumer still on the pure scalar decoder.
-		 *
-		 * Bounds safety is unchanged: the assembly stops
-		 * LZ4_FAST_MARGIN (128) bytes short of both buffer ends and the
-		 * remainder is always finished by the fully checked
-		 * __LZ4_decompress_generic().  It self-gates on may_use_simd()
-		 * and on both buffers exceeding LZ4_FAST_MARGIN, so a tiny
-		 * highly-compressible block simply takes the scalar path.
-		 *
-		 * The one kernel_neon_begin()/end() pair is amortised over the
-		 * whole page.  zcomp_decompress() runs in preemptible process
-		 * context holding only zstrm->lock (a mutex) and calls
-		 * might_sleep(), so the SIMD gate normally passes.
-		 */
+	/* Use NEON assembly for standard pages (when no dictionary is configured) */
+	if (!params->drv_data) {
 		ret = LZ4_arm64_decompress_safe(req->src, req->dst,
 						req->src_len, req->dst_len,
 						false);
-#else
-		ret = LZ4_decompress_safe(req->src, req->dst, req->src_len,
-					  req->dst_len);
+	} else
 #endif
-	} else {
-		/* Dstrm needs to be reset */
-		ret = LZ4_setStreamDecode(zctx->dstrm, params->dict,
-					  params->dict_sz);
-		if (!ret)
-			return -EINVAL;
-		ret = LZ4_decompress_safe_continue(zctx->dstrm, req->src,
-						   req->dst, req->src_len,
-						   req->dst_len);
+	{
+		ret = LZ4_decompress_safe_usingDict(req->src, req->dst, req->src_len,
+						    req->dst_len, params->dict,
+						    params->dict_sz);
 	}
+
 	if (ret < 0)
 		return -EINVAL;
 	return 0;
