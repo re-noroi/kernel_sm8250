@@ -1,6 +1,5 @@
 #include <linux/kernel.h>
 #include <linux/lz4.h>
-#include <linux/mm.h>
 #include <linux/slab.h>
 #include <linux/vmalloc.h>
 
@@ -21,7 +20,7 @@ static void lz4_release_params(struct zcomp_params *params)
 	if (!dict_stream)
 		return;
 
-	kvfree(dict_stream);
+	kfree(dict_stream);
 }
 
 static int lz4_setup_params(struct zcomp_params *params)
@@ -35,14 +34,14 @@ static int lz4_setup_params(struct zcomp_params *params)
 	if (!params->dict || !params->dict_sz)
 		return 0;
 
-	dict_stream = kvzalloc(sizeof(*dict_stream), GFP_KERNEL);
+	dict_stream = kzalloc(sizeof(*dict_stream), GFP_KERNEL);
 	if (!dict_stream)
 		return -ENOMEM;
 
 	ret = LZ4_loadDict(dict_stream,
 			   params->dict, params->dict_sz);
 	if (ret != params->dict_sz) {
-		kvfree(dict_stream);
+		kfree(dict_stream);
 		return -EINVAL;
 	}
 	params->drv_data = dict_stream;
@@ -58,8 +57,8 @@ static void lz4_destroy(struct zcomp_ctx *ctx)
 		return;
 
 	vfree(zctx->mem);
-	kvfree(zctx->dstrm);
-	kvfree(zctx->cstrm);
+	kfree(zctx->dstrm);
+	kfree(zctx->cstrm);
 	kfree(zctx);
 }
 
@@ -77,11 +76,11 @@ static int lz4_create(struct zcomp_params *params, struct zcomp_ctx *ctx)
 		if (!zctx->mem)
 			goto error;
 	} else {
-		zctx->dstrm = kvzalloc(sizeof(*zctx->dstrm), GFP_KERNEL);
+		zctx->dstrm = kzalloc(sizeof(*zctx->dstrm), GFP_KERNEL);
 		if (!zctx->dstrm)
 			goto error;
 
-		zctx->cstrm = kvzalloc(sizeof(*zctx->cstrm), GFP_KERNEL);
+		zctx->cstrm = kzalloc(sizeof(*zctx->cstrm), GFP_KERNEL);
 		if (!zctx->cstrm)
 			goto error;
 	}
