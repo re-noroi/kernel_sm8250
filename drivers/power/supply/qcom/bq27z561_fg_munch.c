@@ -1562,6 +1562,15 @@ static int fg_get_property(struct power_supply *psy, enum power_supply_property 
 			if (ret >= 0)
 				bq->batt_volt = ret;
 		}
+		/*
+		 * batt_volt is initialised to -ENODATA in probe(). If no
+		 * read has ever succeeded, do not propagate that sentinel
+		 * as a real voltage - the caller (smblib_check_input_status
+		 * in smb5-lib-munch.c) treats any value <= CUTOFF_VOL_THR
+		 * as a dead battery and toggles report_input_absent.
+		 */
+		if (bq->batt_volt < 0)
+			return -ENODATA;
 		val->intval = bq->batt_volt * 1000;
 		break;
 	case POWER_SUPPLY_PROP_PRESENT:
@@ -1575,6 +1584,8 @@ static int fg_get_property(struct power_supply *psy, enum power_supply_property 
 		if (bq->usb_in) {
 			fg_read_current(bq, &bq->batt_curr);
 		}
+		if (bq->batt_curr < 0 && bq->batt_curr == -ENODATA)
+			return -ENODATA;
 		val->intval = bq->batt_curr * 1000;
 		break;
 
@@ -1590,6 +1601,10 @@ static int fg_get_property(struct power_supply *psy, enum power_supply_property 
 		if (bq->usb_in) {
 			bq->batt_soc = fg_read_system_soc(bq);
 		}
+		if (bq->batt_soc < 0 ||
+		    (bq->batt_soc == 0 &&
+		     i2c_error_cnt[bq->fg_index] >= 3))
+			return -ENODATA;
 		if (bq->force_soc_enable) {
 			vbat_mv = fg_read_volt(bq);
 			if (val->intval == 0 && vbat_mv > 4000)
@@ -1667,6 +1682,16 @@ static int fg_get_property(struct power_supply *psy, enum power_supply_property 
 		if (bq->usb_in) {
 			bq->batt_temp = fg_read_temperature(bq);
 		}
+		/*
+		 * Reject the fake 25/50 °C placeholder that
+		 * fg_read_temperature() injects on I2C failure. Do NOT
+		 * guard on batt_temp < 0 — that catches genuine sub-zero
+		 * readings (regression) and misses the fake placeholder
+		 * (never negative), which is what actually triggers a
+		 * spurious CHG_DISABLE via JEITA on a non-genuine battery.
+		 */
+		if (i2c_error_cnt[bq->fg_index] >= 3)
+			return -ENODATA;
 		val->intval = bq->batt_temp;
 		break;
 	case POWER_SUPPLY_PROP_TIME_TO_EMPTY_NOW:
@@ -2520,15 +2545,14 @@ static void fg_update_status(struct bq_fg_chip *bq)
 static int fg_get_raw_soc(struct bq_fg_chip *bq)
 {
 	int rm, fcc;
-	int raw_soc;
 
 	rm = fg_read_rm(bq);
 	fcc = fg_read_fcc(bq);
 
-	//raw_soc = DIV_ROUND_CLOSEST(rm * 10000 / fcc, 100);
-	raw_soc = rm * 10000 / fcc;
+	if (fcc <= 0)
+		return 0;
 
-	return raw_soc;
+	return rm * 10000 / fcc;
 }
 
 static int fg_update_charge_full(struct bq_fg_chip *bq)
