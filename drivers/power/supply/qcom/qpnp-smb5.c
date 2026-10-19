@@ -2383,7 +2383,7 @@ static int smb5_init_dc_psy(struct smb5 *chip)
 static int smb5_get_prop_input_voltage_regulation(struct smb_charger *chg,
 					union power_supply_propval *val)
 {
-	int rc = 0;
+	int rc = -ENODEV;
 
 	chg->idtp_psy = power_supply_get_by_name("idt");
 	if (chg->idtp_psy) {
@@ -2401,6 +2401,9 @@ static int smb5_get_prop_input_voltage_regulation(struct smb_charger *chg,
 		rc = power_supply_get_property(chg->wls_chip_psy,
 			POWER_SUPPLY_PROP_INPUT_VOLTAGE_REGULATION, val);
 
+	if (rc < 0)
+		return rc;
+
 	val->intval = 1000*val->intval;//IDT in mV
 
 	return rc;
@@ -2409,7 +2412,7 @@ static int smb5_get_prop_input_voltage_regulation(struct smb_charger *chg,
 static int smb5_get_prop_input_voltage_vrect(struct smb_charger *chg,
 					union power_supply_propval *val)
 {
-	int rc = 0;
+	int rc = -ENODEV;
 
 	chg->idtp_psy = power_supply_get_by_name("idt");
 	if (chg->idtp_psy) {
@@ -2428,6 +2431,9 @@ static int smb5_get_prop_input_voltage_vrect(struct smb_charger *chg,
 		rc = power_supply_get_property(chg->wls_chip_psy,
 			POWER_SUPPLY_PROP_INPUT_VOLTAGE_VRECT, val);
 
+	if (rc < 0)
+		return rc;
+
 	val->intval = 1000*val->intval;//IDT in mV
 
 	return rc;
@@ -2436,7 +2442,7 @@ static int smb5_get_prop_input_voltage_vrect(struct smb_charger *chg,
 static int smb5_get_prop_rx_iout(struct smb_charger *chg,
 					union power_supply_propval *val)
 {
-	int rc = 0;
+	int rc = -ENODEV;
 
 	chg->idtp_psy = power_supply_get_by_name("idt");
 	if (chg->idtp_psy) {
@@ -2453,6 +2459,9 @@ static int smb5_get_prop_rx_iout(struct smb_charger *chg,
 		rc = power_supply_get_property(chg->wls_chip_psy,
 			POWER_SUPPLY_PROP_RX_IOUT, val);
 
+	if (rc < 0)
+		return rc;
+
 	val->intval = 1000*val->intval;//IDT in mV
 
 	return rc;
@@ -2461,7 +2470,7 @@ static int smb5_get_prop_rx_iout(struct smb_charger *chg,
 static int smb5_get_prop_wireless_signal(struct smb_charger *chg,
 				union power_supply_propval *val)
 {
-	int rc = 0;
+	int rc = -ENODEV;
 
 	chg->idtp_psy = power_supply_get_by_name("idt");
 	if (chg->idtp_psy) {
@@ -2484,7 +2493,7 @@ static int smb5_get_prop_wireless_signal(struct smb_charger *chg,
 static int smb5_set_prop_input_voltage_regulation(struct smb_charger *chg,
 				const union power_supply_propval *val)
 {
-	int rc = 0;
+	int rc = -ENODEV;
 
 	chg->idtp_psy = power_supply_get_by_name("idt");
 	if (chg->idtp_psy) {
@@ -2507,7 +2516,7 @@ static int smb5_set_prop_input_voltage_regulation(struct smb_charger *chg,
 static int smb5_get_prop_wirless_type(struct smb_charger *chg,
 				union power_supply_propval *val)
 {
-	int rc = 0;
+	int rc = -ENODEV;
 
 	chg->idtp_psy = power_supply_get_by_name("idt");
 	if (chg->idtp_psy)
@@ -2530,7 +2539,7 @@ static int smb5_get_prop_wirless_type(struct smb_charger *chg,
 static int smb5_get_prop_reverse_pen_soc(struct smb_charger *chg,
 				union power_supply_propval *val)
 {
-	int rc = 0;
+	int rc = -ENODEV;
 
 	chg->idtp_psy = power_supply_get_by_name("idt");
 	if (chg->idtp_psy)
@@ -2554,7 +2563,7 @@ static int smb5_get_prop_reverse_pen_soc(struct smb_charger *chg,
 static int smb5_set_prop_div2_mode(struct smb_charger *chg,
 				const union power_supply_propval *val)
 {
-	int rc = 0;
+	int rc = -ENODEV;
 
 	dev_info(chg->dev, "%s: set mode is = %d\n",
 				__func__, val->intval);
@@ -2597,12 +2606,12 @@ static int smb5_get_prop_div2_mode(struct smb_charger *chg,
 				__func__, val->intval);
 	}
 
-	return 1;
+	return 0;
 }
 static int smb5_set_prop_reverse_chg_mode(struct smb_charger *chg,
 				const union power_supply_propval *val)
 {
-	int rc = 0;
+	int rc = -ENODEV;
 
 	dev_info(chg->dev, "%s: set mode is = %d\n",
 				__func__, val->intval);
@@ -2628,7 +2637,7 @@ static int smb5_set_prop_reverse_chg_mode(struct smb_charger *chg,
 static int smb5_set_prop_otg_mode(struct smb_charger *chg,
 				const union power_supply_propval *val)
 {
-	int rc = 0;
+	int rc = -ENODEV;
 
 	dev_info(chg->dev, "%s: set mode is = %d\n",
 				__func__, val->intval);
@@ -2654,7 +2663,7 @@ static int smb5_set_prop_otg_mode(struct smb_charger *chg,
 static int smb5_get_prop_reverse_chg_mode(struct smb_charger *chg,
 				union power_supply_propval *val)
 {
-	int rc = 0;
+	int rc = -ENODEV;
 
 	chg->idtp_psy = power_supply_get_by_name("idt");
 	if (chg->idtp_psy) {
@@ -2670,6 +2679,10 @@ static int smb5_get_prop_reverse_chg_mode(struct smb_charger *chg,
 	if (chg->wls_chip_psy) {
 		rc = power_supply_get_property(chg->wls_chip_psy,
 				POWER_SUPPLY_PROP_REVERSE_CHG_MODE, val);
+
+		if (rc < 0)
+			return rc;
+
 		dev_info(chg->dev, "%s: get mode is = %d\n",
 				__func__, val->intval);
 	}
@@ -2680,7 +2693,7 @@ static int smb5_get_prop_reverse_chg_mode(struct smb_charger *chg,
 static int smb5_get_prop_wirless_chip_ok(struct smb_charger *chg,
 				union power_supply_propval *val)
 {
-	int rc = 0;
+	int rc = -ENODEV;
 
 	chg->idtp_psy = power_supply_get_by_name("idt");
 	if (chg->idtp_psy) {
@@ -2696,6 +2709,10 @@ static int smb5_get_prop_wirless_chip_ok(struct smb_charger *chg,
 	if (chg->wls_chip_psy) {
 		rc = power_supply_get_property(chg->wls_chip_psy,
 				POWER_SUPPLY_PROP_CHIP_OK, val);
+
+		if (rc < 0)
+			return rc;
+
 		dev_info(chg->dev, "%s: get chip status is = %d\n",
 				__func__, val->intval);
 	}
@@ -2771,16 +2788,16 @@ static int smb5_wireless_set_prop(struct power_supply *psy,
 		rc = smblib_set_prop_wireless_wakelock(chg, val);
 		break;
 	case POWER_SUPPLY_PROP_INPUT_VOLTAGE_REGULATION:
-		smb5_set_prop_input_voltage_regulation(chg, val);
+		rc = smb5_set_prop_input_voltage_regulation(chg, val);
 		break;
 	case POWER_SUPPLY_PROP_WIRELESS_CP_EN:
-		smblib_set_wirless_cp_enable(chg, val);
+		rc = smblib_set_wirless_cp_enable(chg, val);
 		break;
 	case POWER_SUPPLY_PROP_WIRELESS_POWER_GOOD_EN:
-		smblib_set_wirless_power_good_enable(chg, val);
+		rc = smblib_set_wirless_power_good_enable(chg, val);
 		break;
 	case POWER_SUPPLY_PROP_SW_DISABLE_DC_EN:
-		smblib_set_sw_disable_dc_en(chg, val);
+		rc = smblib_set_sw_disable_dc_en(chg, val);
 		break;
 	case POWER_SUPPLY_PROP_DC_RESET:
 		rc = smblib_set_prop_dc_reset(chg);
@@ -2789,19 +2806,19 @@ static int smb5_wireless_set_prop(struct power_supply *psy,
 		rc = smb5_set_prop_div2_mode(chg, val);
 		break;
 	case POWER_SUPPLY_PROP_TX_MAC:
-		smblib_set_prop_tx_mac(chg, val);
+		rc = smblib_set_prop_tx_mac(chg, val);
 		break;
 	case POWER_SUPPLY_PROP_PEN_MAC:
 		smblib_set_prop_pen_mac(chg, val);
 		break;
 	case POWER_SUPPLY_PROP_RX_CR:
-		smblib_set_prop_rx_cr(chg, val);
+		rc = smblib_set_prop_rx_cr(chg, val);
 		break;
 	case POWER_SUPPLY_PROP_RX_CEP:
-		smblib_set_prop_rx_cep(chg, val);
+		rc = smblib_set_prop_rx_cep(chg, val);
 		break;
 	case POWER_SUPPLY_PROP_BT_STATE:
-		smblib_set_prop_bt_state(chg, val);
+		rc = smblib_set_prop_bt_state(chg, val);
 		break;
 	case POWER_SUPPLY_PROP_REVERSE_CHG_MODE:
 		rc = smb5_set_prop_reverse_chg_mode(chg, val);
@@ -2847,19 +2864,19 @@ static int smb5_wireless_get_prop(struct power_supply *psy,
 		rc = smblib_get_prop_wireless_fw_version(chg, val);
 		break;
 	case POWER_SUPPLY_PROP_SIGNAL_STRENGTH:
-		smb5_get_prop_wireless_signal(chg, val);
+		rc = smb5_get_prop_wireless_signal(chg, val);
 		break;
 	case POWER_SUPPLY_PROP_WIRELESS_WAKELOCK:
 		val->intval = 1;
 		break;
 	case POWER_SUPPLY_PROP_INPUT_VOLTAGE_REGULATION:
-		smb5_get_prop_input_voltage_regulation(chg, val);
+		rc = smb5_get_prop_input_voltage_regulation(chg, val);
 		break;
 	case POWER_SUPPLY_PROP_INPUT_VOLTAGE_VRECT:
-		smb5_get_prop_input_voltage_vrect(chg, val);
+		rc = smb5_get_prop_input_voltage_vrect(chg, val);
 		break;
 	case POWER_SUPPLY_PROP_RX_IOUT:
-		smb5_get_prop_rx_iout(chg, val);
+		rc = smb5_get_prop_rx_iout(chg, val);
 		break;
 	case POWER_SUPPLY_PROP_WIRELESS_CP_EN:
 		if (chg->wireless_bq)
@@ -2871,16 +2888,16 @@ static int smb5_wireless_get_prop(struct power_supply *psy,
 		val->intval = chg->power_good_en;
 		break;
 	case POWER_SUPPLY_PROP_TX_ADAPTER:
-		smb5_get_prop_wirless_type(chg, val);
+		rc = smb5_get_prop_wirless_type(chg, val);
 		break;
 	case POWER_SUPPLY_PROP_REVERSE_PEN_SOC:
-		smb5_get_prop_reverse_pen_soc(chg, val);
+		rc = smb5_get_prop_reverse_pen_soc(chg, val);
 		break;
 	case POWER_SUPPLY_PROP_DC_RESET:
 		val->intval = 0;
 		break;
 	case POWER_SUPPLY_PROP_DIV_2_MODE:
-		smb5_get_prop_div2_mode(chg, val);
+		rc = smb5_get_prop_div2_mode(chg, val);
 		break;
 	case POWER_SUPPLY_PROP_TX_MAC:
 		val->int64val = chg->tx_bt_mac;
@@ -2901,7 +2918,7 @@ static int smb5_wireless_get_prop(struct power_supply *psy,
 		val->intval = 0;
 		break;
 	case POWER_SUPPLY_PROP_REVERSE_CHG_MODE:
-		smb5_get_prop_reverse_chg_mode(chg, val);
+		rc = smb5_get_prop_reverse_chg_mode(chg, val);
 		break;
 	case POWER_SUPPLY_PROP_REVERSE_PEN_CHG_STATE:
 		val->intval = chg->reverse_pen_chg_state;
@@ -2916,7 +2933,7 @@ static int smb5_wireless_get_prop(struct power_supply *psy,
 		val->intval = 0;
 		break;
 	case POWER_SUPPLY_PROP_CHIP_OK:
-		smb5_get_prop_wirless_chip_ok(chg, val);
+		rc = smb5_get_prop_wirless_chip_ok(chg, val);
 		break;
 	case POWER_SUPPLY_PROP_OTG_STATE:
 		val->intval = 0;
