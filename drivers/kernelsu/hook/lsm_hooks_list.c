@@ -75,15 +75,12 @@ capability_fn:
 static void *setprocattr_fn __read_mostly = nullptr;
 static __nocfi int ksu_setprocattr_new(const char *name, void *value, size_t size)
 {
-	assume(!!setprocattr_fn);
 	ksu_hide_setprocattr_inline(name, value, size);
 	return ((typeof(ksu_setprocattr_new) *)setprocattr_fn)(name, value, size);
 }
 
 static __nocfi int ksu_setprocattr_old(struct task_struct *p, char *name, void *value, size_t size)
 {
-	assume(!!setprocattr_fn);
-
 	ksu_hide_setprocattr_inline(name, value, size);
 	return ((typeof(ksu_setprocattr_old) *)setprocattr_fn)(p, name, value, size);
 }
@@ -116,7 +113,11 @@ static __nocfi int ksu_setprocattr_old(struct task_struct *p, char *name, void *
 #endif
 
 // now choose what we have
-static typeof(security_setprocattr) *ksu_setprocattr __read_mostly = OVERLOAD_SETPROCATTR(security_setprocattr);
+static typeof(security_setprocattr) *ksu_setprocattr __read_mostly = nullptr;
+static inline void ksu_do_overload_setprocattr(void)
+{
+	ksu_setprocattr = OVERLOAD_SETPROCATTR(security_setprocattr);
+}
 #pragma GCC diagnostic pop
 #undef SETPROCATTR_TYPE_new2
 #undef SETPROCATTR_TYPE_new1
@@ -307,6 +308,8 @@ static __init void ksu_lsm_hook_init(void)
 {
 	LSM_HACK_INIT(task_fix_setuid, ksu_task_fix_setuid);
 	LSM_HACK_INIT(inode_rename, ksu_inode_rename);
+
+	ksu_do_overload_setprocattr();
 	LSM_HACK_INIT(setprocattr, ksu_setprocattr);
 
 #ifdef CONFIG_KSU_FEATURE_SULOG

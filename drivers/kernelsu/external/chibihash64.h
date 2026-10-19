@@ -39,9 +39,8 @@ chibihash64(const void *keyIn, ptrdiff_t len, uint64_t seed)
 	// but depending on your needs, you may want to uncomment the pragma
 	// below to unroll the loop.
 	//#pragma GCC unroll 2
-	int i;
 	for (; l >= 32; l -= 32) {
-		for (i = 0; i < 4; ++i, p += 8) {
+		for (int i = 0; i < 4; ++i, p += 8) {
 			uint64_t stripe = chibihash64__load64le(p);
 			h[i] = (stripe + h[i]) * K;
 			h[(i+1)&3] += chibihash64__rotl(stripe, 27);

@@ -96,6 +96,7 @@
 #include <linux/seccomp.h>
 #include <linux/security.h>
 #include <linux/seq_file.h>
+#include <linux/shmem_fs.h>
 #include <linux/slab.h>
 #include <linux/stddef.h>
 #include <linux/string.h>
@@ -282,7 +283,7 @@ typedef typeof(nullptr) nullptr_t;
 #define __static_assert(expr, msg, ...) _Static_assert(expr, msg)
 #define static_assert(expr, ...) __static_assert(expr, ##__VA_ARGS__, #expr)
 #endif
-#if defined(KSU_HAS_C23) && defined(static_assert)
+#if defined(KSU_HAS_C23) && defined(static_assert) // undef kernel's static_assert
 #undef static_assert
 #endif
 
@@ -306,7 +307,7 @@ typedef typeof(nullptr) nullptr_t;
 #elif __has_attribute(__fallthrough__) || defined(__clang__)
 #define fallthrough __attribute__((__fallthrough__))
 #else
-#define fallthrough do {} while (0) /* fallthrough */
+#define fallthrough do { } while (0) /* fallthrough */
 #endif
 #endif
 
@@ -419,12 +420,11 @@ typedef unsigned __int128 uint128_t;
 
 /**
  * __may_alias to workaround "optimizations" even on -fno-strict-aliasing
- *
  */
 #define __may_alias __attribute__((__may_alias__))
 
 /**
- * __attribute__((__cleanup__()))
+ * __attribute__((__cleanup__(fn)))
  * - pseudo-raii / defer / scoped cleanup on C 
  *
  * NOTE: passes address of variable attributed to fn()
@@ -486,8 +486,8 @@ static inline void kfree_byref(void *buf) { kfree(*(void **)buf); }
 #endif // !CONFIG_KSU_DEBUG
 
 /**
- * redirect all dmesg/printk logging messages to kernel's no_printk macro.
- * this is an option offerred to shut up KernelSU's routine logging.
+ * no-op all dmesg/printk logging messages
+ * option offerred to shut up KernelSU's logging.
  *
  */
 #if defined(CONFIG_KSU_NOPRINTK) && !defined(CONFIG_KSU_DEBUG)

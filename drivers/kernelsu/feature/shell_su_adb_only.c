@@ -60,17 +60,14 @@ static int shell_su_adb_only_feature_get(u64 *value)
 static int shell_su_adb_only_feature_set(u64 value)
 {
 	bool enable = value != 0;
-
 #ifdef KSU_CAN_USE_JUMP_LABEL
-	if (enable)
-		static_branch_enable(&ksu_shell_su_adb_only);
-	else
-		static_branch_disable(&ksu_shell_su_adb_only);
+	if (enable) {
+		static_key_enable(&ksu_shell_su_adb_only.key);
+	} else {
+		static_key_disable(&ksu_shell_su_adb_only.key);
+	}
 #else
-	if (enable)
-		ksu_shell_su_adb_only = true;
-	else
-		ksu_shell_su_adb_only = false;
+	ksu_shell_su_adb_only = !!enable;
 #endif
 	smp_mb();
 	pr_info("shell_su_adb_only: set to %d\n", enable);

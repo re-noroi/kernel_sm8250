@@ -406,8 +406,6 @@ out:
 	revert_creds(saved);
 }
 
-// this is a bit heavier than task work / workqueue but this allows
-// us to have our own context. we give it a full escaped-to-root one.
 static int persistent_allow_list_pre(void *data)
 {
 	/**

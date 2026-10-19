@@ -63,12 +63,18 @@
 #include "feature/shell_su_adb_only.h"
 #include "feature/sucompat.h"
 #include "feature/sulog.h"
+#include "preinit/preinit.h"
+#include "runtime/ksud_boot.h"
 #include "runtime/ksud.h"
 #include "sulog/event.h"
 #include "sulog/fd.h"
 
 #include "selinux/selinux.h"
 #include "selinux/sepolicy.h"
+
+#ifdef CONFIG_KSU_DISABLE_32BIT_HOOKS
+#undef CONFIG_COMPAT
+#endif
 
 #ifdef CONFIG_KPROBES
 #include "downstream/kprobes_common.h"
@@ -77,6 +83,9 @@
 #ifdef CONFIG_KALLSYMS
 #include "external/chibihash64.h"
 #include "downstream/kallsyms_common.h"
+#else
+#define find_kernel_symbol_exact(...) ({ 0x0; })
+#define ksu_lookup_kernel_symbols(...) ({ -ENOSYS; })
 #endif
 
 #ifdef CONFIG_ARM64
@@ -114,13 +123,19 @@
 #include "feature/module_blacklist.c"
 #endif
 
+#ifndef KSU_NO_PREINIT
+#include "preinit/runner/runner_xxd.h"
+#include "preinit/preinit.c"
+#endif
+
 #include "feature/adb_root.c"
 #include "feature/kernel_umount.c"
 #include "feature/selinux_hide.c"
 #include "feature/shell_su_adb_only.c"
 #include "feature/sucompat.c"
 #include "feature/sulog.c"
-#include "runtime/ksud.c"
+#include "runtime/boot_event.c"
+#include "runtime/ksud_integration.c"
 
 #include "sulog/event.c"
 #include "sulog/fd.c"
@@ -252,16 +267,14 @@ static int __init kernelsu_init(void)
 	ksu_feature_init();
 	ksu_sucompat_init();
 	ksu_kernel_umount_init();
+#ifdef CONFIG_KSU_FEATURE_SULOG	
+	ksu_sulog_init();
+#endif
+#ifdef CONFIG_KSU_FEATURE_ADBROOT
+	ksu_adb_root_init();
+#endif
 	ksu_selinux_hide_init();
 	ksu_shell_su_adb_only_init();
-
-#ifdef CONFIG_KSU_FEATURE_SULOG	
-	ksu_sulog_init(); // so the feature is registered
-#endif
-
-#ifdef CONFIG_KSU_FEATURE_ADBROOT
-	ksu_adb_root_init(); // so the feature is registered
-#endif
 
 	ksu_core_init();
 	ksu_supercalls_init();
@@ -274,6 +287,7 @@ static int __init kernelsu_init(void)
 	ksu_throne_tracker_init();
 	ksu_ksud_init();
 	ksu_file_wrapper_init();
+	ksu_preinit_init();
 
 #ifdef CONFIG_KSU_TAMPER_SYSCALL_TABLE
 	ksu_syscall_table_hook_init();
@@ -307,31 +321,25 @@ static int __init kernelsu_lkm_init(void)
 	// list_del(&THIS_MODULE->list);
 	kobject_del(&THIS_MODULE->mkobj.kobj); // tiann/KernelSU fefb02e
 
+#if 0
 	if (current->pid == 1)
 		return 0;
 
-	// pid not 1, late load
-	
 	escape_to_root_forced();
 
-	// turn off vfs_read hook
 	stop_vfs_read_hook();
-
 	apply_kernelsu_rules();
 	cache_sid();
 	setup_ksu_cred();
-
 	on_post_fs_data();
 	on_boot_completed();
-
 	ksu_feature_apply_forced();
 
 	if (!!getenforce())
 		return 0;
-	
 	pr_info("Permissive SELinux, enforcing\n");
 	setenforce(true);
-
+#endif
 	return 0;
 }
 

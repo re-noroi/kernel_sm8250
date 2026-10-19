@@ -89,12 +89,43 @@ static_assert(1 == 0, "Unsupported architecture!");
 #define __ksyscall_exp(func, arg) __ksyscall_concat(func, arg)
 #define ksyscall(...) __ksyscall_exp(ksyscall_, __ksyscall_count_args(__VA_ARGS__))(__VA_ARGS__)
 
-#define ksu_close_fd(fd) ({ ksyscall(close, fd); })
-#define ksu_sys_setns(fd, flags) ({ ksyscall(setns, fd, flags); })
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0)
+static void __user *userspace_stack_buffer(const void *d, size_t len)
+{
+	// To avoid having to mmap a page in userspace, just write below the stack
+	// pointer.
+	char __user *p = (void __user *)current_user_stack_pointer() - len;
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 19, 0)
-#define ksys_unshare(flags) ({ ksyscall(unshare, flags); })
+	return copy_to_user(p, d, len) ? NULL : p;
+}
+#else
+static void __user *userspace_stack_buffer(const void *d, size_t len)
+{
+	if (!current->mm)
+		return nullptr;
+
+	volatile unsigned long start_stack = current->mm->start_stack;
+	unsigned int step = 32;
+	
+start_loop:;
+	char __user *p = (void __user *)(start_stack - step - len);
+
+	if (IS_ENABLED(CONFIG_KSU_DEBUG))
+		pr_info("%s: start_stack: %lx p: %lx len: %zu\n", __func__, start_stack, (unsigned long)p, len );
+
+	if (!copy_to_user(p, d, len))
+		return p;
+
+	step = step + step;
+
+	if (step <= 2048)
+		goto start_loop;
+
+	return nullptr;
+}
 #endif
+
+#define ksu_close_fd(fd) ({ ksyscall(close, fd); })
 
 static inline struct file *ksu_filp_open_nonotify(const char *path, int flags)
 {

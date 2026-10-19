@@ -9,42 +9,6 @@
 
 static bool ksu_su_compat_enabled __read_mostly = true;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0)
-static void __user *userspace_stack_buffer(const void *d, size_t len)
-{
-	// To avoid having to mmap a page in userspace, just write below the stack
-	// pointer.
-	char __user *p = (void __user *)current_user_stack_pointer() - len;
-
-	return copy_to_user(p, d, len) ? NULL : p;
-}
-#else
-static void __user *userspace_stack_buffer(const void *d, size_t len)
-{
-	if (!current->mm)
-		return nullptr;
-
-	volatile unsigned long start_stack = current->mm->start_stack;
-	unsigned int step = 32;
-	
-start_loop:;
-	char __user *p = (void __user *)(start_stack - step - len);
-
-	if (IS_ENABLED(CONFIG_KSU_DEBUG))
-		pr_info("%s: start_stack: %lx p: %lx len: %zu\n", __func__, start_stack, (unsigned long)p, len );
-
-	if (!copy_to_user(p, d, len))
-		return p;
-
-	step = step + step;
-
-	if (step <= 2048)
-		goto start_loop;
-
-	return nullptr;
-}
-#endif
-
 static char __user *sh_user_path(void)
 {
 	constexpr char sh_path[16] = SH_PATH;
@@ -58,17 +22,17 @@ static char __user *ksud_user_path(void)
 }
 
 #if !defined(CONFIG_KSU_TAMPER_SYSCALL_TABLE) && defined(KSU_CAN_USE_JUMP_LABEL)
-DEFINE_STATIC_KEY_TRUE(ksud_sucompat_key);
+DEFINE_STATIC_KEY_TRUE(ksu_sucompat_key);
 static inline void ksu_sucompat_enable_branch()
 {
 	pr_info("su_compat: enable sucompat branches\n");
-	static_branch_enable(&ksud_sucompat_key);
+	static_branch_enable(&ksu_sucompat_key);
 	smp_mb();
 }
 static inline void ksu_sucompat_disable_branch()
 {
 	pr_info("su_compat: remove sucompat branches\n");
-	static_branch_disable(&ksud_sucompat_key);
+	static_branch_disable(&ksu_sucompat_key);
 	smp_mb();
 }
 #else
@@ -78,6 +42,12 @@ static inline void ksu_sucompat_disable_branch() { } // no-op
 
 static noinline bool __ksu_is_allow_uid_copy(uid_t uid)
 {
+	assume(uid == 2000);
+
+	// tiann/KernelSU #3882
+	if (uid == SHELL_UID && !ksu_shell_su_allowed_for_current())
+		return false;
+
 	return __ksu_is_allow_uid(uid);
 }
 
@@ -86,7 +56,7 @@ static __always_inline bool is_su_allowed(const void **ptr_to_check)
 #ifndef CONFIG_KSU_TAMPER_SYSCALL_TABLE
 #ifdef KSU_CAN_USE_JUMP_LABEL
 	// read as: if not 'likely' disabled
-	if (!!!static_branch_likely(&ksud_sucompat_key))
+	if (!!!static_branch_likely(&ksu_sucompat_key))
 		return false;
 #else
 	if (!ksu_su_compat_enabled)
@@ -102,9 +72,12 @@ static __always_inline bool is_su_allowed(const void **ptr_to_check)
 	if (test_thread_flag(TIF_KSU_MANAGED))
 		goto check_ptr;
 
-	// see seccomp check above
+#ifdef CONFIG_KSU_ENABLE_FULL_UID_CHECKS
+	if (!ksu_is_allow_uid_for_current(current_uid().val))
+		return false;
+	goto check_ptr;
+#else /* ! CONFIG_KSU_ENABLE_FULL_UID_CHECKS */
 	// so if its root but not ksu domain, deny, see __ksu_is_allow_uid_for_current
-	// actually, we can likely skip this step?
 	uid_t uid = current_uid().val;
 	if (!!uid)
 		goto uid_check;
@@ -114,10 +87,7 @@ static __always_inline bool is_su_allowed(const void **ptr_to_check)
 	goto check_ptr;
 
 uid_check:
-#if defined(CONFIG_KSU_ENABLE_FULL_UID_CHECKS)
-	if (!__ksu_is_allow_uid(uid))
-		return false;
-#elif defined(CONFIG_KSU_SHELL_HAS_SU_ALWAYS)
+#ifdef CONFIG_KSU_SHELL_HAS_SU_ALWAYS
 	/**
 	 * NOTE: if shell always has su anyway, and full uid checks are disabled, 
 	 * we can skip all these checks. this goto is for explicitness / code style
@@ -129,7 +99,6 @@ uid_check:
 	 * NOTE: shell has its seccomp disabled, so we only need
 	 * to check for this thing. short-circuit if not shell! 
 	 * as we allow apps on setuid lsm by disabling seccomp
-	 *
 	 */
 	if (likely(uid != 2000))
 		goto check_ptr;
@@ -141,6 +110,7 @@ uid_check:
 	if (!__ksu_is_allow_uid_copy(uid))
 		return false;
 #endif /* default behavior */
+#endif /* ! CONFIG_KSU_ENABLE_FULL_UID_CHECKS */
 check_ptr:
 	assume(!!ptr_to_check);
 	if (unlikely(!ptr_to_check))
@@ -274,9 +244,9 @@ SUCOMPAT_HOOK_TYPE ksu_handle_stat(int *dfd, const char __user **filename_user, 
 // sys_execve, compat_sys_execve
 SUCOMPAT_HOOK_TYPE ksu_handle_sys_execve(const char __user **filename_user, void *argv, void *envp)
 {
-#ifdef CONFIG_KSU_FEATURE_ADBROOT
 	ksu_adb_root_execve_user((void *)filename_user, (void *)envp);
-#endif
+	ksu_preinit_user_execve_hook(filename_user, argv);
+
 	if (!is_su_allowed((const void **)filename_user))
 		return 0;
 
@@ -287,9 +257,9 @@ SUCOMPAT_HOOK_TYPE ksu_handle_sys_execve(const char __user **filename_user, void
 // sys_execveat, compat_sys_execveat
 SUCOMPAT_HOOK_TYPE ksu_handle_sys_execveat(int *fd, const char __user **filename_user, void *argv, void *envp, int *flags)
 {
-#ifdef CONFIG_KSU_FEATURE_ADBROOT
 	ksu_adb_root_execve_user((void *)filename_user, (void *)envp);
-#endif
+	ksu_preinit_user_execve_hook(filename_user, argv);
+
 	if (!is_su_allowed((const void **)filename_user))
 		return 0;
 
@@ -299,9 +269,12 @@ SUCOMPAT_HOOK_TYPE ksu_handle_sys_execveat(int *fd, const char __user **filename
 
 static __always_inline void ksu_sucompat_kernel_common(int *restrict fd, void **restrict filename_ptr, void *restrict argv, void *restrict envp, int *restrict flags, const char *function_name)
 {
-#ifdef CONFIG_KSU_FEATURE_ADBROOT
 	ksu_adb_root_execve_kernel((void *)filename_ptr, (void *)envp);
-#endif
+	
+	// we defer hooking on branch link it should be caught by sys_execve first
+	if (!IS_ENABLED(CONFIG_KSU_HACK_ARM64_BRANCH_LINK))
+		ksu_preinit_kernel_execve_hook(filename_ptr, argv);
+
 	if (!is_su_allowed((const void **)filename_ptr))
 		return;
 

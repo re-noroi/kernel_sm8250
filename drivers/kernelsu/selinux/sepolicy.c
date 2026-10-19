@@ -719,7 +719,7 @@ static void *ksu_kvrealloc_compat(const void *p, size_t oldsize, size_t newsize,
 	newp = kvmalloc(newsize, flags);
 	if (!newp)
 		return NULL;
-	__builtin_memcpy(newp, p, oldsize); // bypass fortify_source, kasan
+	memcpy(newp, p, oldsize);
 	kvfree(p);
 	return newp;
 }
