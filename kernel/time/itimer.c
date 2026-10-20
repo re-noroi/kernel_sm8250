@@ -67,7 +67,7 @@ static void get_cpu_itimer(struct task_struct *tsk, unsigned int clock_id,
 			/* CPUCLOCK_VIRT */
 			t = cputime.utime;
 
-		if (val < t)
+		if (val <= t)
 			/* about to fire */
 			val = TICK_NSEC;
 		else
