@@ -4375,24 +4375,12 @@ static void packet_free_pg_vec_work(struct work_struct *work)
 	sock_put(sk);
 }
 
-static bool pg_vec_has_vmalloc(struct pgv *pg_vec, unsigned int len)
-{
-	int i;
-
-	for (i = 0; i < len; i++)
-		if (pg_vec[i].buffer && is_vmalloc_addr(pg_vec[i].buffer))
-			return true;
-
-	return false;
-}
-
 static void free_pg_vec(struct packet_sock *po, struct pgv *pg_vec,
 			unsigned int order, unsigned int len)
 {
 	struct packet_pg_vec_free *deferred;
 
-	if (!pg_vec_has_vmalloc(pg_vec, len) ||
-	    !packet_read_pending(&po->tx_ring)) {
+	if (!packet_read_pending(&po->tx_ring)) {
 		__free_pg_vec(pg_vec, order, len);
 		return;
 	}
