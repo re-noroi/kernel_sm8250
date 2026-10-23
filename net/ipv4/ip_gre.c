@@ -239,12 +239,12 @@ static void gre_err(struct sk_buff *skb, u32 info)
 
 	if (type == ICMP_DEST_UNREACH && code == ICMP_FRAG_NEEDED) {
 		ipv4_update_pmtu(skb, dev_net(skb->dev), info,
-				 skb->dev->ifindex, 0, IPPROTO_GRE, 0);
+				 skb->dev->ifindex, IPPROTO_GRE);
 		return;
 	}
 	if (type == ICMP_REDIRECT) {
-		ipv4_redirect(skb, dev_net(skb->dev), skb->dev->ifindex, 0,
-			      IPPROTO_GRE, 0);
+		ipv4_redirect(skb, dev_net(skb->dev), skb->dev->ifindex,
+			      IPPROTO_GRE);
 		return;
 	}
 

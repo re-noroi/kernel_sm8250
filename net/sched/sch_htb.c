@@ -1030,7 +1030,8 @@ static int htb_init(struct Qdisc *sch, struct nlattr *opt,
 	if (err)
 		return err;
 
-	err = nla_parse_nested(tb, TCA_HTB_MAX, opt, htb_policy, NULL);
+	err = nla_parse_nested_deprecated(tb, TCA_HTB_MAX, opt, htb_policy,
+					  NULL);
 	if (err < 0)
 		return err;
 
@@ -1075,7 +1076,7 @@ static int htb_dump(struct Qdisc *sch, struct sk_buff *skb)
 	gopt.defcls = q->defcls;
 	gopt.debug = 0;
 
-	nest = nla_nest_start(skb, TCA_OPTIONS);
+	nest = nla_nest_start_noflag(skb, TCA_OPTIONS);
 	if (nest == NULL)
 		goto nla_put_failure;
 	if (nla_put(skb, TCA_HTB_INIT, sizeof(gopt), &gopt) ||
@@ -1104,7 +1105,7 @@ static int htb_dump_class(struct Qdisc *sch, unsigned long arg,
 	if (!cl->level && cl->un.leaf.q)
 		tcm->tcm_info = cl->un.leaf.q->handle;
 
-	nest = nla_nest_start(skb, TCA_OPTIONS);
+	nest = nla_nest_start_noflag(skb, TCA_OPTIONS);
 	if (nest == NULL)
 		goto nla_put_failure;
 
@@ -1333,7 +1334,8 @@ static int htb_change_class(struct Qdisc *sch, u32 classid,
 	if (!opt)
 		goto failure;
 
-	err = nla_parse_nested(tb, TCA_HTB_MAX, opt, htb_policy, NULL);
+	err = nla_parse_nested_deprecated(tb, TCA_HTB_MAX, opt, htb_policy,
+					  NULL);
 	if (err < 0)
 		goto failure;
 

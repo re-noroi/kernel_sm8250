@@ -236,6 +236,7 @@ static inline bool fsnotify_valid_obj_type(unsigned int type)
 
 struct fsnotify_iter_info {
 	struct fsnotify_mark *marks[FSNOTIFY_OBJ_TYPE_COUNT];
+	struct fsnotify_group *current_group;
 	unsigned int report_mask;
 	int srcu_idx;
 };
@@ -350,6 +351,7 @@ extern int fsnotify(struct inode *to_tell, __u32 mask, const void *data, int dat
 extern int __fsnotify_parent(const struct path *path, struct dentry *dentry, __u32 mask);
 extern void __fsnotify_inode_delete(struct inode *inode);
 extern void __fsnotify_vfsmount_delete(struct vfsmount *mnt);
+extern void fsnotify_nameremove(struct dentry *dentry, int isdir);
 extern u32 fsnotify_get_cookie(void);
 
 static inline int fsnotify_inode_watches_children(struct inode *inode)
@@ -472,6 +474,7 @@ static inline void fsnotify_clear_inode_marks_by_group(struct fsnotify_group *gr
 }
 extern void fsnotify_get_mark(struct fsnotify_mark *mark);
 extern void fsnotify_put_mark(struct fsnotify_mark *mark);
+struct fsnotify_mark *fsnotify_next_mark(struct fsnotify_mark *mark);
 extern void fsnotify_unmount_inodes(struct super_block *sb);
 extern void fsnotify_finish_user_wait(struct fsnotify_iter_info *iter_info);
 extern bool fsnotify_prepare_user_wait(struct fsnotify_iter_info *iter_info);
@@ -500,6 +503,9 @@ static inline void __fsnotify_inode_delete(struct inode *inode)
 {}
 
 static inline void __fsnotify_vfsmount_delete(struct vfsmount *mnt)
+{}
+
+static inline void fsnotify_nameremove(struct dentry *dentry, int isdir)
 {}
 
 static inline void fsnotify_update_flags(struct dentry *dentry)
