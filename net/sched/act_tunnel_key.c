@@ -75,8 +75,9 @@ tunnel_key_copy_geneve_opt(const struct nlattr *nla, void *dst, int dst_len,
 	int err, data_len, opt_len;
 	u8 *data;
 
-	err = nla_parse_nested(tb, TCA_TUNNEL_KEY_ENC_OPT_GENEVE_MAX,
-			       nla, geneve_opt_policy, extack);
+	err = nla_parse_nested_deprecated(tb,
+					  TCA_TUNNEL_KEY_ENC_OPT_GENEVE_MAX,
+					  nla, geneve_opt_policy, extack);
 	if (err < 0)
 		return err;
 
@@ -236,8 +237,8 @@ static int tunnel_key_init(struct net *net, struct nlattr *nla,
 		return -EINVAL;
 	}
 
-	err = nla_parse_nested(tb, TCA_TUNNEL_KEY_MAX, nla, tunnel_key_policy,
-			       extack);
+	err = nla_parse_nested_deprecated(tb, TCA_TUNNEL_KEY_MAX, nla,
+					  tunnel_key_policy, extack);
 	if (err < 0) {
 		NL_SET_ERR_MSG(extack, "Failed to parse nested tunnel key attributes");
 		return err;
@@ -410,7 +411,7 @@ static int tunnel_key_geneve_opts_dump(struct sk_buff *skb,
 	u8 *src = (u8 *)(info + 1);
 	struct nlattr *start;
 
-	start = nla_nest_start(skb, TCA_TUNNEL_KEY_ENC_OPTS_GENEVE);
+	start = nla_nest_start_noflag(skb, TCA_TUNNEL_KEY_ENC_OPTS_GENEVE);
 	if (!start)
 		return -EMSGSIZE;
 
@@ -444,7 +445,7 @@ static int tunnel_key_opts_dump(struct sk_buff *skb,
 	if (!info->options_len)
 		return 0;
 
-	start = nla_nest_start(skb, TCA_TUNNEL_KEY_ENC_OPTS);
+	start = nla_nest_start_noflag(skb, TCA_TUNNEL_KEY_ENC_OPTS);
 	if (!start)
 		return -EMSGSIZE;
 

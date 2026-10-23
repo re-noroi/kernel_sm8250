@@ -107,6 +107,8 @@ struct netns_ipv4 {
 	int sysctl_tcp_early_demux;
 	int sysctl_udp_early_demux;
 
+	int sysctl_nexthop_compat_mode;
+
 	int sysctl_fwmark_reflect;
 	int sysctl_tcp_fwmark_accept;
 #ifdef CONFIG_NET_L3_MASTER_DEV
@@ -181,6 +183,7 @@ struct netns_ipv4 {
 #ifdef CONFIG_OPLUS_PORT
 	int sysctl_tcp_random_timestamp;
 #endif
+	int sysctl_fib_notify_on_flag_change;
 
 #ifdef CONFIG_NET_L3_MASTER_DEV
 	int sysctl_udp_l3mdev_accept;
