@@ -281,7 +281,8 @@ static int fill_res_info_entry(struct sk_buff *msg,
 {
 	struct nlattr *entry_attr;
 
-	entry_attr = nla_nest_start(msg, RDMA_NLDEV_ATTR_RES_SUMMARY_ENTRY);
+	entry_attr = nla_nest_start_noflag(msg,
+					   RDMA_NLDEV_ATTR_RES_SUMMARY_ENTRY);
 	if (!entry_attr)
 		return -EMSGSIZE;
 
@@ -316,7 +317,7 @@ static int fill_res_info(struct sk_buff *msg, struct ib_device *device)
 	if (fill_nldev_handle(msg, device))
 		return -EMSGSIZE;
 
-	table_attr = nla_nest_start(msg, RDMA_NLDEV_ATTR_RES_SUMMARY);
+	table_attr = nla_nest_start_noflag(msg, RDMA_NLDEV_ATTR_RES_SUMMARY);
 	if (!table_attr)
 		return -EMSGSIZE;
 
@@ -373,7 +374,7 @@ static int fill_res_qp_entry(struct sk_buff *msg, struct netlink_callback *cb,
 	if (port && port != qp_attr.port_num)
 		return 0;
 
-	entry_attr = nla_nest_start(msg, RDMA_NLDEV_ATTR_RES_QP_ENTRY);
+	entry_attr = nla_nest_start_noflag(msg, RDMA_NLDEV_ATTR_RES_QP_ENTRY);
 	if (!entry_attr)
 		goto out;
 
@@ -435,7 +436,8 @@ static int fill_res_cm_id_entry(struct sk_buff *msg,
 	if (port && port != cm_id->port_num)
 		return -EAGAIN;
 
-	entry_attr = nla_nest_start(msg, RDMA_NLDEV_ATTR_RES_CM_ID_ENTRY);
+	entry_attr = nla_nest_start_noflag(msg,
+					   RDMA_NLDEV_ATTR_RES_CM_ID_ENTRY);
 	if (!entry_attr)
 		goto out;
 
@@ -489,7 +491,7 @@ static int fill_res_cq_entry(struct sk_buff *msg, struct netlink_callback *cb,
 	struct rdma_restrack_root *resroot = &cq->device->res;
 	struct nlattr *entry_attr;
 
-	entry_attr = nla_nest_start(msg, RDMA_NLDEV_ATTR_RES_CQ_ENTRY);
+	entry_attr = nla_nest_start_noflag(msg, RDMA_NLDEV_ATTR_RES_CQ_ENTRY);
 	if (!entry_attr)
 		goto out;
 
@@ -526,7 +528,7 @@ static int fill_res_mr_entry(struct sk_buff *msg, struct netlink_callback *cb,
 	struct rdma_restrack_root *resroot = &mr->pd->device->res;
 	struct nlattr *entry_attr;
 
-	entry_attr = nla_nest_start(msg, RDMA_NLDEV_ATTR_RES_MR_ENTRY);
+	entry_attr = nla_nest_start_noflag(msg, RDMA_NLDEV_ATTR_RES_MR_ENTRY);
 	if (!entry_attr)
 		goto out;
 
@@ -563,7 +565,7 @@ static int fill_res_pd_entry(struct sk_buff *msg, struct netlink_callback *cb,
 	struct rdma_restrack_root *resroot = &pd->device->res;
 	struct nlattr *entry_attr;
 
-	entry_attr = nla_nest_start(msg, RDMA_NLDEV_ATTR_RES_PD_ENTRY);
+	entry_attr = nla_nest_start_noflag(msg, RDMA_NLDEV_ATTR_RES_PD_ENTRY);
 	if (!entry_attr)
 		goto out;
 
@@ -604,8 +606,8 @@ static int nldev_get_doit(struct sk_buff *skb, struct nlmsghdr *nlh,
 	u32 index;
 	int err;
 
-	err = nlmsg_parse(nlh, 0, tb, RDMA_NLDEV_ATTR_MAX - 1,
-			  nldev_policy, extack);
+	err = nlmsg_parse_deprecated(nlh, 0, tb, RDMA_NLDEV_ATTR_MAX - 1,
+				     nldev_policy, extack);
 	if (err || !tb[RDMA_NLDEV_ATTR_DEV_INDEX])
 		return -EINVAL;
 
@@ -688,8 +690,8 @@ static int nldev_port_get_doit(struct sk_buff *skb, struct nlmsghdr *nlh,
 	u32 port;
 	int err;
 
-	err = nlmsg_parse(nlh, 0, tb, RDMA_NLDEV_ATTR_MAX - 1,
-			  nldev_policy, extack);
+	err = nlmsg_parse_deprecated(nlh, 0, tb, RDMA_NLDEV_ATTR_MAX - 1,
+				     nldev_policy, extack);
 	if (err ||
 	    !tb[RDMA_NLDEV_ATTR_DEV_INDEX] ||
 	    !tb[RDMA_NLDEV_ATTR_PORT_INDEX])
@@ -744,8 +746,8 @@ static int nldev_port_get_dumpit(struct sk_buff *skb,
 	int err;
 	u32 p;
 
-	err = nlmsg_parse(cb->nlh, 0, tb, RDMA_NLDEV_ATTR_MAX - 1,
-			  nldev_policy, NULL);
+	err = nlmsg_parse_deprecated(cb->nlh, 0, tb, RDMA_NLDEV_ATTR_MAX - 1,
+				     nldev_policy, NULL);
 	if (err || !tb[RDMA_NLDEV_ATTR_DEV_INDEX])
 		return -EINVAL;
 
@@ -799,8 +801,8 @@ static int nldev_res_get_doit(struct sk_buff *skb, struct nlmsghdr *nlh,
 	u32 index;
 	int ret;
 
-	ret = nlmsg_parse(nlh, 0, tb, RDMA_NLDEV_ATTR_MAX - 1,
-			  nldev_policy, extack);
+	ret = nlmsg_parse_deprecated(nlh, 0, tb, RDMA_NLDEV_ATTR_MAX - 1,
+				     nldev_policy, extack);
 	if (ret || !tb[RDMA_NLDEV_ATTR_DEV_INDEX])
 		return -EINVAL;
 
@@ -919,8 +921,8 @@ static int res_get_common_dumpit(struct sk_buff *skb,
 	u32 index, port = 0;
 	bool filled = false;
 
-	err = nlmsg_parse(cb->nlh, 0, tb, RDMA_NLDEV_ATTR_MAX - 1,
-			  nldev_policy, NULL);
+	err = nlmsg_parse_deprecated(cb->nlh, 0, tb, RDMA_NLDEV_ATTR_MAX - 1,
+				     nldev_policy, NULL);
 	/*
 	 * Right now, we are expecting the device index to get res information,
 	 * but it is possible to extend this code to return all devices in
@@ -957,7 +959,7 @@ static int res_get_common_dumpit(struct sk_buff *skb,
 		goto err;
 	}
 
-	table_attr = nla_nest_start(skb, fe->nldev_attr);
+	table_attr = nla_nest_start_noflag(skb, fe->nldev_attr);
 	if (!table_attr) {
 		ret = -EMSGSIZE;
 		goto err;

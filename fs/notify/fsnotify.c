@@ -103,6 +103,46 @@ void fsnotify_unmount_inodes(struct super_block *sb)
 }
 
 /*
+ * fsnotify_nameremove - a filename was removed from a directory
+ *
+ * This is mostly called under parent vfs inode lock so name and
+ * dentry->d_parent should be stable. However there are some corner cases where
+ * inode lock is not held. So to be on the safe side and be reselient to future
+ * callers and out of tree users of d_delete(), we do not assume that d_parent
+ * and d_name are stable and we use dget_parent() and
+ * take_dentry_name_snapshot() to grab stable references.
+ */
+void fsnotify_nameremove(struct dentry *dentry, int isdir)
+{
+	struct dentry *parent;
+	struct name_snapshot name;
+	__u32 mask = FS_DELETE;
+
+	/* d_delete() of pseudo inode? (e.g. __ns_get_path() playing tricks) */
+	if (IS_ROOT(dentry))
+		return;
+
+	if (isdir)
+		mask |= FS_ISDIR;
+
+	parent = dget_parent(dentry);
+	/* Avoid unneeded take_dentry_name_snapshot() */
+	if (!(d_inode(parent)->i_fsnotify_mask & FS_DELETE))
+		goto out_dput;
+
+	take_dentry_name_snapshot(&name, dentry);
+
+	fsnotify(d_inode(parent), mask, d_inode(dentry), FSNOTIFY_EVENT_INODE,
+		 name.name, 0);
+
+	release_dentry_name_snapshot(&name);
+
+out_dput:
+	dput(parent);
+}
+EXPORT_SYMBOL(fsnotify_nameremove);
+
+/*
  * Given an inode, first check if we care what happens to our children.  Inotify
  * and dnotify both tell their parents about events.  If we care about any event
  * on a child we run all of our children and set a dentry flag saying that the
@@ -251,7 +291,7 @@ static struct fsnotify_mark *fsnotify_first_mark(struct fsnotify_mark_connector 
 	return hlist_entry_safe(node, struct fsnotify_mark, obj_list);
 }
 
-static struct fsnotify_mark *fsnotify_next_mark(struct fsnotify_mark *mark)
+struct fsnotify_mark *fsnotify_next_mark(struct fsnotify_mark *mark)
 {
 	struct hlist_node *node = NULL;
 
@@ -287,6 +327,7 @@ static unsigned int fsnotify_iter_select_report_types(
 		return 0;
 
 	/* Set the report mask for marks from same group as max prio group */
+	iter_info->current_group = max_prio_group;
 	iter_info->report_mask = 0;
 	fsnotify_foreach_obj_type(type) {
 		mark = iter_info->marks[type];

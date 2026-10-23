@@ -97,7 +97,7 @@ static int extend_netdev_table(struct net_device *dev, u32 target_idx)
 static u32 netprio_prio(struct cgroup_subsys_state *css, struct net_device *dev)
 {
 	struct netprio_map *map = rcu_dereference_rtnl(dev->priomap);
-	int id = css->cgroup->id;
+	int id = css->id;
 
 	if (map && id < map->priomap_len)
 		return map->priomap[id];
@@ -117,7 +117,7 @@ static int netprio_set_prio(struct cgroup_subsys_state *css,
 			    struct net_device *dev, u32 prio)
 {
 	struct netprio_map *map;
-	int id = css->cgroup->id;
+	int id = css->id;
 	int ret;
 
 	/* avoid extending priomap for zero writes */
@@ -181,7 +181,7 @@ static void cgrp_css_free(struct cgroup_subsys_state *css)
 
 static u64 read_prioidx(struct cgroup_subsys_state *css, struct cftype *cft)
 {
-	return css->cgroup->id;
+	return css->id;
 }
 
 static int read_priomap(struct seq_file *sf, void *v)
@@ -224,8 +224,7 @@ static ssize_t write_priomap(struct kernfs_open_file *of,
 
 static int update_netprio(const void *v, struct file *file, unsigned n)
 {
-	int err;
-	struct socket *sock = sock_from_file(file, &err);
+	struct socket *sock = sock_from_file(file);
 	if (sock) {
 		spin_lock(&cgroup_sk_update_lock);
 		sock_cgroup_set_prioidx(&sock->sk->sk_cgrp_data,
@@ -243,7 +242,7 @@ static void net_prio_attach(struct cgroup_taskset *tset)
 	cgroup_sk_alloc_disable();
 
 	cgroup_taskset_for_each(p, css, tset) {
-		void *v = (void *)(unsigned long)css->cgroup->id;
+		void *v = (void *)(unsigned long)css->id;
 
 		task_lock(p);
 		iterate_fd(p->files, 0, update_netprio, v);
