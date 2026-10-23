@@ -128,6 +128,7 @@ extern int netlink_broadcast_filtered(struct sock *ssk, struct sk_buff *skb,
 extern int netlink_set_err(struct sock *ssk, __u32 portid, __u32 group, int code);
 extern int netlink_register_notifier(struct notifier_block *nb);
 extern int netlink_unregister_notifier(struct notifier_block *nb);
+bool netlink_strict_get_check(struct sk_buff *skb);
 
 /* finegrained unicast helpers: */
 struct sock *netlink_getsockbyfilp(struct file *filp);
@@ -176,8 +177,11 @@ struct netlink_callback {
 	void			*data;
 	/* the module that dump function belong to */
 	struct module		*module;
+	struct netlink_ext_ack	*extack;
 	u16			family;
 	u16			min_dump_alloc;
+	bool			strict_check;
+	u16			answer_flags;
 	unsigned int		prev_seq, seq;
 	long			args[6];
 };

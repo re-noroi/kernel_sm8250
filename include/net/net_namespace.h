@@ -19,6 +19,7 @@
 #include <net/netns/packet.h>
 #include <net/netns/ipv4.h>
 #include <net/netns/ipv6.h>
+#include <net/netns/nexthop.h>
 #include <net/netns/ieee802154_6lowpan.h>
 #include <net/netns/sctp.h>
 #include <net/netns/dccp.h>
@@ -111,6 +112,7 @@ struct net {
 	struct netns_mib	mib;
 	struct netns_packet	packet;
 	struct netns_unix	unx;
+	struct netns_nexthop	nexthop;
 	struct netns_ipv4	ipv4;
 #if IS_ENABLED(CONFIG_IPV6)
 	struct netns_ipv6	ipv6;
@@ -443,6 +445,13 @@ static inline int rt_genid_ipv4(struct net *net)
 {
 	return atomic_read(&net->ipv4.rt_genid);
 }
+
+#if IS_ENABLED(CONFIG_IPV6)
+static inline int rt_genid_ipv6(const struct net *net)
+{
+	return atomic_read(&net->ipv6.fib6_sernum);
+}
+#endif
 
 static inline void rt_genid_bump_ipv4(struct net *net)
 {
