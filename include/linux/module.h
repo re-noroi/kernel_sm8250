@@ -450,6 +450,10 @@ struct module {
 	unsigned int num_srcu_structs;
 	struct srcu_struct **srcu_struct_ptrs;
 #endif
+#ifdef CONFIG_DEBUG_INFO_BTF_MODULES
+	unsigned int btf_data_size;
+	void *btf_data;
+#endif
 #ifdef CONFIG_JUMP_LABEL
 	struct jump_entry *jump_entries;
 	unsigned int num_jump_entries;
