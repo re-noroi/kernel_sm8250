@@ -123,9 +123,10 @@ static struct nfc_dev *__get_device_from_cb(struct netlink_callback *cb)
 	int rc;
 	u32 idx;
 
-	rc = nlmsg_parse(cb->nlh, GENL_HDRLEN + nfc_genl_family.hdrsize,
-			 attrbuf, nfc_genl_family.maxattr, nfc_genl_policy,
-			 NULL);
+	rc = nlmsg_parse_deprecated(cb->nlh,
+				    GENL_HDRLEN + nfc_genl_family.hdrsize,
+				    attrbuf, nfc_genl_family.maxattr,
+				    nfc_genl_policy, NULL);
 	if (rc < 0)
 		return ERR_PTR(rc);
 
@@ -396,7 +397,7 @@ int nfc_genl_llc_send_sdres(struct nfc_dev *dev, struct hlist_head *sdres_list)
 	if (nla_put_u32(msg, NFC_ATTR_DEVICE_INDEX, dev->idx))
 		goto nla_put_failure;
 
-	sdp_attr = nla_nest_start(msg, NFC_ATTR_LLC_SDP);
+	sdp_attr = nla_nest_start_noflag(msg, NFC_ATTR_LLC_SDP);
 	if (sdp_attr == NULL) {
 		rc = -ENOMEM;
 		goto nla_put_failure;
@@ -406,7 +407,7 @@ int nfc_genl_llc_send_sdres(struct nfc_dev *dev, struct hlist_head *sdres_list)
 	hlist_for_each_entry_safe(sdres, n, sdres_list, node) {
 		pr_debug("uri: %s, sap: %d\n", sdres->uri, sdres->sap);
 
-		uri_attr = nla_nest_start(msg, i++);
+		uri_attr = nla_nest_start_noflag(msg, i++);
 		if (uri_attr == NULL) {
 			rc = -ENOMEM;
 			goto nla_put_failure;
@@ -1185,8 +1186,9 @@ static int nfc_genl_llc_sdreq(struct sk_buff *skb, struct genl_info *info)
 	tlvs_len = 0;
 
 	nla_for_each_nested(attr, info->attrs[NFC_ATTR_LLC_SDP], rem) {
-		rc = nla_parse_nested(sdp_attrs, NFC_SDP_ATTR_MAX, attr,
-				      nfc_sdp_genl_policy, info->extack);
+		rc = nla_parse_nested_deprecated(sdp_attrs, NFC_SDP_ATTR_MAX,
+						 attr, nfc_sdp_genl_policy,
+						 info->extack);
 
 		if (rc != 0) {
 			rc = -EINVAL;

@@ -135,7 +135,7 @@ config ANDROID_KABI_RESERVE
 
 config ANDROID_VENDOR_HOOKS
 	bool "Android Vendor Hooks"
-	---help---
+	help
 	  Enable vendor hooks implemented as tracepoints
 
 	  Allow vendor modules to attach to tracepoint "hooks" defined via
