@@ -373,12 +373,12 @@ task_vma_seq_get_next(struct bpf_iter_seq_task_vma_info *info)
 		 *    4.2) VMA2 and VMA2' covers different ranges, process
 		 *         VMA2'.
 		 */
-		if (mmap_lock_is_contended(curr_task->mm)) {
+		if (rwsem_is_contended(&curr_task->mm->mmap_sem)) {
 			info->prev_vm_start = curr_vma->vm_start;
 			info->prev_vm_end = curr_vma->vm_end;
 			op = task_vma_iter_find_vma;
-			mmap_read_unlock(curr_task->mm);
-			if (mmap_read_lock_killable(curr_task->mm))
+			up_read(&curr_task->mm->mmap_sem);
+			if (down_read_killable(&curr_task->mm->mmap_sem))
 				goto finish;
 		} else {
 			op = task_vma_iter_next_vma;
@@ -408,7 +408,7 @@ again:
 		if (!curr_task->mm)
 			goto next_task;
 
-		if (mmap_read_lock_killable(curr_task->mm))
+		if (down_read_killable(&curr_task->mm->mmap_sem))
 			goto finish;
 	}
 
@@ -436,7 +436,7 @@ again:
 	}
 	if (!curr_vma) {
 		/* case 3) above, or case 2) 4.1) with vma->next == NULL */
-		mmap_read_unlock(curr_task->mm);
+		up_read(&curr_task->mm->mmap_sem);
 		goto next_task;
 	}
 	info->task = curr_task;
@@ -525,7 +525,7 @@ static void task_vma_seq_stop(struct seq_file *seq, void *v)
 		 */
 		info->prev_vm_start = ~0UL;
 		info->prev_vm_end = info->vma->vm_end;
-		mmap_read_unlock(info->task->mm);
+		up_read(&info->task->mm->mmap_sem);
 		put_task_struct(info->task);
 		info->task = NULL;
 	}
