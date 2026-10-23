@@ -173,6 +173,7 @@ typedef struct sock *(*udp_lookup_t)(struct sk_buff *skb, __be16 sport,
 struct sk_buff *udp_gro_receive(struct list_head *head, struct sk_buff *skb,
 				struct udphdr *uh, udp_lookup_t lookup);
 int udp_gro_complete(struct sk_buff *skb, int nhoff, udp_lookup_t lookup);
+void udp_v6_early_demux(struct sk_buff *skb);
 
 struct sk_buff *__udp_gso_segment(struct sk_buff *gso_skb,
 				  netdev_features_t features);
@@ -484,5 +485,10 @@ static inline struct sk_buff *udp_rcv_segment(struct sock *sk,
 	consume_skb(skb);
 	return segs;
 }
+
+#ifdef CONFIG_BPF_SYSCALL
+struct sk_psock;
+struct proto *udp_bpf_get_proto(struct sock *sk, struct sk_psock *psock);
+#endif
 
 #endif	/* _UDP_H */

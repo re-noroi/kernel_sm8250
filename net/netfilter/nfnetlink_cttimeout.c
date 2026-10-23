@@ -62,8 +62,11 @@ ctnl_timeout_parse_policy(void *timeout,
 	if (!tb)
 		return -ENOMEM;
 
-	ret = nla_parse_nested(tb, l4proto->ctnl_timeout.nlattr_max, attr,
-			       l4proto->ctnl_timeout.nla_policy, NULL);
+	ret = nla_parse_nested_deprecated(tb,
+					  l4proto->ctnl_timeout.nlattr_max,
+					  attr,
+					  l4proto->ctnl_timeout.nla_policy,
+					  NULL);
 	if (ret < 0)
 		goto err;
 
@@ -185,8 +188,7 @@ ctnl_timeout_fill_info(struct sk_buff *skb, u32 portid, u32 seq, u32 type,
 		struct nlattr *nest_parms;
 		int ret;
 
-		nest_parms = nla_nest_start(skb,
-					    CTA_TIMEOUT_DATA | NLA_F_NESTED);
+		nest_parms = nla_nest_start(skb, CTA_TIMEOUT_DATA);
 		if (!nest_parms)
 			goto nla_put_failure;
 
@@ -407,8 +409,7 @@ cttimeout_default_fill_info(struct net *net, struct sk_buff *skb, u32 portid,
 		struct nlattr *nest_parms;
 		int ret;
 
-		nest_parms = nla_nest_start(skb,
-					    CTA_TIMEOUT_DATA | NLA_F_NESTED);
+		nest_parms = nla_nest_start(skb, CTA_TIMEOUT_DATA);
 		if (!nest_parms)
 			goto nla_put_failure;
 

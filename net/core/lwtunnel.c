@@ -26,7 +26,7 @@
 #include <net/lwtunnel.h>
 #include <net/rtnetlink.h>
 #include <net/ip6_fib.h>
-#include <net/nexthop.h>
+#include <net/rtnh.h>
 
 #ifdef CONFIG_MODULES
 
@@ -103,7 +103,7 @@ int lwtunnel_encap_del_ops(const struct lwtunnel_encap_ops *ops,
 }
 EXPORT_SYMBOL_GPL(lwtunnel_encap_del_ops);
 
-int lwtunnel_build_state(u16 encap_type,
+int lwtunnel_build_state(struct net *net, u16 encap_type,
 			 struct nlattr *encap, unsigned int family,
 			 const void *cfg, struct lwtunnel_state **lws,
 			 struct netlink_ext_ack *extack)
@@ -124,7 +124,7 @@ int lwtunnel_build_state(u16 encap_type,
 	ops = rcu_dereference(lwtun_encaps[encap_type]);
 	if (likely(ops && ops->build_state && try_module_get(ops->owner))) {
 		found = true;
-		ret = ops->build_state(encap, family, cfg, lws, extack);
+		ret = ops->build_state(net, encap, family, cfg, lws, extack);
 		if (ret)
 			module_put(ops->owner);
 	}
@@ -195,6 +195,10 @@ int lwtunnel_valid_encap_type_attr(struct nlattr *attr, int remaining,
 			nla_entype = nla_find(attrs, attrlen, RTA_ENCAP_TYPE);
 
 			if (nla_entype) {
+				if (nla_len(nla_entype) < sizeof(u16)) {
+					NL_SET_ERR_MSG(extack, "Invalid RTA_ENCAP_TYPE");
+					return -EINVAL;
+				}
 				encap_type = nla_get_u16(nla_entype);
 
 				if (lwtunnel_valid_encap_type(encap_type,
@@ -223,7 +227,8 @@ void lwtstate_free(struct lwtunnel_state *lws)
 }
 EXPORT_SYMBOL_GPL(lwtstate_free);
 
-int lwtunnel_fill_encap(struct sk_buff *skb, struct lwtunnel_state *lwtstate)
+int lwtunnel_fill_encap(struct sk_buff *skb, struct lwtunnel_state *lwtstate,
+			int encap_attr, int encap_type_attr)
 {
 	const struct lwtunnel_encap_ops *ops;
 	struct nlattr *nest;
@@ -236,7 +241,7 @@ int lwtunnel_fill_encap(struct sk_buff *skb, struct lwtunnel_state *lwtstate)
 	    lwtstate->type > LWTUNNEL_ENCAP_MAX)
 		return 0;
 
-	nest = nla_nest_start(skb, RTA_ENCAP);
+	nest = nla_nest_start_noflag(skb, encap_attr);
 	if (!nest)
 		return -EMSGSIZE;
 
@@ -250,7 +255,7 @@ int lwtunnel_fill_encap(struct sk_buff *skb, struct lwtunnel_state *lwtstate)
 	if (ret)
 		goto nla_put_failure;
 	nla_nest_end(skb, nest);
-	ret = nla_put_u16(skb, RTA_ENCAP_TYPE, lwtstate->type);
+	ret = nla_put_u16(skb, encap_type_attr, lwtstate->type);
 	if (ret)
 		goto nla_put_failure;
 
