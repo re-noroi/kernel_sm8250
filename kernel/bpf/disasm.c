@@ -83,7 +83,7 @@ const char *const bpf_alu_string[16] = {
 static const char *const bpf_atomic_alu_string[16] = {
 	[BPF_ADD >> 4]  = "add",
 	[BPF_AND >> 4]  = "and",
-	[BPF_OR >> 4]   = "or",
+	[BPF_OR >> 4]  = "or",
 	[BPF_XOR >> 4]  = "xor",
 };
 

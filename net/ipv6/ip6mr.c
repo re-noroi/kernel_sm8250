@@ -1675,7 +1675,7 @@ int ip6_mroute_setsockopt(struct sock *sk, int optname, char __user *optval, uns
 	case MRT6_ADD_MFC:
 	case MRT6_DEL_MFC:
 		parent = -1;
-		/* fall through */
+		fallthrough;
 	case MRT6_ADD_MFC_PROXY:
 	case MRT6_DEL_MFC_PROXY:
 		if (optlen < sizeof(mfc))
@@ -2443,6 +2443,18 @@ errout:
 
 static int ip6mr_rtm_dumproute(struct sk_buff *skb, struct netlink_callback *cb)
 {
+	const struct nlmsghdr *nlh = cb->nlh;
+	struct fib_dump_filter filter = {};
+
+	if (cb->strict_check) {
+		int err;
+
+		err = ip_valid_fib_dump_req(sock_net(skb->sk), nlh,
+					    &filter, cb);
+		if (err < 0)
+			return err;
+	}
+
 	return mr_rtm_dumproute(skb, cb, ip6mr_mr_table_iter,
 				_ip6mr_fill_mroute, &mfc_unres_lock);
 }
