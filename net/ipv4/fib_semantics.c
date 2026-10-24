@@ -743,7 +743,7 @@ static void fib_rebalance(struct fib_info *fi)
 	change_nexthops(fi) {
 		int upper_bound;
 
-		if (nexthop_nh->fib_nh_flags & RTNH_F_DEAD) {
+		if (!total || nexthop_nh->fib_nh_flags & RTNH_F_DEAD) {
 			upper_bound = -1;
 		} else if (ip_ignore_linkdown(nexthop_nh->fib_nh_dev) &&
 			   nexthop_nh->fib_nh_flags & RTNH_F_LINKDOWN) {
@@ -806,7 +806,13 @@ int fib_nh_match(struct net *net, struct fib_config *cfg, struct fib_info *fi,
 		return 1;
 
 	if (cfg->fc_oif || cfg->fc_gw_family) {
-		struct fib_nh *nh = fib_info_nh(fi, 0);
+		struct fib_nh *nh;
+
+		/* cannot match on nexthop object attributes */
+		if (fi->nh)
+			return 1;
+
+		nh = fib_info_nh(fi, 0);
 
 		if (cfg->fc_encap) {
 			if (fib_encap_match(net, cfg->fc_encap_type,
