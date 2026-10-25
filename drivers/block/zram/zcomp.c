@@ -128,20 +128,14 @@ struct zcomp_strm *zcomp_stream_get(struct zcomp *comp)
 		 * so then unlock and re-try on the current CPU.
 		 */
 		mutex_lock(&zstrm->lock);
-		if (!comp->ops->async && !IS_ENABLED(CONFIG_PREEMPT_RT))
-			preempt_disable();
 		if (likely(zstrm->buffer))
 			return zstrm;
-		if (!comp->ops->async && !IS_ENABLED(CONFIG_PREEMPT_RT))
-			preempt_enable();
 		mutex_unlock(&zstrm->lock);
 	}
 }
 
-void zcomp_stream_put(struct zcomp_strm *zstrm, struct zcomp *comp)
+void zcomp_stream_put(struct zcomp_strm *zstrm)
 {
-	if (!comp->ops->async && !IS_ENABLED(CONFIG_PREEMPT_RT))
-		preempt_enable();
 	mutex_unlock(&zstrm->lock);
 }
 
@@ -156,8 +150,7 @@ int zcomp_compress(struct zcomp *comp, struct zcomp_strm *zstrm,
 	};
 	int ret;
 
-	if (comp->ops->async)
-		might_sleep();
+	might_sleep();
 	ret = comp->ops->compress(comp->params, &zstrm->ctx, &req);
 	if (!ret)
 		*dst_len = req.dst_len;
@@ -174,8 +167,7 @@ int zcomp_decompress(struct zcomp *comp, struct zcomp_strm *zstrm,
 		.dst_len = PAGE_SIZE,
 	};
 
-	if (comp->ops->async)
-		might_sleep();
+	might_sleep();
 	return comp->ops->decompress(comp->params, &zstrm->ctx, &req);
 }
 
