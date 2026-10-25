@@ -10,7 +10,7 @@
  * published by the Free Software Foundation.
  *
  */
-
+#pragma once
 #define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
@@ -20,6 +20,7 @@
 #include <stdint.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <ctype.h>
 #include <errno.h>
 #include <time.h>
 #include <poll.h>
@@ -34,75 +35,155 @@
 #include <stdint.h>
 #include <dirent.h>
 
-typedef uint64_t __aligned_u64;
-typedef uint64_t __u64;
-typedef uint32_t __u32;
-typedef int32_t __s32;
-typedef uint16_t __u16;
-typedef uint8_t __u8;
+// macro overrides is much more portable than typedef redefinitions
+#define __aligned_u64	uint64_t
+#define __u64		uint64_t
+#define __s64		int64_t
+#define __u32		uint32_t
+#define __s32		int32_t
+#define __u16		uint16_t
+#define __s16		int16_t
+#define __u8		uint8_t
+#define __s8		int8_t
 
 #include "../../include/uapi/app_profile.h"
 #include "../../include/uapi/supercall.h"
 
+#include "picoprintf/picoprintf.c"
+#define snprintf	pico_snprintf
+#define vsnprintf	pico_vsnprintf
+
 /**
  * while we can actually just let libc map these for us
  * we can reduce binary size by 4kB by actually manually mapping
- * calls to respective syscalls
+ * libc functions to respective syscalls, and workaround some kinks
+ *
+ * TODO: maybe test on arm32
  */
-#ifdef __aarch64__
+#define small_rt_use_errno
+#include "small_rt.h"
+#define syscall __syscall
 
 #define sys_reboot(a, b, c, d)	syscall(SYS_reboot, a, b, c, d)
 #define sys_ioctl(a, b, c)	syscall(SYS_ioctl, a, b, c)
 #define getdents64(a, b, c)	syscall(SYS_getdents64, a, b, c)
-#define _exit(code)		syscall(SYS_exit, code)
-#define open(path, flags, ...)  syscall(SYS_openat, AT_FDCWD, path, flags, ##__VA_ARGS__)
-#define close(fd)               syscall(SYS_close, fd)
-#define read(fd, buf, count)    syscall(SYS_read, fd, buf, count)
-#define write(fd, buf, count)   syscall(SYS_write, fd, buf, count)
-#define fsync(fd)               syscall(SYS_fsync, fd)
-#define chdir(path)             syscall(SYS_chdir, path)
-
-// stat
-#define fstat(fd, st)           syscall(SYS_newfstatat, fd, "", st, AT_EMPTY_PATH)
-#define lstat(path, st)         syscall(SYS_newfstatat, AT_FDCWD, path, st, AT_SYMLINK_NOFOLLOW)
-#define fstat(fd, st)           syscall(SYS_newfstatat, fd, "", st, AT_EMPTY_PATH)
-#define lstat(path, st)         syscall(SYS_newfstatat, AT_FDCWD, path, st, AT_SYMLINK_NOFOLLOW)
-
-#define fork()                  syscall(SYS_clone, SIGCHLD, 0, 0, 0, 0)
-#define waitpid(a, b, c)	syscall(SYS_wait4, a, b, c, 0)
-#define setpgid(pid, pgid)      syscall(SYS_setpgid, pid, pgid)
+#define fsync(fd)		syscall(SYS_fsync, fd)
+#define chdir(path)		syscall(SYS_chdir, path)
+#define setpgid(pid, pgid)	syscall(SYS_setpgid, pid, pgid)
 #define execve(fn, arg, env)	syscall(SYS_execve, fn, arg, env)
-
 #define pipe2(pipefd, flags)	syscall(SYS_pipe2, pipefd, flags)
-#define kill(pid, sig)          syscall(SYS_kill, pid, sig)
+#define nanosleep(req, rem)	syscall(SYS_nanosleep, req, rem)
+#define munmap(addr, len)	syscall(SYS_munmap, addr, len)
+#define read(fd, buf, count)	syscall(SYS_read, fd, buf, count)
+#define write(fd, buf, count)	syscall(SYS_write, fd, buf, count)
 
-#define clock_gettime(clk, ts)  syscall(SYS_clock_gettime, clk, ts)
-#define nanosleep(req, rem)     syscall(SYS_nanosleep, req, rem)
+// HACK: this should be: syscall(SYS_clone, SIGCHLD, 0, 0, 0, 0)
+#define fork()			syscall(SYS_clone, SIGCHLD)
 
-#define dup2(oldfd, newfd)	syscall(SYS_dup3, oldfd, newfd, 0)
+#if defined(__arm__) // https://elixir.bootlin.com/linux/v3.0.101/source/arch/arm/kernel/entry-common.S#L580
+#define SYS_mmap2 192
+#define mmap(addr, len, prot, flags, fd, off) ({ (void *)syscall(SYS_mmap2, addr, len, prot, flags, fd, (off) >> 12); })
+#else
+#define mmap(addr, len, prot, flags, fd, off) ({ (void *)syscall(SYS_mmap, addr, len, prot, flags, fd, off); })
+#endif
 
-static inline int sys_poll(struct pollfd *fds, nfds_t nfds, int timeout_ms)
+#define noinline __attribute__((noinline))
+
+static noinline long __sys_exit(int code)
 {
-	struct timespec ts, *pts = NULL;
-	if (timeout_ms >= 0) {
-		ts.tv_sec = timeout_ms / 1000;
-		ts.tv_nsec = (timeout_ms % 1000) * 1000000L;
-		pts = &ts;
-	}
-	return syscall(SYS_ppoll, fds, nfds, pts, NULL, 0);
+	syscall(SYS_exit, code);
+	__builtin_unreachable();
+	return 42;
 }
-#define poll sys_poll
+#define _exit __sys_exit
 
+static noinline long __sys_close(int fd)
+{ 
+	return syscall(SYS_close, fd);
+}
+#define close __sys_close
+
+static noinline long __sys_openat(const char *path, int flags, int mode)
+{
+	return syscall(SYS_openat, AT_FDCWD, path, flags, mode);
+}
+#define __open_impl(path, flags, mode, ...) __sys_openat(path, flags, mode)
+#define open(path, flags, ...) __open_impl(path, flags, ##__VA_ARGS__, 0)
+
+#if defined(__arm__) // map to fstatat64
+#define SYS_newfstatat SYS_fstatat64
+#endif
+static noinline long __sys_newfstatat(int dirfd, const char *path, struct stat *st, int flags)
+{
+	return syscall(SYS_newfstatat, dirfd, path, st, flags);
+}
+#define fstat(fd, st)		__sys_newfstatat(fd, "", st, AT_EMPTY_PATH)
+#define lstat(path, st)		__sys_newfstatat(AT_FDCWD, path, st, AT_SYMLINK_NOFOLLOW)
+
+static noinline pid_t __sys_waitpid(pid_t pid, int *status, int options)
+{
+	return syscall(SYS_wait4, pid, status, options, 0);
+}
+#define waitpid __sys_waitpid
+
+static noinline int __sys_kill(pid_t pid, int sig)
+{
+	return syscall(SYS_kill, pid, sig);
+}
+#define kill __sys_kill
+
+/**
+ * map clock_gettime specifically, we do NOT want a vdso call.
+ * also, map to old gettime for armeabi as it will -ENOSYS on k3.x.
+ * it can truncate on Y2038 but not a big deal.
+ */
+#if defined(__arm__)
+static int __sys_clock_gettime_shim(int clk, struct timespec *ts)
+{
+	struct old_timespec32 { int32_t tv_sec; int32_t	tv_nsec; };
+	struct old_timespec32 ts32;
+#define SYS_clock_gettime32 263
+	int ret = syscall(SYS_clock_gettime32, clk, &ts32);
+	ts->tv_sec = ts32.tv_sec;
+	ts->tv_nsec = ts32.tv_nsec;
+	return ret;
+}
+#define clock_gettime(clk, ts)	__sys_clock_gettime_shim(clk, ts)
+#else
+#define clock_gettime(clk, ts)	syscall(SYS_clock_gettime, clk, ts)
+#endif
+
+// https://elixir.bootlin.com/linux/v4.14.1/source/fs/file.c#L876
+// https://elixir.bootlin.com/musl/v1.2.6/source/src/unistd/dup2.c#L6
+static int sys_dup2(int old, int new)
+{
+	if (old == new) { // basically just check if valid
+		long r = syscall(SYS_fcntl, old, F_GETFD);
+		return (r >= 0) ? old : r;
+	}
+	return syscall(SYS_dup3, old, new, 0);
+}
+#define dup2 sys_dup2
+
+// https://elixir.bootlin.com/musl/v1.2.6/source/src/select/poll.c#L6
+// both armeabi and aarch64 has ppoll, we use ppoll.
+static int __sys_poll(struct pollfd *fds, nfds_t nfds, int timeout_ms)
+{
+	typedef long ppoll_ts_t[2];
+	return syscall(SYS_ppoll, fds, nfds, timeout_ms >= 0 ?
+		((ppoll_ts_t){ timeout_ms / 1000, (timeout_ms % 1000) * 1000000L }) : NULL,
+		NULL, _NSIG / 8);
+}
+#define poll __sys_poll
+
+#ifndef __NR_init_module
 #define __NR_init_module	SYS_init_module
+#endif
+#ifndef __NR_finit_module
 #define __NR_finit_module	SYS_finit_module
+#endif
+#ifndef __NR_execveat
 #define __NR_execveat		SYS_execveat
-
-#else /* ! __aarch64__ */
-
-#define sys_reboot(a, b, c, d)	syscall(SYS_reboot, a, b, c, d)
-#define sys_ioctl(a, b, c)	syscall(SYS_ioctl, a, b, c)
-#define getdents64(a, b, c)	syscall(SYS_getdents64, a, b, c)
-
 #endif
 
 struct __linux_dirent64 {
@@ -114,4 +195,126 @@ struct __linux_dirent64 {
 };
 #define linux_dirent64 __linux_dirent64
 
-// zig cc -target aarch64-linux -s -Oz -Wno-int-conversion -std=gnu23 -static -Wl,--gc-sections,-z,norelro -fno-unwind-tables -Wno-unknown-attributes -Wno-macro-redefined runner.c
+/* stdlib */
+
+#define isdigit(x) ((x) >= '0' && (x) <= '9')
+static noinline long dumb_atol(const char *str)
+{
+	long res = 0;
+	if (!str || !*str)
+		return res;
+start:
+	if (!isdigit((unsigned char)*str))
+		return res;
+
+	res = (res * 10) + (*str - 48);
+	str++;
+	if (*str)
+		goto start;
+
+	return res;
+}
+#define atol dumb_atol
+
+static unsigned long __strlen(const char *str)
+{
+	const char *s = str;
+	while (*s)
+		s++;
+	return s - str;
+}
+#define strlen __strlen
+
+static noinline char *__strchr(const char *s, int c)
+{
+	unsigned char tgt = (unsigned char)c;
+start:
+	if ((unsigned char)*s == tgt)
+		return (char *)s;
+
+	if (!*s)
+		return NULL;
+
+	s++;
+	goto start;
+}
+#define strchr __strchr
+
+// note: restrict costs 24 bytes
+static void *__memcpy(void *dst, const void *src, size_t count)
+{
+//	__builtin_assume_separate_storage(dst, src);
+	unsigned char *d = dst;
+	const unsigned char *s = src;
+	while (count--)
+        	*d++ = *s++;
+
+	return dst;
+}
+#define memcpy __memcpy
+
+#define memcmp __builtin_memcmp
+
+// string functions taken from
+// https://elixir.bootlin.com/linux/v7.3/source/lib/string.c
+static noinline int __strcmp(const char *cs, const char *ct)
+{
+	unsigned char c1, c2;
+	while (1) {
+		c1 = *cs++;
+		c2 = *ct++;
+		if (c1 != c2) // hack: destroy's -1 / +1 but should be fine, saves 8 bytes
+			return c1 - c2; // return c1 < c2 ? -1 : 1;
+		if (!c1)
+			break;
+	}
+	return 0;
+}
+#define strcmp __strcmp
+
+static noinline char *__strcpy(char *dest, const char *src)
+{
+	char *tmp = dest;
+	while ((*dest++ = *src++) != '\0')
+		/* nothing */;
+	return tmp;
+}
+#define strcpy __strcpy
+
+static char *__strstr(const char *s1, const char *s2)
+{
+	size_t l1, l2;
+
+	l2 = strlen(s2);
+	if (!l2)
+		return (char *)s1;
+	l1 = strlen(s1);
+	while (l1 >= l2) {
+		l1--;
+		if (!memcmp(s1, s2, l2))
+			return (char *)s1;
+		s1++;
+	}
+	return NULL;
+}
+#define strstr __strstr
+
+/* buildinfo */
+
+#define __runner_stringify2(x) #x
+#define __runner_stringify(x) __runner_stringify2(x)
+
+#define __runner_STDC __runner_stringify(__STDC_VERSION__)
+
+#define __runner_ARCH "unknown"
+#if defined(__aarch64__)
+#define __runner_ARCH "aarch64"
+#elif defined(__arm__)
+#define __runner_ARCH "arm"
+#endif
+
+#define __runner_CLANG "Clang " __runner_stringify(__clang_major__) "." __runner_stringify(__clang_minor__) "." __runner_stringify(__clang_patchlevel__)
+#define __runner_COMPILER __runner_CLANG " on zig " ZIG_VERSION
+
+#define __runner_BUILD_INFO "KernelSU preinit ELF running on " __runner_ARCH "! / buildinfo: " __runner_COMPILER " stdc: " __runner_STDC
+

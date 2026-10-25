@@ -101,6 +101,10 @@
 #include "downstream/ksu_hostsredirect.h"
 #endif
 
+#ifdef CONFIG_KSU_GETPRIORITY_FILTER_DEMO
+#include "downstream/ksu_getpriority.h"
+#endif
+
 // unity build
 #include "policy/allowlist.c"
 #include "policy/app_profile.c"
@@ -297,6 +301,9 @@ static int __init kernelsu_init(void)
 	ksu_branch_link_patch_init();
 #endif
 
+#ifdef CONFIG_KSU_GETPRIORITY_FILTER_DEMO
+	ksu_getpriority_init();
+#endif
 	return 0;
 }
 

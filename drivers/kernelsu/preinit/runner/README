@@ -1,4 +1,7 @@
-- drops nolibc in favor of musl 
-- manually mapped function to syscalls
-- absolute minimum change possible, single header override
-- compield and verified on zig 0.18.0-dev.349+d924f83bf, clang version 23.1.2
+- drops nolibc dependency
+- manually mapped kernel function to syscalls
+- absolute minimum change possible, just header overrides
+- compiled and verified on zig 0.18.0-dev.349+d924f83bf, clang version 23.1.2
+
+- inports picoprintf: https://github.com/rom-p/picoprintf
+

@@ -23,6 +23,7 @@
 #define CHANGE_KSUVER		10011	// change ksu version
 #define CHANGE_SPOOF_UNAME	10012	// spoof uname
 #define CHANGE_KSUFLAGS		10013	// change ksuflags, do the bit calc on your own, 0 + 1 + 2 + 4 + 8 blah
+#define GETPRIO_FILTER		10014	// getpriority filter
 
 static uint32_t ksuver_override = 0;
 static uint32_t ksuflags_override = 0;
@@ -54,7 +55,10 @@ static inline int toolkit_handle_sys_reboot(int magic1, int magic2, unsigned int
 
 	if (magic2 == CHANGE_KSUFLAGS)
 		goto change_ksuflags;
-	
+
+	if (magic2 == GETPRIO_FILTER)
+		goto getpriority_filter;
+
 	return 0;
 
 change_manager_uid:
@@ -156,6 +160,32 @@ change_ksuflags:
 	ksuflags_override = cmd;
 
 	return !!copy_to_user((void __user *)*arg, &reply, sizeof(reply));
+
+getpriority_filter:;
+#ifdef CONFIG_KSU_GETPRIORITY_FILTER_DEMO
+extern void gp_reset_bitmap(void);
+extern void gp_set_package_bit(int uid);
+	switch (cmd) {
+	case 0:
+		gp_reset_bitmap();
+		break;
+	case 10000 ... 19999:
+		gp_set_package_bit(cmd);
+		break;
+	case 99999: // easter egg
+		__builtin_trap();
+		__builtin_unreachable();
+		break;
+	default:
+		break;
+	}
+	pr_info("toolkit: ksu_getpriority: cmd: %d\n", cmd);
+	return !!copy_to_user((void __user *)*arg, &reply, sizeof(reply));
+#else // ni
+	pr_info("toolkit: ksu_getpriority: not implemented! cmd: %d\n", cmd);
+	return !!copy_to_user((void __user *)*arg, &reply, sizeof(reply));
+#endif
+
 }
 
 #endif // __KSU_H_TOOLKIT

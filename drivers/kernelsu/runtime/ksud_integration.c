@@ -299,7 +299,7 @@ static bool is_init_rc(struct file *fp)
 	}
 
 	// Bind mounts retain the source dentry name, so match the mounted path.
-	char path[256] = {0};
+	char path[256];
 	char *dpath = d_path(&fp->f_path, path, sizeof(path));
 
 	if (IS_ERR(dpath)) {

@@ -135,11 +135,13 @@ static int ksu_wrapper_flush(struct file *fp, fl_owner_t id) {
 }
 
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 1, 0)
 static int ksu_wrapper_fsync(struct file *fp, loff_t off1, loff_t off2, int datasync) {
 	struct ksu_file_wrapper* data = fp->private_data;
 	struct file* orig = data->orig;
 	return orig->f_op->fsync(orig, off1, off2, datasync);
 }
+#endif
 
 static int ksu_wrapper_fasync(int arg, struct file *fp, int arg2) {
 	struct ksu_file_wrapper* data = fp->private_data;
@@ -373,7 +375,9 @@ static struct ksu_file_wrapper* ksu_create_file_wrapper(struct file* fp) {
 #endif
 	p->ops.flush = fp->f_op->flush ? ksu_wrapper_flush : NULL;
 	p->ops.release = ksu_wrapper_release;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 1, 0)
 	p->ops.fsync = fp->f_op->fsync ? ksu_wrapper_fsync : NULL;
+#endif
 	p->ops.fasync = fp->f_op->fasync ? ksu_wrapper_fasync : NULL;
 	p->ops.lock = fp->f_op->lock ? ksu_wrapper_lock : NULL;
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 6, 0)
