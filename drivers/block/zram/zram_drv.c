@@ -1647,7 +1647,7 @@ static int read_compressed_page(struct zram *zram, struct page *page, u32 index)
 	ret = zcomp_decompress(comp, zstrm, src, size, dst);
 	kunmap_atomic(dst);
 	zs_obj_read_end(zram->mem_pool, handle, size, src);
-	zcomp_dstrm_put(zstrm, mode);
+	zcomp_dstrm_put(comp, zstrm, mode);
 	kfree(tmp);
 
 	return ret;
