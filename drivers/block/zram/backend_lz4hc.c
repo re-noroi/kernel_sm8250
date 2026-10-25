@@ -1,19 +1,21 @@
 #define pr_fmt(fmt) "zram: lz4hc: " fmt
 
+#define LZ4_HC_STATIC_LINKING_ONLY
+
 #include <linux/kernel.h>
 #include <linux/lz4.h>
 #include <linux/sizes.h>
-#include <linux/slab.h>
 #include <linux/vmalloc.h>
 
 #include "backend_lz4hc.h"
 
-struct lz4hc_ctx {
-	void *mem;
-
-	LZ4_streamDecode_t *dstrm;
-	LZ4_streamHC_t *cstrm;
-};
+static size_t lz4hc_workspace_size(const struct zcomp_params *params)
+{
+	/* The bundled freestanding LZ4HC would otherwise use a 64 KiB stack. */
+	if (params->level >= LZ4HC_CLEVEL_OPT_MIN)
+		return LZ4_STREAMHC_EXTSIZE;
+	return LZ4HC_MEM_COMPRESS;
+}
 
 static void lz4hc_release_params(struct zcomp_params *params)
 {
@@ -24,6 +26,7 @@ static void lz4hc_release_params(struct zcomp_params *params)
 static int lz4hc_setup_params(struct zcomp_params *params)
 {
 	LZ4_streamHC_t *dict_stream;
+	size_t size;
 	int ret;
 
 	if (params->level == ZCOMP_PARAM_NO_LEVEL)
@@ -35,11 +38,16 @@ static int lz4hc_setup_params(struct zcomp_params *params)
 	if (params->dict_sz > SZ_64K)
 		return -EINVAL;
 
-	dict_stream = vzalloc(sizeof(*dict_stream));
+	size = lz4hc_workspace_size(params);
+	dict_stream = vzalloc(size);
 	if (!dict_stream)
 		return -ENOMEM;
 
-	LZ4_resetStreamHC(dict_stream, params->level);
+	if (!LZ4_initStreamHC(dict_stream, size)) {
+		vfree(dict_stream);
+		return -EINVAL;
+	}
+	LZ4_setCompressionLevel(dict_stream, params->level);
 	ret = LZ4_loadDictHC(dict_stream, params->dict, params->dict_sz);
 	if (ret != params->dict_sz) {
 		vfree(dict_stream);
@@ -52,62 +60,43 @@ static int lz4hc_setup_params(struct zcomp_params *params)
 
 static void lz4hc_destroy(struct zcomp_ctx *ctx)
 {
-	struct lz4hc_ctx *zctx = ctx->context;
-
-	if (!zctx)
-		return;
-
-	kfree(zctx->dstrm);
-	kfree(zctx->cstrm);
-	vfree(zctx->mem);
-	kfree(zctx);
+	vfree(ctx->context);
 }
 
 static int lz4hc_create(struct zcomp_params *params, struct zcomp_ctx *ctx)
 {
-	struct lz4hc_ctx *zctx;
+	size_t size = lz4hc_workspace_size(params);
+	void *mem;
 
-	zctx = kzalloc(sizeof(*zctx), GFP_KERNEL);
-	if (!zctx)
+	BUILD_BUG_ON(sizeof(LZ4_streamHC_t) != LZ4HC_MEM_COMPRESS);
+
+	mem = vmalloc(size);
+	if (!mem)
 		return -ENOMEM;
 
-	ctx->context = zctx;
-	if (params->dict_sz == 0) {
-		zctx->mem = vmalloc(LZ4HC_MEM_COMPRESS);
-		if (!zctx->mem)
-			goto error;
-	} else {
-		zctx->dstrm = kzalloc(sizeof(*zctx->dstrm), GFP_KERNEL);
-		if (!zctx->dstrm)
-			goto error;
-
-		zctx->cstrm = kzalloc(sizeof(*zctx->cstrm), GFP_KERNEL);
-		if (!zctx->cstrm)
-			goto error;
+	if (!LZ4_initStreamHC(mem, size)) {
+		vfree(mem);
+		return -EINVAL;
 	}
-
+	ctx->context = mem;
 	return 0;
-
-error:
-	lz4hc_destroy(ctx);
-	return -EINVAL;
 }
 
 static int lz4hc_compress(struct zcomp_params *params, struct zcomp_ctx *ctx,
 			  struct zcomp_req *req)
 {
-	struct lz4hc_ctx *zctx = ctx->context;
 	int ret;
 
-	if (!zctx->cstrm) {
-		ret = LZ4_compress_HC(req->src, req->dst, req->src_len,
-				      req->dst_len, params->level,
-				      zctx->mem);
+	if (!params->drv_data) {
+		ret = LZ4_compress_HC_extStateHC_fastReset(ctx->context,
+							  req->src, req->dst,
+							  req->src_len, req->dst_len,
+							  params->level);
 	} else {
-		/* Cstrm needs to be reset */
-		memcpy(zctx->cstrm, params->drv_data, sizeof(*zctx->cstrm));
-		ret = LZ4_compress_HC_continue(zctx->cstrm, req->src, req->dst,
-					       req->src_len, req->dst_len);
+		/* Restore the dictionary state, leaving the scratch area untouched. */
+		memcpy(ctx->context, params->drv_data, sizeof(LZ4_streamHC_t));
+		ret = LZ4_compress_HC_continue(ctx->context, req->src, req->dst,
+					      req->src_len, req->dst_len);
 	}
 	if (!ret)
 		return -EINVAL;
@@ -118,23 +107,12 @@ static int lz4hc_compress(struct zcomp_params *params, struct zcomp_ctx *ctx,
 static int lz4hc_decompress(struct zcomp_params *params, struct zcomp_ctx *ctx,
 			    struct zcomp_req *req)
 {
-	struct lz4hc_ctx *zctx = ctx->context;
 	int ret;
 
-	if (!zctx->dstrm) {
-		ret = LZ4_decompress_safe(req->src, req->dst, req->src_len,
-					  req->dst_len);
-	} else {
-		/* Dstrm needs to be reset */
-		ret = LZ4_setStreamDecode(zctx->dstrm, params->dict,
-					  params->dict_sz);
-		if (!ret)
-			return -EINVAL;
-		ret = LZ4_decompress_safe_continue(zctx->dstrm, req->src,
-						   req->dst, req->src_len,
-						   req->dst_len);
-	}
-	if (ret < 0)
+	ret = LZ4_decompress_safe_usingDict(req->src, req->dst, req->src_len,
+					    req->dst_len, params->dict,
+					    params->dict_sz);
+	if (ret != req->dst_len)
 		return -EINVAL;
 	return 0;
 }
