@@ -1667,6 +1667,7 @@ static int zram_read_page(struct zram *zram, struct page *page, u32 index,
 	int ret;
 
 	zram_slot_lock(zram, index);
+	zram_accessed(zram, index);
 	if (!zram_test_flag(zram, index, ZRAM_WB)) {
 		/* Slot should be locked through out the function call */
 		ret = zram_read_from_zspool(zram, page, index);
@@ -1723,6 +1724,7 @@ static int write_same_filled_page(struct zram *zram, unsigned long fill,
 	zram_free_page(zram, index);
 	zram_set_flag(zram, index, ZRAM_SAME);
 	zram->table[index].element = fill;
+	zram_accessed(zram, index);
 	zram_slot_unlock(zram, index);
 
 	atomic64_inc(&zram->stats.same_pages);
@@ -1768,6 +1770,7 @@ static int write_incompressible_page(struct zram *zram, struct page *page,
 
 	zram_set_flag(zram, index, ZRAM_HUGE);
 	zram_set_obj_size(zram, index, PAGE_SIZE);
+	zram_accessed(zram, index);
 	zram_slot_unlock(zram, index);
 
 	atomic64_add(PAGE_SIZE, &zram->stats.compr_data_size);
@@ -1828,6 +1831,7 @@ static int zram_write_page(struct zram *zram, struct page *page, u32 index)
 	update_used_max(zram);
 
 	zram_set_obj_size(zram, index, comp_len);
+	zram_accessed(zram, index);
 	zram_slot_unlock(zram, index);
 
 	/* Update stats */
@@ -2284,9 +2288,6 @@ static int zram_bvec_rw(struct zram *zram, struct bio_vec *bvec, u32 index,
 
 	generic_end_io_acct(q, op, &zram->disk->part0, start_time);
 
-	zram_slot_lock(zram, index);
-	zram_accessed(zram, index);
-	zram_slot_unlock(zram, index);
 	return 0;
 }
 
