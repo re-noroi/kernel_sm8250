@@ -1,3 +1,5 @@
+#define pr_fmt(fmt) "zram: lz4: " fmt
+
 #include <linux/kernel.h>
 #include <linux/lz4.h>
 #include <linux/sizes.h>
