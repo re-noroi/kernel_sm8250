@@ -1611,24 +1611,44 @@ static int read_incompressible_page(struct zram *zram, struct page *page,
 
 static int read_compressed_page(struct zram *zram, struct page *page, u32 index)
 {
+	enum zcomp_dstrm_mode mode = ZCOMP_DSTRM_EXCLUSIVE;
 	struct zcomp_dstrm *zstrm;
+	struct zcomp *comp;
 	unsigned long handle;
 	unsigned int size;
-	void *src, *dst;
+	void *src, *dst, *tmp = NULL;
 	int ret, prio;
 
 	handle = zram_get_handle(zram, index);
 	size = zram_get_obj_size(zram, index);
 	prio = zram_get_priority(zram, index);
+	comp = zram->comps[prio];
 
-	zstrm = zcomp_dstrm_get(zram->comps[prio]);
-	src = zs_obj_read_begin(zram->mem_pool, handle, size,
-				zstrm->local_copy);
+	/*
+	 * Shared mode needs its own bounce buffer.  zs_obj_read_begin()
+	 * linearizes spanning objects into the buffer passed to it, so
+	 * concurrent readers cannot share the per-CPU zstrm->local_copy.
+	 * Use a per-request kmalloc() for stateless backends; on alloc
+	 * failure, fall back to exclusive mode.
+	 */
+	if (zcomp_shared_decomp(comp) && size && size <= PAGE_SIZE) {
+		tmp = kmalloc(size, GFP_NOWAIT | __GFP_NOWARN);
+		if (tmp)
+			mode = ZCOMP_DSTRM_SHARED;
+	}
+
+	zstrm = zcomp_dstrm_get(comp, mode);
+	if (mode == ZCOMP_DSTRM_SHARED)
+		src = zs_obj_read_begin(zram->mem_pool, handle, size, tmp);
+	else
+		src = zs_obj_read_begin(zram->mem_pool, handle, size,
+					zstrm->local_copy);
 	dst = kmap_atomic(page);
-	ret = zcomp_decompress(zram->comps[prio], zstrm, src, size, dst);
+	ret = zcomp_decompress(comp, zstrm, src, size, dst);
 	kunmap_atomic(dst);
 	zs_obj_read_end(zram->mem_pool, handle, size, src);
-	zcomp_dstrm_put(zstrm);
+	zcomp_dstrm_put(zstrm, mode);
+	kfree(tmp);
 
 	return ret;
 }
