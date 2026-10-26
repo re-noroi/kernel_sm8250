@@ -31,6 +31,8 @@
 #include <linux/uaccess.h>
 #include <linux/kobject.h>
 #include <linux/ctype.h>
+#include <linux/cred.h>
+#include <linux/uidgid.h>
 
 /* selinuxfs pseudo filesystem for exporting the security policy API.
    Based on the proc code and the fs/nfsd/nfsctl.c code. */
@@ -122,26 +124,35 @@ static void selinux_fs_info_free(struct super_block *sb)
 static ssize_t sel_read_enforce(struct file *filp, char __user *buf,
 				size_t count, loff_t *ppos)
 {
-#ifndef CONFIG_OPLUS_PORT
 	struct selinux_fs_info *fsi = file_inode(filp)->i_sb->s_fs_info;
-#endif
 	char tmpbuf[TMPBUFLEN];
 	ssize_t length;
 #ifdef CONFIG_OPLUS_PORT
 	bool hide = false;
+	kuid_t uid = current_uid();
+	u32 sid;
+	char *context = NULL;
+	u32 context_len = 0;
 
-	if (current->cred->uid.val >= 10000)
+	if (from_kuid(&init_user_ns, uid) >= 10000)
 		hide = true;
-	else if (strstr(current->comm, ".gms") != NULL)
-		hide = true;
+	sid = current_sid();
+	if (!security_sid_to_context(fsi->state, sid, &context,
+				     &context_len) && context) {
+		if (strstr(context, "gmscore_app") ||
+		    strstr(context, "gmscore") ||
+		    strstr(context, "gms_app"))
+			hide = true;
+		kfree(context);
+	}
 
-	length = scnprintf(tmpbuf, TMPBUFLEN, "%d", hide ? 1 : 0);
+	length = scnprintf(tmpbuf, TMPBUFLEN, "%d",
+			   hide ? 1 : enforcing_enabled(fsi->state));
 
 #else
 	length = scnprintf(tmpbuf, TMPBUFLEN, "%d",
 			   enforcing_enabled(fsi->state));
 #endif
-
 	return simple_read_from_buffer(buf, count, ppos, tmpbuf, length);
 }
 
