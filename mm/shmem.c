@@ -1215,6 +1215,11 @@ static int shmem_unuse_inode(struct inode *inode, unsigned int type,
 		if (ret < 0)
 			break;
 
+		if (signal_pending(current)) {
+			ret = -ERESTARTSYS;
+			break;
+		}
+
 		if (frontswap_partial) {
 			*fs_pages_to_unuse -= ret;
 			if (*fs_pages_to_unuse == 0) {
