@@ -1704,7 +1704,7 @@ static void do_pages_stat_array(struct mm_struct *mm, unsigned long nr_pages,
 	down_read(&mm->mmap_sem);
 
 	for (i = 0; i < nr_pages; i++) {
-		unsigned long addr = (unsigned long)(*pages);
+		unsigned long addr = (unsigned long)untagged_addr_remote(mm, *pages);
 		struct vm_area_struct *vma;
 		struct page *page;
 		int err = -EFAULT;
