@@ -95,14 +95,6 @@ config KSU_HOSTSREDIRECT
 	  hook is automatically skipped. See like ZN-hostsredirect / APatch hosts file redirect.
 	  If unsure, say n.
 
-config KSU_GETPRIORITY_FILTER_DEMO
-	bool "filter sys_getpriority"
-	depends on KSU
-	depends on (ARM || ARM64)
-	default n
-	help
-	  demo feature. also WIP. subject to changes.
-
 config KSU_ENABLE_FULL_UID_CHECKS
 	bool "perform full uid checks (reduced performance)"
 	depends on KSU

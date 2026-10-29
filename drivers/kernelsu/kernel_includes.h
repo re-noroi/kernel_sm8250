@@ -316,8 +316,8 @@ typedef typeof(nullptr) nullptr_t;
  */
 #if defined(__clang__)
 #define assume(expr) __builtin_assume(expr)
-#elif defined(__GNUC__) && (__GNUC__ >= 13)
-#define assume(expr) __attribute__((assume(expr)))
+//#elif defined(__GNUC__) && (__GNUC__ >= 13)
+//#define assume(expr) __attribute__((assume(expr)))
 #else
 #define assume(expr) do {			\
 	if (unlikely(!(expr)))			\

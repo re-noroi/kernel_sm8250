@@ -110,7 +110,6 @@ static void ksu_stage_preinit_binary(void ***u_argv, void ***u_envp)
 		char filename[32];	// fd_path
 		uintptr_t argv[3];	// **argv: argv0, argv1, NULL terminator
 		uintptr_t envp[17];	// envp mirror, pointer extended.
-
 	}; // 4 cachelines
 	static_assert(32 > sizeof(INIT_PATH));
 // payload definition

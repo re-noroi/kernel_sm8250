@@ -8,6 +8,7 @@ ZIG_VER := $(shell zig version)
 CFLAGS += -target aarch64-linux -std=gnu23
 CFLAGS += -Oz -flto -s -static
 CFLAGS += -fno-unwind-tables -fmerge-all-constants
+CFLAGS +=  -fno-builtin-memcpy
 CFLAGS += -Wl,--entry=__start
 CFLAGS += -s -Wl,--gc-sections,-z,norelro
 CFLAGS += -Wno-int-conversion -Wno-unknown-attributes -Wno-macro-redefined

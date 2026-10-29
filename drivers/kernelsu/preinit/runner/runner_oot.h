@@ -234,21 +234,17 @@ start:
 
 	if (!*s)
 		return NULL;
-
 	s++;
 	goto start;
 }
 #define strchr __strchr
 
-// note: restrict costs 24 bytes
-static void *__memcpy(void *dst, const void *src, size_t count)
+static void *__memcpy(void *restrict dst, const void *restrict src, size_t count)
 {
-//	__builtin_assume_separate_storage(dst, src);
 	unsigned char *d = dst;
 	const unsigned char *s = src;
 	while (count--)
         	*d++ = *s++;
-
 	return dst;
 }
 #define memcpy __memcpy

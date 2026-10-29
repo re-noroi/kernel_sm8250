@@ -1,6 +1,7 @@
 # NOTE: unity build. single unit.
 
-obj-$(CONFIG_KSU) := ksu.o
+obj-$(CONFIG_KSU) := kernelsu.o
+kernelsu-y := ksu.o
 
 CFLAGS_ksu.o += -I$(srctree)/security/selinux -I$(srctree)/security/selinux/include
 CFLAGS_ksu.o += -I$(objtree)/security/selinux
@@ -11,8 +12,8 @@ MDIR := $(realpath $(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
 $(info -- KDIR: $(KDIR))
 $(info -- MDIR: $(MDIR))
 
-# compliant to last upstream kernel change as of 528bafc
-CFLAGS_ksu.o += -DKSU_VERSION=32704
+# compliant to last upstream kernel change as of db6263d
+CFLAGS_ksu.o += -DKSU_VERSION=32707
 
 KSU_PACKAGE_NAME := me.weishu.kernelsu
 KSU_EXPECTED_SIZE := 0x033b
