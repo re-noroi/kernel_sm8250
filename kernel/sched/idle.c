@@ -414,6 +414,25 @@ static void set_next_task_idle(struct rq *rq, struct task_struct *next, bool fir
 	 * lost_idle_time of clock_pelt
 	 */
 	update_idle_rq_clock_pelt(rq);
+
+	/*
+	 * Due to a race condition when enabling sched_uclamp_used static key,
+	 * we can end up with imbalance where uclamp_rq_inc_id() has happened
+	 * on a CPU without uclamp_rq_dec_id() on another CPU that hasn't seen
+	 * the static key flipped. The race condition is unlikely, but ensure
+	 * the uclamp_rq() state is set properly on each entry to idle.
+	 *
+	 * The reset will cause the uclamp_max from uclamp_idle_value() to be
+	 * lost. Since we are imbalanced, hard to know what is right. So just
+	 * cleanup. This should be a transient error state once we recover
+	 * everything should work as expected.
+	 *
+	 * We need to be careful of some paths that can force idle with tasks
+	 * are still queued.
+	 */
+	if (uclamp_is_used() &&
+	    !rq->nr_running && unlikely(!uclamp_rq_is_idle(rq)))
+		init_uclamp_rq(rq);
 }
 
 #ifdef CONFIG_SMP
