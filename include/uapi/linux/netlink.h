@@ -32,10 +32,12 @@
 #define NETLINK_SOCKEV		23	/* Socket Administrative Events */
 #define NETLINK_INET_DIAG	NETLINK_SOCK_DIAG
 
-#define MAX_LINKS 32
 #ifdef CONFIG_OPLUS_PORT
 #define NETLINK_OPLUS_NWPOWERSTATE      36
 #define NETLINK_OPLUS_IPV6_RTO  42
+#define MAX_LINKS 44
+#else
+#define MAX_LINKS 32
 #endif
 
 struct sockaddr_nl {
