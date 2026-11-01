@@ -694,7 +694,10 @@ KBUILD_AFLAGS   += -O3 -march=armv8.2-a+lse+crypto+dotprod -mtune=cortex-a55
 # Machine Learning Optimization
 KBUILD_CFLAGS   += -mllvm -regalloc-enable-advisor=release
 KBUILD_LDFLAGS  += -mllvm -regalloc-enable-advisor=release
+KBUILD_CFLAGS   += -mllvm -enable-ml-inliner=release
 KBUILD_LDFLAGS  += -mllvm -enable-ml-inliner=release
+KBUILD_CFLAGS   += -mllvm -ml-inliner-model-selector=arm64-mixed
+KBUILD_LDFLAGS  += -mllvm -ml-inliner-model-selector=arm64-mixed
 KBUILD_CFLAGS 	+= -mllvm -inline-threshold=500
 KBUILD_CFLAGS 	+= -mllvm -unroll-threshold=500
 else
