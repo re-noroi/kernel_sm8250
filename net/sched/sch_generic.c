@@ -122,16 +122,25 @@ static inline void qdisc_enqueue_skb_bad_txq(struct Qdisc *q,
 
 static inline int __dev_requeue_skb(struct sk_buff *skb, struct Qdisc *q)
 {
+	struct sk_buff_head requeue;
+
+	__skb_queue_head_init(&requeue);
+
 	while (skb) {
 		struct sk_buff *next = skb->next;
 
-		__skb_queue_tail(&q->gso_skb, skb);
+		__skb_queue_tail(&requeue, skb);
 		q->qstats.requeues++;
 		qdisc_qstats_backlog_inc(q, skb);
 		q->q.qlen++;	/* it's still part of the queue */
 
 		skb = next;
 	}
+
+	/* the skbs may come from the head of gso_skb, so put them back there:
+	 * appending them would let the ones still parked overtake them
+	 */
+	skb_queue_splice(&requeue, &q->gso_skb);
 	__netif_schedule(q);
 
 	return 0;
@@ -139,13 +148,16 @@ static inline int __dev_requeue_skb(struct sk_buff *skb, struct Qdisc *q)
 
 static inline int dev_requeue_skb_locked(struct sk_buff *skb, struct Qdisc *q)
 {
+	struct sk_buff_head requeue;
 	spinlock_t *lock = qdisc_lock(q);
+
+	__skb_queue_head_init(&requeue);
 
 	spin_lock(lock);
 	while (skb) {
 		struct sk_buff *next = skb->next;
 
-		__skb_queue_tail(&q->gso_skb, skb);
+		__skb_queue_tail(&requeue, skb);
 
 		qdisc_qstats_cpu_requeues_inc(q);
 		qdisc_qstats_cpu_backlog_inc(q, skb);
@@ -153,6 +165,8 @@ static inline int dev_requeue_skb_locked(struct sk_buff *skb, struct Qdisc *q)
 
 		skb = next;
 	}
+
+	skb_queue_splice(&requeue, &q->gso_skb);
 	spin_unlock(lock);
 
 	__netif_schedule(q);
