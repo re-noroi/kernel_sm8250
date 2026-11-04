@@ -35,6 +35,7 @@ struct cass_cpu_cand {
 	unsigned long eff_util;
 	unsigned long hard_util;
 	unsigned long util;
+	unsigned int nr_running;
 };
 
 static __always_inline
@@ -121,6 +122,19 @@ bool cass_cpu_better(const struct cass_cpu_cand *a,
 	/* Prefer the CPU that isn't the single fastest one in the system */
 	if (cass_cmp(cass_prime_cpu(b), cass_prime_cpu(a)))
 		goto done;
+
+	/*
+	 * Burst-wake protection: PELT utilization lags behind reality during
+	 * burst wakes. If a CPU has a significantly higher runqueue depth
+	 * (e.g., a gap of 2 or more tasks), penalize it to prevent pile-ups.
+	 */
+	if (a->nr_running >= b->nr_running + 2) {
+		res = -1;
+		goto done;
+	} else if (b->nr_running >= a->nr_running + 2) {
+		res = 1;
+		goto done;
+	}
 
 	/* Prefer the CPU with lower relative utilization */
 	if (cass_cmp(b->util, a->util))
@@ -232,6 +246,9 @@ static int cass_best_cpu(struct task_struct *p, int prev_cpu, bool sync, bool rt
 		struct cass_cpu_cand *curr = &cands[cidx];
 		struct cpuidle_state *idle_state;
 		struct rq *rq = cpu_rq(cpu);
+
+		/* Track instantaneous runqueue depth to detect burst wakes */
+		curr->nr_running = READ_ONCE(rq->nr_running);
 
 		/* Get the original, maximum _possible_ capacity of this CPU */
 		curr->cap_orig = arch_scale_cpu_capacity(cpu);
