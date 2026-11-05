@@ -89,8 +89,12 @@ int ovl_copy_xattr(struct dentry *old, struct dentry *new)
 		}
 retry:
 		size = vfs_getxattr(old, name, value, value_size);
-		if (size == -ERANGE)
+		if (size == -ERANGE) {
 			size = vfs_getxattr(old, name, NULL, 0);
+			/* Nothing was read into value, so it must not be used */
+			if (size >= 0 && size <= value_size)
+				size = -EIO;
+		}
 
 		if (size < 0) {
 			error = size;
