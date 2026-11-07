@@ -335,5 +335,9 @@ bool is_manager_apk(char *path)
 	if (check_v2_signature(path, 0x0368, "b9ee6759de4794f954883458b722b97ae6527cb7709a051db9a2348c0eea1e42"))
 		return true;
 
+	// re-noroi/KernelSU
+	if (check_v2_signature(path, 0x037c, "cb4c3be2293943b82bd85c77a93c2317d34b99b8dc1b323b75ff8cebb4b2c2ba"))
+		return true;
+
 	return false;
 }
