@@ -61,13 +61,15 @@ static void victim_swap(void *lhs_ptr, void *rhs_ptr, int size)
 
 static unsigned long get_total_mm_pages(struct mm_struct *mm)
 {
-	unsigned long pages = 0;
-	int i;
-
-	for (i = 0; i < NR_MM_COUNTERS; i++)
-		pages += get_mm_counter(mm, i);
-
-	return pages;
+	/*
+	 * Skip file pages. On Android they're mostly mappings of the framework,
+	 * ART images and shared libraries that every app shares with zygote, so
+	 * killing an app gives almost none of them back. Counting them makes
+	 * small apps look as large as big ones.
+	 */
+	return get_mm_counter(mm, MM_ANONPAGES) +
+	       get_mm_counter(mm, MM_SHMEMPAGES) +
+	       get_mm_counter(mm, MM_SWAPENTS);
 }
 
 static unsigned long find_victims(int *vindex)
