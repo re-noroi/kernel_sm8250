@@ -45,7 +45,7 @@ write_fresh:
 	memcpy(new_blacklist, modules, strlen(modules));
 
 write_to_slot:
-	ksu_write_to_readonly_slot((uintptr_t)blacklist_pptr, (uintptr_t)new_blacklist);
+	patch_ro_slot((uintptr_t)blacklist_pptr, (uintptr_t)new_blacklist);
 
 	return 0;
 }
