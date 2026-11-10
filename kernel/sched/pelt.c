@@ -112,6 +112,7 @@ accumulate_sum(u64 delta, struct sched_avg *sa,
 	u64 periods;
 	u64 divider;
 	bool eas_enable = sched_energy_enabled();
+	bool fast_ramp = sched_pelt_multiplier_enabled();
 
 	delta += sa->period_contrib;
 	periods = delta / 1024; /* A period is 1024us (~1ms) */
@@ -120,7 +121,7 @@ accumulate_sum(u64 delta, struct sched_avg *sa,
 	 * Step 1: decay old *_sum if we crossed period boundaries.
 	 */
 	if (periods) {
-		if (running && eas_enable)
+		if (running && eas_enable && fast_ramp)
 			delta %= 1024;
 		else {
 			sa->load_sum = decay_load(sa->load_sum, periods);

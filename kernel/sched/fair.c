@@ -80,6 +80,28 @@ static int thirty	= 30;
 static int hundred	= 100;
 static int minus_fifty = -50;
 
+DEFINE_STATIC_KEY_FALSE(sched_pelt_multiplier);
+unsigned int sysctl_sched_pelt_multiplier = 0;
+
+#ifdef CONFIG_JUMP_LABEL
+/* Handler to safely toggle the static branch when written to */
+int sched_pelt_multiplier_handler(struct ctl_table *table, int write,
+                                  void __user *buffer, size_t *lenp,
+                                  loff_t *ppos)
+{
+    int ret = proc_dointvec_minmax(table, write, buffer, lenp, ppos);
+    if (ret || !write)
+        return ret;
+
+    if (sysctl_sched_pelt_multiplier)
+        static_branch_enable(&sched_pelt_multiplier);
+    else
+        static_branch_disable(&sched_pelt_multiplier);
+
+    return 0;
+}
+#endif
+
 int sched_thermal_decay_shift;
 static int __init setup_sched_thermal_decay_shift(char *str)
 {
@@ -192,6 +214,17 @@ static struct ctl_table sched_headroom_sysctls[] = {
 		.extra1         = &zero,
 		.extra2         = &n_one,
 	},
+#ifdef CONFIG_JUMP_LABEL
+	{
+	.procname       = "sched_pelt_multiplier",
+	.data           = &sysctl_sched_pelt_multiplier,
+	.maxlen         = sizeof(unsigned int),
+	.mode           = 0644,
+	.proc_handler   = sched_pelt_multiplier_handler,
+	.extra1         = &zero,
+	.extra2         = &n_one,
+	},
+#endif
 	{}
 };
 
@@ -4732,6 +4765,8 @@ static inline void update_load_avg(struct cfs_rq *cfs_rq, struct sched_entity *s
 		detach_entity_load_avg(cfs_rq, se);
 		update_tg_load_avg(cfs_rq);
 	} else if (decayed) {
+		if (!static_branch_unlikely(&sched_pelt_multiplier))
+			cfs_rq_util_change(cfs_rq, 0);
 		if (flags & UPDATE_TG)
 			update_tg_load_avg(cfs_rq);
 	}
@@ -4739,7 +4774,8 @@ static inline void update_load_avg(struct cfs_rq *cfs_rq, struct sched_entity *s
 	if (flags & UPDATE_UTIL_EST)
 		util_est_update(se);
 
-	cfs_rq_util_change(cfs_rq, 0);
+	if (static_branch_unlikely(&sched_pelt_multiplier))
+		cfs_rq_util_change(cfs_rq, 0);
 }
 
 /*

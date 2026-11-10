@@ -2,6 +2,19 @@
 #include "sched-pelt.h"
 
 /*
+ * PELT fast-ramp ("multiplier") toggle.
+ *
+ * When enabled (and EAS is active), skip PELT decay for the currently
+ * running entity so utilization ramps up much faster.  On some hardware
+ * this draws noticeably more power/heat, so it is off by default and
+ * toggled at runtime via the "sched_pelt_multiplier" sysctl.
+ */
+DECLARE_STATIC_KEY_FALSE(sched_pelt_multiplier);
+
+#define sched_pelt_multiplier_enabled() \
+	static_branch_unlikely(&sched_pelt_multiplier)
+
+/*
  * Pelt uses apprixmate 'us' as ns/1024; and then uses time segments of 1024
  * 'us'. As a result each segment is in fact '1<<20' ns.
  */
