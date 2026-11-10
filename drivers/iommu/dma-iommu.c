@@ -813,6 +813,8 @@ size_t iommu_dma_prepare_map_sg(struct device *dev, struct iova_domain *iovad,
 		sg_dma_len(s) = s_length;
 		s->offset -= s_iova_off;
 		s_length = iova_align(iovad, s_length + s_iova_off);
+		if (s_length != (unsigned int)s_length)
+			return 0;
 		s->length = s_length;
 
 		/*
@@ -829,7 +831,17 @@ size_t iommu_dma_prepare_map_sg(struct device *dev, struct iova_domain *iovad,
 		 *   time through here (i.e. before it has a meaningful value).
 		 */
 		if (pad_len && pad_len < s_length - 1) {
-			prev->length += pad_len;
+			unsigned int new_prev_len;
+
+			/*
+			 * For large mappings spanning multiple GBs we
+			 * may not be able to fit all needed padding into
+			 * sg->length.
+			 */
+			if (check_add_overflow(prev->length, pad_len, &new_prev_len))
+				return 0;
+
+			prev->length = new_prev_len;
 			iova_len += pad_len;
 		}
 
@@ -856,6 +868,8 @@ int iommu_dma_map_sg(struct device *dev, struct scatterlist *sg,
 	iovad = &cookie->iovad;
 
 	iova_len = iommu_dma_prepare_map_sg(dev, iovad, sg, nents);
+	if (!iova_len)
+		goto out_restore_sg;
 
 	iova = iommu_dma_alloc_iova(domain, iova_len, dma_get_mask(dev), dev);
 	if (!iova)
