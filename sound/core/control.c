@@ -1369,7 +1369,10 @@ static int snd_ctl_elem_add(struct snd_ctl_file *file,
 
 	/* This function manage to free the instance on failure. */
 	down_write(&card->controls_rwsem);
-	err = __snd_ctl_add(card, kctl);
+	if (card->shutdown)
+		err = -ENODEV;
+	else
+		err = __snd_ctl_add(card, kctl);
 	if (err < 0) {
 		snd_ctl_free_one(kctl);
 		goto unlock;
