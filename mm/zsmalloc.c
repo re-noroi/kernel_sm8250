@@ -936,8 +936,7 @@ static unsigned long handle_to_obj(unsigned long handle)
 	return READ_ONCE(*(unsigned long *)handle);
 }
 
-static inline bool obj_allocated(struct page *page, void *obj,
-				 unsigned long *phandle)
+static inline unsigned long obj_allocated(struct page *page, void *obj)
 {
 	unsigned long handle;
 	struct zspage *zspage = get_zspage(page);
@@ -949,11 +948,10 @@ static inline bool obj_allocated(struct page *page, void *obj,
 		handle = *(unsigned long *)obj;
 
 	if (!(handle & OBJ_ALLOCATED_TAG))
-		return false;
+		return 0;
 
 	/* Clear all tags before returning the handle */
-	*phandle = handle & ~OBJ_TAG_MASK;
-	return true;
+	return handle & ~OBJ_TAG_MASK;
 }
 
 static void reset_page(struct page *page)
@@ -1697,7 +1695,8 @@ static unsigned long find_alloced_obj(struct size_class *class,
 	offset += class->size * index;
 
 	while (offset < PAGE_SIZE) {
-		if (obj_allocated(page, addr + offset, &handle))
+		handle = obj_allocated(page, addr + offset);
+		if (handle)
 			break;
 
 		offset += class->size;
@@ -1972,8 +1971,8 @@ static int zs_page_migrate(struct address_space *mapping, struct page *newpage,
 
 	for (addr = s_addr + offset; addr < s_addr + PAGE_SIZE;
 					addr += class->size) {
-		if (obj_allocated(page, addr, &handle)) {
-
+		handle = obj_allocated(page, addr);
+		if (handle) {
 			old_obj = handle_to_obj(handle);
 			obj_to_location(old_obj, &dummy, &obj_idx);
 			new_obj = (unsigned long)location_to_obj(newpage, obj_idx,
