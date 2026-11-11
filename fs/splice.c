@@ -1154,9 +1154,10 @@ static long do_splice(struct file *in, loff_t __user *off_in,
 		ret = do_splice_from(ipipe, out, &offset, len, flags);
 		file_end_write(out);
 
-		if (!off_out)
-			out->f_pos = offset;
-		else if (copy_to_user(off_out, &offset, sizeof(loff_t)))
+		if (!off_out) {
+			if (ret >= 0)
+				out->f_pos = offset;
+		} else if (copy_to_user(off_out, &offset, sizeof(loff_t)))
 			ret = -EFAULT;
 
 		return ret;
@@ -1188,9 +1189,10 @@ static long do_splice(struct file *in, loff_t __user *off_in,
 		pipe_unlock(opipe);
 		if (ret > 0)
 			wakeup_pipe_readers(opipe);
-		if (!off_in)
-			in->f_pos = offset;
-		else if (copy_to_user(off_in, &offset, sizeof(loff_t)))
+		if (!off_in) {
+			if (ret >= 0)
+				in->f_pos = offset;
+		} else if (copy_to_user(off_in, &offset, sizeof(loff_t)))
 			ret = -EFAULT;
 
 		return ret;
