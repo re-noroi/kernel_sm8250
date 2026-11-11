@@ -48,8 +48,8 @@ struct zs_pool;
 struct zs_pool *zs_create_pool(const char *name);
 void zs_destroy_pool(struct zs_pool *pool);
 
-int zs_malloc(struct zs_pool *pool, struct zs_handle *handle, size_t size,
-	      gfp_t flags);
+int zs_store(struct zs_pool *pool, struct zs_handle *handle, const void *src,
+	     size_t size, gfp_t flags);
 void zs_free(struct zs_pool *pool, struct zs_handle *handle);
 void zs_rebind_handle(struct zs_pool *pool, struct zs_handle *dst,
 		      struct zs_handle *src);
@@ -67,7 +67,5 @@ void *zs_obj_read_begin(struct zs_pool *pool, const struct zs_handle *handle,
 			size_t mem_len, void *local_copy);
 void zs_obj_read_end(struct zs_pool *pool, const struct zs_handle *handle,
 		    size_t mem_len, void *handle_mem);
-void zs_obj_write(struct zs_pool *pool, const struct zs_handle *handle,
-		  void *handle_mem, size_t mem_len);
 
 #endif

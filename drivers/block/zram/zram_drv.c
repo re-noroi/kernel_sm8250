@@ -1739,21 +1739,17 @@ static int write_incompressible_page(struct zram *zram, struct page *page,
 
 	zram_slot_lock(zram, index);
 	zram_free_page(zram, index);
-	ret = zs_malloc(zram->mem_pool, &zram->table[index].handle,
-			PAGE_SIZE,
-			GFP_NOIO | __GFP_NOWARN |
-			__GFP_HIGHMEM | __GFP_MOVABLE);
+	src = kmap_atomic(page);
+	ret = zs_store(zram->mem_pool, &zram->table[index].handle, src,
+		       PAGE_SIZE, GFP_NOIO | __GFP_NOWARN |
+		       __GFP_HIGHMEM | __GFP_MOVABLE);
+	kunmap_atomic(src);
 	if (ret) {
 		zram_slot_unlock(zram, index);
 		return ret;
 	}
 
 	update_used_max(zram);
-
-	src = kmap_atomic(page);
-	zs_obj_write(zram->mem_pool, &zram->table[index].handle, src,
-		     PAGE_SIZE);
-	kunmap_atomic(src);
 
 	zram_set_flag(zram, index, ZRAM_HUGE);
 	zram_set_obj_size(zram, index, PAGE_SIZE);
@@ -1804,20 +1800,17 @@ static int zram_write_page(struct zram *zram, struct page *page, u32 index)
 
 	zram_slot_lock(zram, index);
 	zram_free_page(zram, index);
-	ret = zs_malloc(zram->mem_pool, &zram->table[index].handle, comp_len,
-			GFP_NOIO | __GFP_NOWARN |
-			__GFP_HIGHMEM | __GFP_MOVABLE | __GFP_CMA);
+	ret = zs_store(zram->mem_pool, &zram->table[index].handle,
+		       zstrm->buffer, comp_len,
+		       GFP_NOIO | __GFP_NOWARN |
+		       __GFP_HIGHMEM | __GFP_MOVABLE | __GFP_CMA);
+	zcomp_cstrm_put(zstrm);
 	if (ret) {
-		zcomp_cstrm_put(zstrm);
 		zram_slot_unlock(zram, index);
 		return ret;
 	}
 
 	update_used_max(zram);
-
-	zs_obj_write(zram->mem_pool, &zram->table[index].handle,
-		     zstrm->buffer, comp_len);
-	zcomp_cstrm_put(zstrm);
 
 	zram_set_obj_size(zram, index, comp_len);
 	zram_slot_unlock(zram, index);
@@ -2022,17 +2015,12 @@ static int recompress_slot(struct zram *zram, u32 index, struct page *page,
 	 * avoid direct reclaim.  Allocation error is not fatal since
 	 * we still have the old object in the mem_pool.
 	 */
-	ret = zs_malloc(zram->mem_pool, &zram->recomp_handle, comp_len_new,
-			GFP_NOIO | __GFP_NOWARN |
-			__GFP_HIGHMEM | __GFP_MOVABLE);
-	if (ret) {
-		zcomp_cstrm_put(zstrm);
-		return ret;
-	}
-
-	zs_obj_write(zram->mem_pool, &zram->recomp_handle, zstrm->buffer,
-		     comp_len_new);
+	ret = zs_store(zram->mem_pool, &zram->recomp_handle, zstrm->buffer,
+		       comp_len_new, GFP_NOIO | __GFP_NOWARN |
+		       __GFP_HIGHMEM | __GFP_MOVABLE);
 	zcomp_cstrm_put(zstrm);
+	if (ret)
+		return ret;
 
 	zram_free_page(zram, index);
 	zs_rebind_handle(zram->mem_pool, &zram->table[index].handle,
