@@ -2088,6 +2088,20 @@ static int __qseecom_reentrancy_listener_has_sent_rsp(
 	return ret || data->abort || ptr_svc->abort;
 }
 
+/*
+ * Freeze if a freeze was requested and drop the signal.
+ * Note: This should be used to drop stale fake signal and make the next wait
+ * sleep properly instead of returning immediately and spinning.
+ */
+static void __qseecom_handle_freezer_wakeup(void)
+{
+	try_to_freeze();
+
+	spin_lock_irq(&current->sighand->siglock);
+	recalc_sigpending();
+	spin_unlock_irq(&current->sighand->siglock);
+}
+
 static void __qseecom_clean_listener_sglistinfo(
 			struct qseecom_registered_listener_list *ptr_svc)
 {
@@ -2381,9 +2395,10 @@ static int __qseecom_process_reentrancy_blocked_on_listener(
 			ptr_app->app_blocked = true;
 			mutex_unlock(&listener_access_lock);
 			mutex_unlock(&app_access_lock);
-			wait_event_interruptible(
+			if (wait_event_interruptible(
 				list_ptr->listener_block_app_wq,
-				!list_ptr->listener_in_use);
+				!list_ptr->listener_in_use))
+				__qseecom_handle_freezer_wakeup();
 			mutex_lock(&app_access_lock);
 			mutex_lock(&listener_access_lock);
 			ptr_app->app_blocked = false;
@@ -2527,6 +2542,7 @@ static int __qseecom_reentrancy_process_incomplete_cmd(
 						data, ptr_svc))) {
 				break;
 			}
+			__qseecom_handle_freezer_wakeup();
 		} while (1);
 		/* lock mutex again after resp sent */
 		mutex_lock(&app_access_lock);
@@ -2672,8 +2688,9 @@ static void __qseecom_reentrancy_check_if_no_app_blocked(uint32_t smc_id)
 		/* thread sleep until this app unblocked */
 		while (qseecom.app_block_ref_cnt > 0) {
 			mutex_unlock(&app_access_lock);
-			wait_event_interruptible(qseecom.app_block_wq,
-				(!qseecom.app_block_ref_cnt));
+			if (wait_event_interruptible(qseecom.app_block_wq,
+				(!qseecom.app_block_ref_cnt)))
+				__qseecom_handle_freezer_wakeup();
 			mutex_lock(&app_access_lock);
 		}
 	}
@@ -2692,9 +2709,10 @@ static void __qseecom_reentrancy_check_if_this_app_blocked(
 		while (ptr_app->app_blocked || qseecom.app_block_ref_cnt > 1) {
 			/* thread sleep until this app unblocked */
 			mutex_unlock(&app_access_lock);
-			wait_event_interruptible(qseecom.app_block_wq,
+			if (wait_event_interruptible(qseecom.app_block_wq,
 				(!ptr_app->app_blocked &&
-				qseecom.app_block_ref_cnt <= 1));
+				qseecom.app_block_ref_cnt <= 1)))
+				__qseecom_handle_freezer_wakeup();
 			mutex_lock(&app_access_lock);
 		}
 		ptr_app->check_block--;
