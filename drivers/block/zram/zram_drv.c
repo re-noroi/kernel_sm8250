@@ -1734,16 +1734,31 @@ static int write_same_filled_page(struct zram *zram, unsigned long fill,
 static int write_incompressible_page(struct zram *zram, struct page *page,
 				     u32 index)
 {
-	void *src;
+	void *src, *tmp;
 	int ret;
+
+	/*
+	 * Allocate a temporary bounce buffer so we do not hold a kmap_atomic
+	 * mapping while zs_store() is called. zs_store() may sleep in the
+	 * page allocator, which triggers "scheduling while atomic".
+	 */
+	tmp = kmalloc(PAGE_SIZE, GFP_NOIO);
+	if (!tmp)
+		return -ENOMEM;
+
+	src = kmap_atomic(page);
+	memcpy(tmp, src, PAGE_SIZE);
+	kunmap_atomic(src);
 
 	zram_slot_lock(zram, index);
 	zram_free_page(zram, index);
-	src = kmap_atomic(page);
-	ret = zs_store(zram->mem_pool, &zram->table[index].handle, src,
+
+	ret = zs_store(zram->mem_pool, &zram->table[index].handle, tmp,
 		       PAGE_SIZE, GFP_NOIO | __GFP_NOWARN |
 		       __GFP_HIGHMEM | __GFP_MOVABLE);
-	kunmap_atomic(src);
+
+	kfree(tmp);
+
 	if (ret) {
 		zram_slot_unlock(zram, index);
 		return ret;
