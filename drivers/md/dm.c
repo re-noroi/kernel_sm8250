@@ -896,7 +896,7 @@ static void dec_pending(struct dm_io *io, blk_status_t error)
 		if (io_error == BLK_STS_DM_REQUEUE)
 			return;
 
-		if ((bio->bi_opf & REQ_PREFLUSH) && bio->bi_iter.bi_size) {
+		if ((bio->bi_opf & REQ_PREFLUSH) && bio->bi_iter.bi_size && !io_error) {
 			/*
 			 * Preflush done for flush with data, reissue
 			 * without REQ_PREFLUSH.
@@ -904,7 +904,7 @@ static void dec_pending(struct dm_io *io, blk_status_t error)
 			bio->bi_opf &= ~REQ_PREFLUSH;
 			queue_io(md, bio);
 		} else {
-			/* done with normal IO or empty flush */
+			/* done with normal IO, empty flush or failed preflush */
 			if (io_error)
 				bio->bi_status = io_error;
 			bio_endio(bio);
