@@ -59,16 +59,15 @@ static void victim_swap(void *lhs_ptr, void *rhs_ptr, int size)
 	swap(*lhs, *rhs);
 }
 
-static unsigned long get_total_mm_pages(struct mm_struct *mm)
+static unsigned long get_reclaimable_pages(struct mm_struct *mm)
 {
 	/*
-	 * Skip file pages. On Android they're mostly mappings of the framework,
-	 * ART images and shared libraries that every app shares with zygote, so
-	 * killing an app gives almost none of them back. Counting them makes
-	 * small apps look as large as big ones.
+	 * Count only what a kill can give back. File pages stay in the page
+	 * cache and shmem is page cache too, so the kernel can free both
+	 * without killing anything. Swap entries do count: on Android they
+	 * live in zram, which is still RAM.
 	 */
 	return get_mm_counter(mm, MM_ANONPAGES) +
-	       get_mm_counter(mm, MM_SHMEMPAGES) +
 	       get_mm_counter(mm, MM_SWAPENTS);
 }
 
@@ -124,15 +123,27 @@ static unsigned long find_victims(int *vindex)
 		old_vindex = *vindex;
 		do {
 			struct task_struct *vtsk;
+			unsigned long pages;
 
 			vtsk = find_lock_task_mm(tsk);
 			if (!vtsk)
 				continue;
 
+			/*
+			 * Skip tasks with nothing to reclaim. A task backed only
+			 * by files or shared memory counts as zero now, and
+			 * killing it would not bring us closer to the target.
+			 */
+			pages = get_reclaimable_pages(vtsk->mm);
+			if (!pages) {
+				task_unlock(vtsk);
+				continue;
+			}
+
 			/* Store this potential victim away for later */
 			victims[*vindex].tsk = vtsk;
 			victims[*vindex].mm = vtsk->mm;
-			victims[*vindex].size = get_total_mm_pages(vtsk->mm);
+			victims[*vindex].size = pages;
 
 			/* Count the number of pages that have been found */
 			pages_found += victims[*vindex].size;
