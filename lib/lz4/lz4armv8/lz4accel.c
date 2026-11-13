@@ -24,9 +24,9 @@ __cfi_lz4_decompress_asm_noprfm(uint8_t **dst_ptr, uint8_t *dst_begin,
 #define _lz4_decompress_asm_noprfm	__cfi_lz4_decompress_asm_noprfm
 #endif
 
-int lz4_decompress_asm_select(uint8_t **dst_ptr, uint8_t *dst_begin,
-			      uint8_t *dst_end, const uint8_t **src_ptr,
-			      const uint8_t *src_end, bool dip) {
+static int lz4_decompress_asm_select(uint8_t **dst_ptr, uint8_t *dst_begin,
+				     uint8_t *dst_end, const uint8_t **src_ptr,
+				     const uint8_t *src_end, bool dip) {
 	const unsigned i = smp_processor_id();
 
 	switch(read_cpuid_part_number()) {
