@@ -144,7 +144,7 @@
 #if defined(_MSC_VER)
 #define LZ4_FORCE_NOINLINE static __declspec(noinline)
 #elif defined(__GNUC__) || defined(__clang__)
-#define LZ4_FORCE_NOINLINE static __attribute__((noinline))
+#define LZ4_FORCE_NOINLINE static __attribute__((__noinline__))
 #else
 #define LZ4_FORCE_NOINLINE static
 #endif
