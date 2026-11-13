@@ -2866,6 +2866,9 @@ static int qseecom_load_app(struct qseecom_dev_handle *data, void __user *argp)
 					pr_err("App %d (%s) ref_cnt overflow\n",
 						app_id, req.app_name);
 					ret = -EINVAL;
+					spin_unlock_irqrestore(
+						&qseecom.registered_app_list_lock,
+						flags);
 					goto loadapp_err;
 				}
 				entry->ref_cnt++;
@@ -5115,6 +5118,9 @@ int qseecom_start_app(struct qseecom_handle **handle,
 					pr_err("App %d (%s) ref_cnt overflow\n",
 						app_id, app_ireq.app_name);
 					ret = -EINVAL;
+					spin_unlock_irqrestore(
+						&qseecom.registered_app_list_lock,
+						flags);
 					goto err;
 				}
 				entry->ref_cnt++;
