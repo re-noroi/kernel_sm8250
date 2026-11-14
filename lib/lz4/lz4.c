@@ -1348,10 +1348,10 @@ LZ4_FORCE_INLINE int LZ4_compress_generic_validated(
 					     (LZ4_DISTANCE_MAX <
 					      LZ4_DISTANCE_ABSOLUTE_MAX)) &&
 					    (matchIndex + LZ4_DISTANCE_MAX <
-					     currentPos)) {
+					     curr)) {
 						continue;
 					} /* too far */
-					assert((currentPos - matchIndex) <=
+					assert((curr - matchIndex) <=
 					       LZ4_DISTANCE_MAX); /* match now expected within distance */
 					if (maybe_extMem)
 						offset = curr - matchIndex;
@@ -1600,7 +1600,7 @@ LZ4_FORCE_INLINE int LZ4_compress_generic_validated(
 			U32 prevIndex = LZ4_getIndexOnHash(
 				hPrev, cctx->hashTable, tableType);
 			U32 matchIndex;
-			LZ4_putIndexOnHash(currentPos - 1, hPrev,
+			LZ4_putIndexOnHash(curr - 1, hPrev,
 					   cctx->hashTable, tableType);
 			if ((dictDirective == usingDictCtx) &&
 			    (prevIndex < startIndex)) {
@@ -1634,7 +1634,7 @@ LZ4_FORCE_INLINE int LZ4_compress_generic_validated(
 				       LZ4_DISTANCE_ABSOLUTE_MAX)) ?
 					     1 :
 					     (ctxIndex + LZ4_DISTANCE_MAX >=
-					      currentPos)) &&
+					      curr)) &&
 				    (!inDict ||
 				     (ctxIndex + 8 <=
 				      startIndex)) /* the 8 compared bytes are within the dictionary */
@@ -1657,7 +1657,7 @@ LZ4_FORCE_INLINE int LZ4_compress_generic_validated(
 							dictDelta;
 				}
 			}
-			assert(matchIndex < currentPos);
+			assert(matchIndex < curr);
 			if (dictDirective ==
 			    usingExtDict) { /* select without branch */
 				ptrdiff_t const relIdx =
