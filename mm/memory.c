@@ -2165,10 +2165,10 @@ static inline int pte_unmap_same(struct mm_struct *mm, pmd_t *pmd,
 	return same;
 }
 
-static inline bool cow_user_page(struct page *dst, struct page *src,
+static inline int cow_user_page(struct page *dst, struct page *src,
 				 struct vm_fault *vmf)
 {
-	bool ret;
+	int ret;
 	void *kaddr;
 	void __user *uaddr;
 	bool locked = false;
@@ -2180,8 +2180,15 @@ static inline bool cow_user_page(struct page *dst, struct page *src,
 
 	if (likely(src)) {
 		copy_user_highpage(dst, src, addr, vma);
-		return true;
+		return 0;
 	}
+
+	/*
+	 * __copy_from_user_inatomic() only works as expected for local faults.
+	 * Reject remote faults.
+	 */
+	if (unlikely(mm != current->mm))
+		return -EFAULT;
 
 	/*
 	 * If the source page was a PFN mapping, we don't have
@@ -2208,7 +2215,7 @@ static inline bool cow_user_page(struct page *dst, struct page *src,
 			 * not the case, the fault will be triggered
 			 * again on the same address.
 			 */
-			ret = false;
+			ret = -EAGAIN;
 			goto pte_unlock;
 		}
 
@@ -2232,7 +2239,7 @@ static inline bool cow_user_page(struct page *dst, struct page *src,
 		locked = true;
 		if (!likely(pte_same(*vmf->pte, vmf->orig_pte))) {
 			/* The PTE changed under us. Retry page fault. */
-			ret = false;
+			ret = -EAGAIN;
 			goto pte_unlock;
 		}
 
@@ -2251,7 +2258,7 @@ warn:
 		}
 	}
 
-	ret = true;
+	ret = 0;
 
 pte_unlock:
 	if (locked)
@@ -2428,12 +2435,15 @@ static vm_fault_t wp_page_copy(struct vm_fault *vmf)
 		if (!new_page)
 			goto oom;
 	} else {
+		int err;
+
 		new_page = alloc_page_vma(GFP_HIGHUSER_MOVABLE, vma,
 				vmf->address);
 		if (!new_page)
 			goto oom;
 
-		if (!cow_user_page(new_page, old_page, vmf)) {
+		err = cow_user_page(new_page, old_page, vmf);
+		if (err) {
 			/*
 			 * COW failed, if the fault was solved by other,
 			 * it's fine. If not, userspace would re-fault on
@@ -2443,6 +2453,8 @@ static vm_fault_t wp_page_copy(struct vm_fault *vmf)
 			put_page(new_page);
 			if (old_page)
 				put_page(old_page);
+			if (err == -EFAULT)
+				return VM_FAULT_SIGBUS;
 			return 0;
 		}
 	}
