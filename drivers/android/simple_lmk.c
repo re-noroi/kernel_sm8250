@@ -62,10 +62,17 @@ static void victim_swap(void *lhs_ptr, void *rhs_ptr, int size)
 static unsigned long get_reclaimable_pages(struct mm_struct *mm)
 {
 	/*
-	 * Count only what a kill can give back. File pages stay in the page
-	 * cache and shmem is page cache too, so the kernel can free both
-	 * without killing anything. Swap entries do count: on Android they
-	 * live in zram, which is still RAM.
+	 * Estimate how much RAM a kill returns.
+	 *
+	 * File pages are excluded: on Android they are mostly framework, ART
+	 * and library mappings shared with zygote; a kill frees almost none.
+	 *
+	 * Shmem is excluded because it is shared: a page is only freed if no
+	 * other process maps it and nobody else holds the ashmem/memfd, which
+	 * is often not the case, so counting it overestimates the yield.
+	 *
+	 * Swap entries count in full. They sit in zram, so a kill returns the
+	 * compressed copy, which is less than a page; this overestimates.
 	 */
 	return get_mm_counter(mm, MM_ANONPAGES) +
 	       get_mm_counter(mm, MM_SWAPENTS);
@@ -123,27 +130,15 @@ static unsigned long find_victims(int *vindex)
 		old_vindex = *vindex;
 		do {
 			struct task_struct *vtsk;
-			unsigned long pages;
 
 			vtsk = find_lock_task_mm(tsk);
 			if (!vtsk)
 				continue;
 
-			/*
-			 * Skip tasks with nothing to reclaim. A task backed only
-			 * by files or shared memory counts as zero now, and
-			 * killing it would not bring us closer to the target.
-			 */
-			pages = get_reclaimable_pages(vtsk->mm);
-			if (!pages) {
-				task_unlock(vtsk);
-				continue;
-			}
-
 			/* Store this potential victim away for later */
 			victims[*vindex].tsk = vtsk;
 			victims[*vindex].mm = vtsk->mm;
-			victims[*vindex].size = pages;
+			victims[*vindex].size = get_reclaimable_pages(vtsk->mm);
 
 			/* Count the number of pages that have been found */
 			pages_found += victims[*vindex].size;
