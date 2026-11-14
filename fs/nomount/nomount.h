@@ -16,7 +16,7 @@
 #include <linux/version.h>
 #include <linux/compat.h>
 
-#define NOMOUNT_BASE_VERSION "22"
+#define NOMOUNT_BASE_VERSION "23"
 #ifdef NOMOUNT_COMMIT_COUNT
     #define NOMOUNT_VERSION ""NOMOUNT_BASE_VERSION" ("NOMOUNT_COMMIT_COUNT")"
 #else
@@ -49,7 +49,6 @@ static struct nm_leaf *nm_retired_leaves;
 
 /* * Helpers to dynamically calculate the memory address of the strings / structs */
 #define nm_get_child_name(leaf) ((leaf)->paths + (leaf)->v_len - (leaf)->child_len)
-#define nm_rule_heap(arr) ((char *)(arr)->rules + (arr)->count * sizeof(struct nm_rule))
 
 struct nm_dir_ops {
     const struct inode_operations *orig_iop;
@@ -75,22 +74,23 @@ struct nm_sop {
 
 struct nm_inode_info {
     struct path r_path;
-    struct nm_dir_node *dir_node;
+    union { struct nm_dir_node *dir_node; struct nm_leaf *leaf; const void *node; };
+    struct file *r_file;
     bool opaque;
+    bool backing_child;
     struct rcu_head rcu;
 };
 
 struct nm_child {
-    u32 hash;
-    u32 bloom_hash;
     struct nm_leaf *leaf;
+    u32 hash;
 };
 
 struct nm_child_array {
     struct rcu_head rcu;
     int count;
-    u32 bloom_words;
-    u64 bloom[] __aligned(8);
+    u16 bucket_slots;
+    u32 starts[] __aligned(4);
 };
 
 struct nm_dir_node {
@@ -108,13 +108,13 @@ struct nm_rule {
     unsigned int uid_end;
     unsigned int deny_start;
     unsigned int deny_end;
-    u16 r_len;
     u16 flags;
 };
 
 struct nm_rule_array {
     struct nm_rule_array *next;
     int count;
+    int uid_count;
     struct nm_rule rules[];
 };
 
@@ -128,16 +128,20 @@ struct nm_leaf {
     u16 v_len;
     u16 child_len;
     bool native_file;
-    struct hlist_node ht_node;
-    struct nm_leaf *next;
+    u16 child_hash;
+    atomic_t refs;
+    union { struct hlist_node ht_node; struct nm_leaf *next; struct rcu_head rcu; };
     char paths[];
 };
 
 struct nm_rule_info {
     u16 flags;
+    bool backing_child;
     unsigned long v_ino;
+    unsigned long key;
     struct path r_path;
     struct nm_dir_node *this_dir;
+    struct nm_leaf *leaf;
 };
 
 struct nm_uid_array {
@@ -149,31 +153,23 @@ struct nm_uid_array {
 
 static inline struct nm_child *nm_entries(struct nm_child_array *arr)
 {
-    return (struct nm_child *)(arr->bloom + arr->bloom_words);
+    uintptr_t p = (uintptr_t)arr->starts + arr->bucket_slots * sizeof(u32);
+    return (struct nm_child *)((p + 7) & ~(uintptr_t)7);
 }
 
-static inline int nm_bloom_words_for(int count)
+static inline u16 nm_child_slots_for(int count)
 {
     if (count <= 2)   return 0;
-    if (count <= 16)  return 4;
-    if (count <= 64)  return 16;
-    if (count <= 256) return 64;
-    if (count <= 1024) return 128;
-    return 256;
+    if (count <= 16)  return 9;
+    if (count <= 64)  return 33;
+    if (count <= 256) return 129;
+    if (count <= 1024) return 257;
+    return 513;
 }
 
-#define nm_bloom_set(arr, hash) \
-    ((arr)->bloom[((hash) >> 6) & ((arr)->bloom_words - 1)] |= 1ULL << ((hash) & 63))
-
-#define nm_bloom_test(arr, hash) \
-    (!!((arr)->bloom[((hash) >> 6) & ((arr)->bloom_words - 1)] & (1ULL << ((hash) & 63))))
-
-static __always_inline u32 nm_qhash(const char *name, size_t len)
+static inline u32 nm_child_bucket(struct nm_child_array *arr, u32 hash)
 {
-    u32 h = (u8)name[0] ^ (u32)len;
-    h = (h << 5) + (u8)name[len - 1];
-    h = (h << 5) + (u8)name[len >> 1];
-    return h;
+    return (hash >> 5) & (arr->bucket_slots - 2);
 }
 
 /*** Operaction Vectors ***/
@@ -185,19 +181,24 @@ static const struct inode_operations nm_file_iops;
 static const struct file_operations nm_dir_fops;
 static const struct inode_operations nm_dir_iops;
 static const struct dentry_operations nm_dops;
-static const struct dentry_operations nm_owned_dops;
 
 /*** forward declarations ***/
+extern int vfs_path_lookup(struct dentry *, struct vfsmount *, const char *, unsigned int, struct path *);
 static struct dentry *nm_hijacked_lookup(struct inode *dir, struct dentry *dentry, unsigned int flags);
 static int nm_hijacked_iterate_dir(struct file *file, struct dir_context *ctx);
 static void nm_hijacked_evict_inode(struct inode *inode);
 static void nm_hijack_dentry_ops(struct inode *dir, struct dentry *dentry, bool injected);
 static void nm_dir_put(struct nm_dir_node *dir_node);
+static void nm_leaf_put(struct nm_leaf *leaf);
+static void nm_shutdown_release(void);
+static int nm_shutdown_sync_fs(struct super_block *sb, int wait);
+static int nm_del_rule_locked(const char *path, u16 len, unsigned int uid, unsigned int uid_end, unsigned int deny_start, unsigned int deny_end);
+static void nm_clear_state(int clear_flags);
 
 /* =====================================================================
  * NoMount VFS Offset Protocol
  * =====================================================================
- * 64-bit layout: [ 16-bit 'nm' ][ 16-bit 0 ][ 32-bit ID ] 
+ * 64-bit layout: [ 16-bit 'nm' ][ 16-bit FRAG ][ 32-bit ID ]
  * 32-bit layout: [ 16-bit 'nm' ][ 16-bit ID ]
  */
 #define NM_SIG_16 0x6E6DULL /* "nm" in hex */
@@ -205,21 +206,28 @@ static inline bool nm_is_virtual_pos(loff_t pos) {
 #ifdef CONFIG_COMPAT
     if (in_compat_syscall()) return (pos & 0xFFFF0000ULL) == (NM_SIG_16 << 16);
 #endif
-    return (pos & 0xFFFFFFFF00000000ULL) == (NM_SIG_16 << 48);
+    return (pos & 0xFFFF000000000000ULL) == (NM_SIG_16 << 48);
 }
 
-static inline loff_t nm_pack_pos(int id) {
+static inline loff_t nm_pack_pos(u32 id, u32 frag) {
 #ifdef CONFIG_COMPAT
     if (in_compat_syscall()) return (NM_SIG_16 << 16) | (id & 0xFFFF);
 #endif
-    return (NM_SIG_16 << 48) | (id & 0xFFFFFFFF);
+    return ((loff_t)NM_SIG_16 << 48) | ((loff_t)(frag & 0xFFFF) << 32) | id;
 }
 
-static inline int nm_unpack_pos(loff_t pos) {
+static inline u32 nm_unpack_frag(loff_t pos) {
 #ifdef CONFIG_COMPAT
-    if (in_compat_syscall()) return (int)(pos & 0xFFFF);
+    if (in_compat_syscall()) return 0;
 #endif
-    return (int)(pos & 0xFFFFFFFF);
+    return (u32)((pos >> 32) & 0xFFFF);
+}
+
+static inline u32 nm_unpack_pos(loff_t pos) {
+#ifdef CONFIG_COMPAT
+    if (in_compat_syscall()) return pos & 0xFFFF;
+#endif
+    return (u32)pos;
 }
 
 /* --- UIDs Array RCU Management --- */
@@ -359,12 +367,27 @@ struct nm_del_hdr {
     #define nm_inode_is_new(inode) (inode->i_state & I_NEW)
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0)
+#define sb_rdonly(sb) ((sb)->s_flags & MS_RDONLY)
+#endif
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 12, 0) && LINUX_VERSION_CODE >= KERNEL_VERSION(5, 2, 0)
     #define FLAGS_ARG , int flags
     #define FLAGS_VAL , flags
 #else
     #define FLAGS_ARG /* Nothing */
     #define FLAGS_VAL /* Nothing */
+#endif
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 16, 0)
+# define nm_lookup_one_len_unlocked(name, dentry, len) lookup_one_unlocked(&nop_mnt_idmap, &(struct qstr)QSTR_INIT((name), (len)), dentry)
+#else
+# define nm_lookup_one_len_unlocked lookup_one_len_unlocked
+#endif
+
+#ifndef for_each_alias
+#define for_each_alias(dentry, inode) \
+    hlist_for_each_entry(dentry, &(inode)->i_dentry, d_u.d_alias)
 #endif
 
 #ifndef DCACHE_DONTCACHE
@@ -425,7 +448,7 @@ static inline struct nm_dir_ops *nm_get_nm_fop(const struct file_operations *fop
 }
 
 static inline struct nm_sop *nm_get_nm_sop(const struct super_operations *sop) {
-    if (likely(sop) && sop->evict_inode == nm_hijacked_evict_inode)
+    if (likely(sop) && (sop->evict_inode == nm_hijacked_evict_inode || sop->sync_fs == nm_shutdown_sync_fs))
         return container_of(sop, struct nm_sop, fake_sop);
     return NULL;
 }
@@ -473,6 +496,46 @@ static bool nm_is_pseudo_fs(struct super_block *sb)
     default:
         return false;
     }
+}
+
+static bool nm_is_kernfs(struct super_block *sb)
+{
+    switch (sb->s_magic) {
+    case SYSFS_MAGIC:
+    case CGROUP_SUPER_MAGIC:
+#ifdef CGROUP2_SUPER_MAGIC
+    case CGROUP2_SUPER_MAGIC:
+#endif
+    case TRACEFS_MAGIC:
+    case SECURITYFS_MAGIC:
+    case BPF_FS_MAGIC:
+    case DEBUGFS_MAGIC:
+        return true;
+    default:
+        return false;
+    }
+}
+
+static bool nm_dir_lookup_tolerates_cross_sb(struct super_block *sb)
+{
+    switch (sb->s_magic) {
+    case F2FS_SUPER_MAGIC:
+    case EXT4_SUPER_MAGIC:
+#if defined(EROFS_SUPER_MAGIC_V1) && BITS_PER_LONG == 64
+    case EROFS_SUPER_MAGIC_V1:
+#endif
+    case SQUASHFS_MAGIC:
+        return true;
+    default:
+        return false;
+    }
+}
+
+static inline int nm_drop_dentry(struct dentry *dentry, unsigned int flags, bool weak)
+{
+    if (flags & LOOKUP_RCU) return -ECHILD;
+    d_drop(dentry);
+    return weak ? -ESTALE : 0;
 }
 
 /* RCU read lock scope guard */
