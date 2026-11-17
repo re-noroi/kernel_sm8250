@@ -1588,7 +1588,7 @@ static void tcp_cleanup_rbuf(struct sock *sk, int copied)
 		    (copied > 0 &&
 		     ((icsk->icsk_ack.pending & ICSK_ACK_PUSHED2) ||
 		      ((icsk->icsk_ack.pending & ICSK_ACK_PUSHED) &&
-		       !inet_csk_in_pingpong_mode(sk))) &&
+		       !icsk->icsk_ack.pingpong)) &&
 		      !atomic_read(&sk->sk_rmem_alloc)))
 			time_to_ack = true;
 	}
@@ -3037,16 +3037,16 @@ static int do_tcp_setsockopt(struct sock *sk, int level,
 
 	case TCP_QUICKACK:
 		if (!val) {
-			inet_csk_enter_pingpong_mode(sk);
+			icsk->icsk_ack.pingpong = 1;
 		} else {
-			inet_csk_exit_pingpong_mode(sk);
+			icsk->icsk_ack.pingpong = 0;
 			if ((1 << sk->sk_state) &
 			    (TCPF_ESTABLISHED | TCPF_CLOSE_WAIT) &&
 			    inet_csk_ack_scheduled(sk)) {
 				icsk->icsk_ack.pending |= ICSK_ACK_PUSHED;
 				tcp_cleanup_rbuf(sk, 1);
 				if (!(val & 1))
-					inet_csk_enter_pingpong_mode(sk);
+					icsk->icsk_ack.pingpong = 1;
 			}
 		}
 		break;
@@ -3459,7 +3459,7 @@ static int do_tcp_getsockopt(struct sock *sk, int level,
 		return 0;
 	}
 	case TCP_QUICKACK:
-		val = !inet_csk_in_pingpong_mode(sk);
+		val = !icsk->icsk_ack.pingpong;
 		break;
 
 	case TCP_CONGESTION:

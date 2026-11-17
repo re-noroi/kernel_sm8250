@@ -333,14 +333,14 @@ void tcp_delack_timer_handler(struct sock *sk)
 	icsk->icsk_ack.pending &= ~ICSK_ACK_TIMER;
 
 	if (inet_csk_ack_scheduled(sk)) {
-		if (!inet_csk_in_pingpong_mode(sk)) {
+		if (!icsk->icsk_ack.pingpong) {
 			/* Delayed ACK missed: inflate ATO. */
 			icsk->icsk_ack.ato = min(icsk->icsk_ack.ato << 1, icsk->icsk_rto);
 		} else {
 			/* Delayed ACK missed: leave pingpong mode and
 			 * deflate ATO.
 			 */
-			inet_csk_exit_pingpong_mode(sk);
+			icsk->icsk_ack.pingpong = 0;
 			icsk->icsk_ack.ato      = TCP_ATO_MIN;
 		}
 		tcp_mstamp_refresh(tcp_sk(sk));

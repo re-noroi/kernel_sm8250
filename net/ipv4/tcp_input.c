@@ -238,7 +238,7 @@ static void tcp_enter_quickack_mode(struct sock *sk, unsigned int max_quickacks)
 	struct inet_connection_sock *icsk = inet_csk(sk);
 
 	tcp_incr_quickack(sk, max_quickacks);
-	inet_csk_exit_pingpong_mode(sk);
+	icsk->icsk_ack.pingpong = 0;
 	icsk->icsk_ack.ato = TCP_ATO_MIN;
 }
 
@@ -252,7 +252,7 @@ static bool tcp_in_quickack_mode(struct sock *sk)
 	const struct dst_entry *dst = __sk_dst_get(sk);
 
 	return (dst && dst_metric(dst, RTAX_QUICKACK)) ||
-		(icsk->icsk_ack.quick && !inet_csk_in_pingpong_mode(sk));
+		(icsk->icsk_ack.quick && !icsk->icsk_ack.pingpong);
 }
 
 static void tcp_ecn_queue_cwr(struct tcp_sock *tp)
@@ -4202,7 +4202,7 @@ void tcp_fin(struct sock *sk)
 	case TCP_ESTABLISHED:
 		/* Move to CLOSE_WAIT */
 		tcp_set_state(sk, TCP_CLOSE_WAIT);
-		inet_csk_enter_pingpong_mode(sk);
+		inet_csk(sk)->icsk_ack.pingpong = 1;
 		break;
 
 	case TCP_CLOSE_WAIT:
@@ -6045,7 +6045,7 @@ static int tcp_rcv_synsent_state_process(struct sock *sk, struct sk_buff *skb,
 			return -1;
 		if (sk->sk_write_pending ||
 		    icsk->icsk_accept_queue.rskq_defer_accept ||
-		    inet_csk_in_pingpong_mode(sk)) {
+		    icsk->icsk_ack.pingpong) {
 			/* Save one ACK. Data will be ready after
 			 * several ticks, if write_pending is set.
 			 *
