@@ -424,6 +424,7 @@ void irq_exit(void)
 
 	tick_irq_exit();
 	rcu_irq_exit();
+	trace_hardirq_exit(); /* must be last! */
 }
 
 /*
