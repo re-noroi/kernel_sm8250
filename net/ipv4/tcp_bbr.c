@@ -135,6 +135,13 @@ enum bbr_ack_phase {
 	BBR_ACKS_PROBE_STOPPING,  /* stopped probing; still getting feedback */
 };
 
+/* What state transition should we make, if any, upon undo of loss? */
+enum bbr_undo_state {
+	BBR_UNDO_NONE,		/* upon undo, no mode change needed */
+	BBR_UNDO_STARTUP,	/* upon undo, return to BBR_STARTUP */
+	BBR_UNDO_PROBE_BW_UP,	/* upon undo, return to BBR_BW_PROBE_UP */
+};
+
 /* BBR congestion control block */
 struct bbr {
 	u32	min_rtt_us;	        /* min RTT in min_rtt_win_sec window */
@@ -160,7 +167,8 @@ struct bbr {
 		full_bw_cnt:2,	/* number of rounds without large bw gains */
 		cycle_idx:2,	/* current index in pacing_gain cycle array */
 		has_seen_rtt:1, /* have we seen an RTT sample yet? */
-		unused_2:6;
+		undo_state:2,	/* bbr_undo_state enum from loss */
+		unused_2:4;
 	u32	prior_cwnd;	/* prior cwnd upon entering loss recovery */
 	u32	full_bw;	/* recent bw, to estimate if pipe is full */
 
@@ -1678,8 +1686,10 @@ static void bbr_handle_inflight_too_high(struct sock *sk,
 					 (u64)bbr_target_inflight(sk) *
 					 (BBR_UNIT - beta) >> BBR_SCALE);
 	}
-	if (bbr->mode == BBR_PROBE_BW && bbr->cycle_idx == BBR_BW_PROBE_UP)
+	if (bbr->mode == BBR_PROBE_BW && bbr->cycle_idx == BBR_BW_PROBE_UP) {
+		bbr->undo_state = BBR_UNDO_PROBE_BW_UP;
 		bbr_start_bw_probe_down(sk);
+	}
 }
 
 /* If we're seeing bw and loss samples reflecting our bw probing, adapt
@@ -1941,6 +1951,7 @@ static void bbr_check_loss_too_high_in_startup(struct sock *sk,
 	    inet_csk(sk)->icsk_ca_state == TCP_CA_Recovery &&
 	    bbr->loss_events_in_round >= bbr_param(sk, full_loss_cnt) &&
 	    bbr_is_inflight_too_high(sk, rs)) {
+		bbr->undo_state = BBR_UNDO_STARTUP;
 		bbr_handle_queue_too_high_in_startup(sk);
 		return;
 	}
@@ -2179,6 +2190,7 @@ __bpf_kfunc static void bbr_init(struct sock *sk)
 	bbr->rounds_since_probe = 0;
 	bbr->bw_probe_samples = 0;
 	bbr->prev_probe_too_high = 0;
+	bbr->undo_state = BBR_UNDO_NONE;
 	bbr->ecn_eligible = 0;
 	bbr->ecn_alpha = bbr_param(sk, ecn_alpha_init);
 	bbr->alpha_last_delivered = 0;
@@ -2255,20 +2267,57 @@ static void bbr_run_loss_probe_recovery(struct sock *sk)
 		bbr_handle_inflight_too_high(sk, &rs);
 }
 
-/* Revert short-term model if current loss recovery event was spurious. */
+/* Revert loss-related state if current loss recovery event was spurious. */
 __bpf_kfunc static u32 bbr_undo_cwnd(struct sock *sk)
 {
+	struct tcp_sock *tp = tcp_sk(sk);
 	struct bbr *bbr = inet_csk_ca(sk);
+	/* Indicate rs has no valid RTT or rate sample info (fields not
+	 * mentioned are set to zero by compiler):
+	 */
+	struct rate_sample rs = {
+		.rtt_us = -1,
+		.delivered = -1,
+		.interval_us = -1,
+		.prior_in_flight = tcp_packets_in_flight(tp)
+	};
 
 	bbr_reset_full_bw(sk); /* spurious slow-down; reset full bw detector */
 	bbr->loss_in_round = 0;
+	bbr->loss_events_in_round = 0;
+	bbr->loss_round_start = 0;
+	bbr->loss_round_delivered = tp->delivered;
 
 	/* Revert to cwnd and other state saved before loss episode. */
 	bbr->bw_lo = max(bbr->bw_lo, bbr->undo_bw_lo);
 	bbr->inflight_lo = max(bbr->inflight_lo, bbr->undo_inflight_lo);
 	bbr->inflight_hi = max(bbr->inflight_hi, bbr->undo_inflight_hi);
 	bbr->try_fast_path = 0;  /* take slow path to set proper cwnd, pacing */
-	return bbr->prior_cwnd;
+
+	if (bbr->undo_state == BBR_UNDO_STARTUP &&
+	    bbr->mode != BBR_STARTUP) {
+		bbr->full_bw_reached = 0;
+		if (bbr->mode != BBR_PROBE_RTT)
+			bbr_reset_startup_mode(sk);
+	} else if (bbr->undo_state == BBR_UNDO_PROBE_BW_UP &&
+		   !(bbr->mode == BBR_PROBE_BW &&
+		     bbr->cycle_idx == BBR_BW_PROBE_UP)) {
+		if (bbr->mode != BBR_PROBE_RTT) {
+			bbr->mode = BBR_PROBE_BW;
+			bbr_start_bw_probe_refill(sk, 0);
+		}
+	}
+	bbr->undo_state = BBR_UNDO_NONE;
+
+	/* Restore cwnd so it's at least as big as it was before recovery: */
+	tcp_snd_cwnd_set(tp, max(tcp_snd_cwnd(tp), bbr->prior_cwnd));
+	/* Then bound cwnd based on current model and mode, since tcp_ack()
+	 * will not call bbr_main() after this undo if there was no
+	 * unacknowledged data or the ACK was old/reordered:
+	 */
+	bbr_main(sk, &rs);
+
+	return tcp_snd_cwnd(tp);
 }
 
 /* Entering loss recovery, so save state for when we undo recovery. */
@@ -2281,6 +2330,7 @@ __bpf_kfunc static u32 bbr_ssthresh(struct sock *sk)
 	bbr->undo_bw_lo		= bbr->bw_lo;
 	bbr->undo_inflight_lo	= bbr->inflight_lo;
 	bbr->undo_inflight_hi	= bbr->inflight_hi;
+	bbr->undo_state = BBR_UNDO_NONE;  /* BBR sets later if relevant */
 	return tcp_sk(sk)->snd_ssthresh;
 }
 
