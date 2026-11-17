@@ -380,9 +380,6 @@ static const u32 bbr_bw_probe_rand_us = 1 * USEC_PER_SEC;  /* 1 secs */
 /* Use fast path if app-limited, no loss/ECN, and target cwnd was reached? */
 static const bool bbr_fast_path = true;
 
-/* Use fast ack mode? */
-static const bool bbr_fast_ack_mode = true;
-
 static u32 bbr_max_bw(const struct sock *sk);
 static u32 bbr_bw(const struct sock *sk);
 static void bbr_exit_probe_rtt(struct sock *sk);
@@ -540,6 +537,14 @@ static u32 bbr_tso_segs_generic(struct sock *sk, unsigned int mss_now,
 __bpf_kfunc static u32 bbr_tso_segs(struct sock *sk, unsigned int mss_now)
 {
 	return bbr_tso_segs_generic(sk, mss_now, sk->sk_gso_max_size);
+}
+
+/* 4.19 has no ->tso_segs(sk, mss); tcp_tso_autosize() takes the max of its
+ * own pacing-based size and ->min_tso_segs(), so hand it the full BBR burst.
+ */
+static u32 bbr_min_tso_segs(struct sock *sk)
+{
+	return bbr_tso_segs(sk, tcp_sk(sk)->mss_cache);
 }
 
 /* Like bbr_tso_segs(), using mss_cache, ignoring driver's sk_gso_max_size. */
@@ -2180,7 +2185,7 @@ __bpf_kfunc static void bbr_init(struct sock *sk)
 	bbr->alpha_last_delivered_ce = 0;
 	bbr->plb.pause_until = 0;
 
-	tp->fast_ack_mode = bbr_fast_ack_mode ? 1 : 0;
+	/* 4.19 has no receiver-side fast_ack_mode, nothing to set */
 }
 
 /* BBR marks the current round trip as a loss round. */
@@ -2377,11 +2382,14 @@ static struct tcp_congestion_ops tcp_bbr_cong_ops __read_mostly = {
 	.undo_cwnd	= bbr_undo_cwnd,
 	.cwnd_event	= bbr_cwnd_event,
 	.ssthresh	= bbr_ssthresh,
-	.tso_segs	= bbr_tso_segs,
+	.min_tso_segs	= bbr_min_tso_segs,
 	.get_info	= bbr_get_info,
 	.set_state	= bbr_set_state,
 };
 
+static int __init bbr_register(void)
+{
+	BUILD_BUG_ON(sizeof(struct bbr) > ICSK_CA_PRIV_SIZE);
 	return tcp_register_congestion_control(&tcp_bbr_cong_ops);
 }
 
