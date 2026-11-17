@@ -2185,6 +2185,9 @@ __bpf_kfunc static void bbr_init(struct sock *sk)
 	bbr->alpha_last_delivered_ce = 0;
 	bbr->plb.pause_until = 0;
 
+	if (bbr_can_use_ecn(sk))
+		tp->ecn_flags |= TCP_ECN_ECT_PERMANENT;
+
 	/* 4.19 has no receiver-side fast_ack_mode, nothing to set */
 }
 
