@@ -312,7 +312,7 @@ static const struct file_operations client_data_fops = {
 struct dentry *msm_bus_dbg_create(const char *name, mode_t mode,
 	struct dentry *dent, uint32_t clid)
 {
-	return 0;
+	return NULL;
 }
 
 int msm_bus_dbg_add_client(const struct msm_bus_client_handle *pdata)
@@ -329,7 +329,6 @@ int msm_bus_dbg_rec_transaction(const struct msm_bus_client_handle *pdata,
 
 void msm_bus_dbg_remove_client(const struct msm_bus_client_handle *pdata)
 {
-	return 0;
 }
 
 static int msm_bus_dbg_record_client(const struct msm_bus_scale_pdata *pdata,
@@ -340,7 +339,6 @@ static int msm_bus_dbg_record_client(const struct msm_bus_scale_pdata *pdata,
 
 static void msm_bus_dbg_free_client(uint32_t clid)
 {
-	return 0;
 }
 
 static int msm_bus_dbg_fill_cl_buffer(const struct msm_bus_scale_pdata *pdata,

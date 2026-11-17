@@ -123,11 +123,14 @@ static atomic_t bam_dmux_a2_pwr_cntl_in_cnt = ATOMIC_INIT(0);
 
 #define DBG_INC_TX_STALL_CNT() (bam_dmux_tx_stall_cnt++)
 
-#define DBG_INC_ACK_OUT_CNT() do {} while (0)
+#define DBG_INC_ACK_OUT_CNT() \
+	atomic_inc(&bam_dmux_ack_out_cnt)
 
-#define DBG_INC_A2_POWER_CONTROL_IN_CNT() do {} while (0)
+#define DBG_INC_A2_POWER_CONTROL_IN_CNT() \
+	atomic_inc(&bam_dmux_a2_pwr_cntl_in_cnt)
 
-#define DBG_INC_ACK_IN_CNT() do {} while (0)
+#define DBG_INC_ACK_IN_CNT() \
+	atomic_inc(&bam_dmux_ack_in_cnt)
 #else
 #define DBG(x...) do { } while (0)
 #define DBG_INC_READ_CNT(x...) do { } while (0)
