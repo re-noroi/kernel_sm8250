@@ -1055,6 +1055,17 @@ exit_setup_dev_conn:
 
 static int msm_bus_node_debug(struct device *bus_dev, void *data)
 {
+	struct msm_bus_node_device_type *bus_node = NULL;
+
+	bus_node = to_msm_bus_node(bus_dev);
+	if (!bus_node) {
+		MSM_BUS_ERR("%s: Can't get device info", __func__);
+		return -ENODEV;
+	}
+
+	if (bus_node->node_info->is_fab_dev)
+		msm_bus_floor_init(bus_dev);
+
 	return 0;
 }
 
