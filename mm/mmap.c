@@ -2654,7 +2654,7 @@ int expand_upwards(struct vm_area_struct *vma, unsigned long address)
 	struct vm_area_struct *next;
 	unsigned long gap_addr;
 	int error = 0;
-	MA_STATE(mas, &mm->mm_mt, vma->vm_start, address - 1);
+	MA_STATE(mas, &mm->mm_mt, 0, 0);
 
 	validate_mm_mt(mm);
 	if (!(vma->vm_flags & VM_GROWSUP))
@@ -2681,7 +2681,7 @@ int expand_upwards(struct vm_area_struct *vma, unsigned long address)
 		/* Check that both stack segments have the same anon_vma? */
 	}
 
-	mas->last = address - 1;
+	mas_set_range(&mas, vma->vm_start, address - 1);
 	if (mas_preallocate(&mas, vma, GFP_KERNEL))
 		return -ENOMEM;
 
