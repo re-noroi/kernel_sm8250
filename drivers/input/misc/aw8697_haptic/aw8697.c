@@ -2521,9 +2521,15 @@ static void aw8697_rtp_work_routine(struct work_struct *work)
 
 	//how to force exit this call
 	if (aw8697->is_custom_wave == 1 && aw8697->state) {
-		pr_err_ratelimited("%s buffer size %d, availbe size %d\n",
-			__func__, aw8697->ram.base_addr >> 2,
-			get_rb_avalible_size());
+		/* An already-set exit/eof flag means userspace deliberately
+		 * wrote a short/non-aligned waveform, so there is nothing to
+		 * wait for and nothing anomalous to report. Only log when we
+		 * are actually about to wait for more buffer data.
+		 */
+		if (!rb_shoule_exit())
+			pr_err_ratelimited("%s buffer size %d, availbe size %d\n",
+				__func__, aw8697->ram.base_addr >> 2,
+				get_rb_avalible_size());
 		while (get_rb_avalible_size() < aw8697->ram.base_addr
 			&& !rb_shoule_exit()) {
 			mutex_unlock(&aw8697->lock);
