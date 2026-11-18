@@ -81,7 +81,7 @@ static int hundred	= 100;
 static int minus_fifty = -50;
 
 DEFINE_STATIC_KEY_FALSE(sched_pelt_multiplier);
-unsigned int sysctl_sched_pelt_multiplier = 0;
+unsigned int sysctl_sched_pelt_multiplier = 1;
 
 #ifdef CONFIG_JUMP_LABEL
 /* Handler to safely toggle the static branch when written to */
