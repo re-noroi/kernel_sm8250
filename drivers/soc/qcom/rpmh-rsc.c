@@ -765,13 +765,13 @@ void rpmh_rsc_debug(struct rsc_drv *drv, struct completion *compl)
 	else if (irq_sts)
 		pr_warn("ERROR:Possible lockup in Linux\n");
 
-	/*
-	 * The TCS(s) are busy waiting, we have no way to recover from this.
-	 * If this debug function is called, we assume it's because timeout
-	 * has happened.
-	 * Crash and report.
+	/* The TCS(s) are busy waiting after a timeout. Callers keep the
+	 * completion storage allocated so a late completion cannot signal
+	 * freed memory; log the state but do not crash the device here.
 	 */
-	BUG_ON(busy);
+	if (busy)
+		pr_warn("RSC:%s %d TCS(s) still busy after timeout\n",
+			drv->name, busy);
 }
 
 static int rpmh_probe_tcs_config(struct platform_device *pdev,

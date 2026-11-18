@@ -476,13 +476,15 @@ int rpmh_write_batch(const struct device *dev, enum rpmh_state state,
 		if (!oops_in_progress) {
 			time_left = wait_for_completion_timeout(&compls[i], time_left);
 			if (!time_left) {
-				/*
-				 * Better hope they never finish because they'll signal
-				 * the completion that we're going to free once
-				 * we've returned from this function.
+				/* The hardware may still signal these completions
+				 * later. Leak 'ptr' (do not kfree below) so that a
+				 * late rpmh_tx_done()->complete() writes to valid
+				 * memory; an early free would corrupt the slab.
 				 */
-				rpmh_rsc_debug(ctrlr_to_drv(ctrlr),compls);
-				BUG_ON(1);
+				pr_err("RPMh batch timeout on completion %d; keeping storage\n",
+				       i);
+				rpmh_rsc_debug(ctrlr_to_drv(ctrlr), compls);
+				return -ETIMEDOUT;
 			}
 		} else
 			mdelay(100);
