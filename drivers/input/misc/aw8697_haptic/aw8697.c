@@ -37,6 +37,7 @@
 #include <linux/vmalloc.h>
 #include <linux/pm_qos.h>
 #include <linux/string.h>
+#include <linux/ratelimit.h>
 #include "aw8697_config.h"
 #include "aw8697_reg.h"
 #include "aw869xx_reg.h"
@@ -2520,7 +2521,7 @@ static void aw8697_rtp_work_routine(struct work_struct *work)
 
 	//how to force exit this call
 	if (aw8697->is_custom_wave == 1 && aw8697->state) {
-		pr_err("%s buffer size %d, availbe size %d\n",
+		pr_err_ratelimited("%s buffer size %d, availbe size %d\n",
 			__func__, aw8697->ram.base_addr >> 2,
 			get_rb_avalible_size());
 		while (get_rb_avalible_size() < aw8697->ram.base_addr
@@ -2531,7 +2532,7 @@ static void aw8697_rtp_work_routine(struct work_struct *work)
 				aw8697->ram.base_addr) || rb_shoule_exit());
 			pr_debug("%s  wakeup\n", __func__);
 
-			pr_err("%s after wakeup sbuffer size %d, availbe size %d\n",
+			pr_err_ratelimited("%s after wakeup sbuffer size %d, availbe size %d\n",
 				__func__, aw8697->ram.base_addr >> 2,
 				get_rb_avalible_size());
 
