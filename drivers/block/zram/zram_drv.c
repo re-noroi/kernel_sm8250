@@ -2376,15 +2376,12 @@ static void zram_destroy_comps(struct zram *zram)
 		zcomp_destroy(comp);
 		zram->num_active_comps--;
 	}
-
-	for (prio = ZRAM_PRIMARY_COMP; prio < ZRAM_MAX_COMPS; prio++)
-		zram->comp_algs[prio] = NULL;
-
-	zram_comp_params_reset(zram);
 }
 
 static void zram_reset_device(struct zram *zram)
 {
+	u32 prio;
+
 	down_write(&zram->init_lock);
 
 	zram->limit_pages = 0;
@@ -2396,6 +2393,9 @@ static void zram_reset_device(struct zram *zram)
 	zram_meta_free(zram, zram->disksize);
 	zram->disksize = 0;
 	zram_destroy_comps(zram);
+	for (prio = ZRAM_PRIMARY_COMP; prio < ZRAM_MAX_COMPS; prio++)
+		zram->comp_algs[prio] = NULL;
+	zram_comp_params_reset(zram);
 	memset(&zram->stats, 0, sizeof(zram->stats));
 	atomic_set(&zram->pp_in_progress, 0);
 	reset_bdev(zram);
