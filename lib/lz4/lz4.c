@@ -2356,6 +2356,7 @@ int LZ4_compress_fast_continue(LZ4_stream_t *LZ4_stream, const char *source,
 		return result;
 	}
 }
+EXPORT_SYMBOL(LZ4_compress_fast_continue);
 
 /* Hidden debug function, to force-test external dictionary mode */
 int LZ4_compress_forceExtDict(LZ4_stream_t *LZ4_dict, const char *source,
@@ -3498,6 +3499,7 @@ LZ4_FORCE_O2 ssize_t LZ4_arm64_decompress_safe(const void *source, void *dest,
 					outputSize, decode_full_block, noDict,
 					(BYTE *)dest, NULL, 0);
 }
+EXPORT_SYMBOL(LZ4_arm64_decompress_safe);
 
 LZ4_FORCE_O2 int
 LZ4_decompress_fast_continue(LZ4_streamDecode_t *LZ4_streamDecode,
@@ -3578,6 +3580,7 @@ int LZ4_decompress_safe_usingDict(const char *source, char *dest,
 						maxOutputSize, dictStart,
 						(size_t)dictSize);
 }
+EXPORT_SYMBOL(LZ4_decompress_safe_usingDict);
 
 int LZ4_decompress_safe_partial_usingDict(const char *source, char *dest,
 					  int compressedSize,
