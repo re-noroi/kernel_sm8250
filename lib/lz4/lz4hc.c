@@ -2661,6 +2661,15 @@ static int LZ4HC_compress_optimal(LZ4HC_CCtx_internal *ctx,
 			nbSearchesSeq, targetLength, limit, dict, favorDecSpeed,
 			opt);
 	}
+#ifdef __KERNEL__
+	/*
+	 * A base workspace has no room for the optimal parser's scratch
+	 * area. Use the hash-chain parser instead of the kernel stack.
+	 */
+	return LZ4HC_compress_hashChain(ctx, source, dst, srcSizePtr, dstCapacity,
+		LZ4HC_getCLevelParams(LZ4HC_CLEVEL_OPT_MIN - 1).nbSearches,
+		limit, dict);
+#else
 	{ /* plain state */
 #if defined(LZ4HC_HEAPMODE) && LZ4HC_HEAPMODE == 1
 		LZ4HC_optimal_t *const opt = (LZ4HC_optimal_t *)ALLOC(
@@ -2685,6 +2694,7 @@ static int LZ4HC_compress_optimal(LZ4HC_CCtx_internal *ctx,
 			opt);
 #endif
 	}
+#endif
 }
 
 /***************************************************
