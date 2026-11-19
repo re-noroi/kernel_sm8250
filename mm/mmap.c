@@ -239,11 +239,8 @@ SYSCALL_DEFINE1(brk, unsigned long, brk)
 
 	/* Check against existing mmap mappings. */
 	next = find_vma(mm, oldbrk);
-	if (next) {
-		vma_start_write(next);
-		if (newbrk + PAGE_SIZE > vm_start_gap(next))
-			goto out;
-	}
+	if (next && newbrk + PAGE_SIZE > vm_start_gap(next))
+		goto out;
 
 	/* Ok, looks good - let it rip. */
 	if (do_brk_flags(oldbrk, newbrk-oldbrk, 0, &uf) < 0)
