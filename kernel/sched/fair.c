@@ -10182,7 +10182,7 @@ static inline void update_sg_lb_stats(struct lb_env *env,
 		sgs->group_runnable += cpu_runnable(rq);
 		sgs->sum_h_nr_running += rq->cfs.h_nr_runnable;
 
-		nr_running = rq->nr_running;
+		nr_running = rq->nr_running - cfs_h_nr_delayed(rq);
 		sgs->sum_nr_running += nr_running;
 
 		if (cpu_overutilized(i))
