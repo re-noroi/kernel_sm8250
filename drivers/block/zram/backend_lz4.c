@@ -38,6 +38,9 @@ static int lz4_setup_params(struct zcomp_params *params)
 	if (ret != min_t(size_t, params->dict_sz, SZ_64K)) {
 		vfree(dict_stream);
 		return -EINVAL;
+	} else {
+		pr_info("Dictionary size of %u bytes has been loaded!\n",
+			ret);
 	}
 	params->drv_data = dict_stream;
 
