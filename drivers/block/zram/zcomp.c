@@ -7,6 +7,7 @@
 #include <linux/wait.h>
 #include <linux/sched.h>
 #include <linux/cpuhotplug.h>
+#include <linux/jiffies.h>
 #include <linux/highmem.h>
 #include <linux/scatterlist.h>
 #include <linux/vmalloc.h>
@@ -232,9 +233,15 @@ struct zcomp_dstrm *zcomp_dstrm_get(struct zcomp *comp,
 		}
 	}
 
-	/* Checks zcomp_dstrm_excl_tryget() before touching the waitq */
-	wait_event(comp->dstrm_waitq,
-		   (zstrm = zcomp_dstrm_excl_tryget(comp)));
+	/*
+	 * A CPU can become available without a stream put if it comes online
+	 * while the mask is being scanned. Retry even without a wakeup.
+	 */
+	do {
+		wait_event_timeout(comp->dstrm_waitq,
+				   (zstrm = zcomp_dstrm_excl_tryget(comp)),
+				   msecs_to_jiffies(20));
+	} while (!zstrm);
 	return zstrm;
 }
 
