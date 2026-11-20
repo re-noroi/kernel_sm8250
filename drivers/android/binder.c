@@ -2287,7 +2287,7 @@ static void binder_deferred_fd_close(int fd)
 	if (!twcb)
 		return;
 	init_task_work(&twcb->twork, binder_do_fd_close);
-	close_fd_get_file(fd, &twcb->file);
+	__close_fd_get_file(fd, &twcb->file);
 	if (twcb->file) {
 		filp_close(twcb->file, current->files);
 		task_work_add(current, &twcb->twork, true);
@@ -6671,7 +6671,6 @@ binder_defer_work(struct binder_proc *proc, enum binder_deferred_state defer)
 	mutex_unlock(&binder_deferred_lock);
 }
 
-#if defined(CONFIG_FTRACE) || defined(CONFIG_ANDROID_BINDER_LOGS)
 static const char *const binder_return_strings[] = {
 	"BR_ERROR",
 	"BR_OK",
@@ -6717,7 +6716,6 @@ static const char *const binder_command_strings[] = {
 	"BC_TRANSACTION_SG",
 	"BC_REPLY_SG",
 };
-#endif
 
 #ifdef CONFIG_ANDROID_BINDER_LOGS
 static void print_binder_transaction_ilocked(struct seq_file *m,
@@ -6868,7 +6866,9 @@ static void print_binder_node_nilocked(struct seq_file *m,
 	struct binder_work *w;
 	int count;
 
-	count = hlist_count_nodes(&node->refs);
+	count = 0;
+	hlist_for_each_entry(ref, &node->refs, node_entry)
+		count++;
 
 	if (hash_ptrs)
 		seq_printf(m, "  node %d: u%p c%p", node->debug_id,
