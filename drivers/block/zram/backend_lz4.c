@@ -100,7 +100,7 @@ static int lz4_decompress(struct zcomp_params *params, struct zcomp_ctx *ctx,
 						    params->dict_sz);
 	}
 
-	if (ret < 0)
+	if (ret != req->dst_len)
 		return -EINVAL;
 	return 0;
 }
