@@ -251,26 +251,6 @@ static inline bool binder_alloc_is_mapped(struct binder_alloc *alloc)
 	return smp_load_acquire(&alloc->mapped);
 }
 
-static struct page *binder_page_lookup(struct binder_alloc *alloc,
-				       unsigned long addr)
-{
-	struct mm_struct *mm = alloc->mm;
-	struct page *page;
-	long npages = 0;
-
-	/*
-	 * Find an existing page in the remote mm. If missing,
-	 * don't attempt to fault-in just propagate an error.
-	 */
-	down_read(&mm->mmap_sem);
-	if (binder_alloc_is_mapped(alloc))
-		npages = get_user_pages_remote(current, mm, addr, 1, 0,
-					       &page, NULL, NULL);
-	up_read(&mm->mmap_sem);
-
-	return npages > 0 ? page : NULL;
-}
-
 static int binder_page_insert(struct binder_alloc *alloc,
 			      unsigned long addr,
 			      struct page *page)
