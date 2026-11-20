@@ -10,6 +10,7 @@
 #include <trace/hooks/vendor_hooks.h>
 #include <trace/hooks/memory.h>
 #include <trace/hooks/syscall_check.h>
+#include <trace/hooks/binder.h>
 
 /*
  * Export tracepoints that act as a bare tracehook (ie: have no trace event
@@ -22,3 +23,6 @@ EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_set_memory_rw);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_check_mmap_file);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_check_file_open);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_check_bpf_syscall);
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_binder_transaction_init);
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_binder_set_priority);
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_binder_restore_priority);
