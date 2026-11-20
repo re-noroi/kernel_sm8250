@@ -57,26 +57,30 @@ static void zcomp_cstrm_free(struct zcomp *comp, struct zcomp_cstrm *zstrm)
 
 static int zcomp_cstrm_init(struct zcomp *comp, struct zcomp_cstrm *zstrm)
 {
+	struct zcomp_ctx ctx = {};
+	void *buffer;
 	int ret;
 
+	/*
+	 * Allocate two pages so the output can exceed the input size.
+	 * Allocate before taking the stream lock since reclaim can use zram.
+	 */
+	buffer = vzalloc(2 * PAGE_SIZE);
+	if (!buffer)
+		return -ENOMEM;
+
 	if (comp->ops->create_cctx) {
-		ret = comp->ops->create_cctx(comp->params, &zstrm->ctx);
+		ret = comp->ops->create_cctx(comp->params, &ctx);
 		if (ret) {
-			/* backend has released partially created context */
-			zstrm->ctx.context = NULL;
+			vfree(buffer);
 			return ret;
 		}
 	}
 
-	/*
-	 * allocate 2 pages. 1 for compressed data, plus 1 extra for the
-	 * case when compressed size is larger than the original one
-	 */
-	zstrm->buffer = vzalloc(2 * PAGE_SIZE);
-	if (!zstrm->buffer) {
-		zcomp_cstrm_free(comp, zstrm);
-		return -ENOMEM;
-	}
+	mutex_lock(&zstrm->lock);
+	zstrm->ctx = ctx;
+	zstrm->buffer = buffer;
+	mutex_unlock(&zstrm->lock);
 	return 0;
 }
 
@@ -91,22 +95,26 @@ static void zcomp_dstrm_free(struct zcomp *comp, struct zcomp_dstrm *zstrm)
 
 static int zcomp_dstrm_init(struct zcomp *comp, struct zcomp_dstrm *zstrm)
 {
+	struct zcomp_ctx ctx = {};
+	void *local_copy;
 	int ret;
 
+	local_copy = vzalloc(PAGE_SIZE);
+	if (!local_copy)
+		return -ENOMEM;
+
 	if (comp->ops->create_dctx) {
-		ret = comp->ops->create_dctx(comp->params, &zstrm->ctx);
+		ret = comp->ops->create_dctx(comp->params, &ctx);
 		if (ret) {
-			/* backend has released partially created context */
-			zstrm->ctx.context = NULL;
+			vfree(local_copy);
 			return ret;
 		}
 	}
 
-	zstrm->local_copy = vzalloc(PAGE_SIZE);
-	if (!zstrm->local_copy) {
-		zcomp_dstrm_free(comp, zstrm);
-		return -ENOMEM;
-	}
+	down_write(&zstrm->lock);
+	zstrm->ctx = ctx;
+	zstrm->local_copy = local_copy;
+	up_write(&zstrm->lock);
 	return 0;
 }
 
