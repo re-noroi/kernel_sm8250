@@ -494,7 +494,7 @@ TRACE_EVENT(rcu_callback,
 		  __entry->qlen)
 );
 
-TRACE_EVENT_RCU(rcu_segcb_stats,
+TRACE_EVENT(rcu_segcb_stats,
 
 		TP_PROTO(struct rcu_segcblist *rs, const char *ctx),
 
@@ -800,6 +800,7 @@ TRACE_EVENT(rcu_barrier,
 #define trace_rcu_torture_read(rcutorturename, rhp, secs, c_old, c) \
 	do { } while (0)
 #define trace_rcu_barrier(name, s, cpu, cnt, done) do { } while (0)
+#define trace_rcu_segcb_stats(rs, ctx) do { } while (0)
 
 #endif /* #else #ifdef CONFIG_RCU_TRACE */
 
