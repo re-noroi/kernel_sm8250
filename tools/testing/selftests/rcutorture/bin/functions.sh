@@ -135,7 +135,7 @@ get_starttime () {
 get_starttime_duration () {
 	awk -v starttime=$1 '
 	BEGIN {
-		ts = systime() - starttime; 
+		ts = systime() - starttime;
 		tm = int(ts / 60);
 		th = int(ts / 3600);
 		td = int(ts / 86400);
