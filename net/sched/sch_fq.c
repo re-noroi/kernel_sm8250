@@ -908,7 +908,7 @@ static int fq_dump_stats(struct Qdisc *sch, struct gnet_dump *d)
 	return gnet_stats_copy_app(d, &st, sizeof(st));
 }
 
-static struct Qdisc_ops fq_qdisc_ops __read_mostly = {
+struct Qdisc_ops fq_qdisc_ops __read_mostly = {
 	.id		=	"fq",
 	.priv_size	=	sizeof(struct fq_sched_data),
 

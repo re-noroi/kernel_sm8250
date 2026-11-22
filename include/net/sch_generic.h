@@ -12,6 +12,7 @@
 #include <linux/list.h>
 #include <linux/refcount.h>
 #include <linux/workqueue.h>
+#include <linux/string.h>
 #include <net/gen_stats.h>
 #include <net/rtnetlink.h>
 
@@ -504,11 +505,35 @@ extern struct Qdisc_ops pfifo_fast_ops;
 extern struct Qdisc_ops mq_qdisc_ops;
 extern struct Qdisc_ops noqueue_qdisc_ops;
 extern const struct Qdisc_ops *default_qdisc_ops;
+extern struct Qdisc_ops fq_qdisc_ops;
+
+/* BBR and ROCCET schedule packets using EDT (skb->skb_mstamp_ns). fq_codel
+ * ignores EDT, so those congestion controls have to fall back to the
+ * expensive TCP-internal pacer: one high-resolution timer per packet,
+ * driven from softirq. On a busy uplink this can peg a CPU and stall the
+ * UI. sch_fq consumes EDT itself and turns that into a single shared
+ * watchdog timer, so use it on wlan interfaces while leaving every other
+ * interface on the configured default (fq_codel).
+ */
+static inline bool dev_wants_fq(const struct net_device *dev)
+{
+#if IS_BUILTIN(CONFIG_NET_SCH_FQ)
+	return !strncmp(dev->name, "wlan", 4);
+#else
+	return false;
+#endif
+}
+
 static inline const struct Qdisc_ops *
 get_default_qdisc_ops(const struct net_device *dev, int ntx)
 {
-	return ntx < dev->real_num_tx_queues ?
-			default_qdisc_ops : &pfifo_fast_ops;
+	if (ntx >= dev->real_num_tx_queues)
+		return &pfifo_fast_ops;
+#if IS_BUILTIN(CONFIG_NET_SCH_FQ)
+	if (dev_wants_fq(dev))
+		return &fq_qdisc_ops;
+#endif
+	return default_qdisc_ops;
 }
 
 struct Qdisc_class_common {
