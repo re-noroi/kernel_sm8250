@@ -33,6 +33,20 @@
 #include <net/tcp.h>
 #include <vdso/time64.h>
 
+#ifndef tcp_snd_cwnd
+static inline u32 tcp_snd_cwnd(const struct tcp_sock *tp)
+{
+	return tp->snd_cwnd;
+}
+#endif
+
+#ifndef tcp_snd_cwnd_set
+static inline void tcp_snd_cwnd_set(struct tcp_sock *tp, u32 val)
+{
+	tp->snd_cwnd = val;
+}
+#endif
+
 /* Scale factor beta calculation (max_cwnd = snd_cwnd * beta) */
 #define BICTCP_BETA_SCALE 1024
 
@@ -301,7 +315,7 @@ static void roccet_set_next_srrtt_check_ts(struct roccettcp *ca, u32 now)
 	/* Check the srrtt after 5 RTT's. Cap the assumed RTT's
 	 * at 200 ms each => 1 sec max.
 	 */
-	ca->next_srrtt_check_ts = now + min(5 * ca->curr_rtt,
+	ca->next_srrtt_check_ts = now + min_t(u32, 5 * ca->curr_rtt,
 					    ROCCET_MAX_SRRTT_CHECK_INTERVAL_MS
 					    * USEC_PER_MSEC);
 }
@@ -329,7 +343,7 @@ static void update_min_rtt(struct roccettcp *ca)
 	 * since the rtt values are initialized to U32_MAX.
 	 */
 	if (ca->curr_rtt < ca->curr_min_rtt) {
-		ca->curr_min_rtt = max(ca->curr_rtt, 1);
+		ca->curr_min_rtt = max_t(u32, ca->curr_rtt, 1);
 		roccet_set_next_min_rtt_probe_ts(ca);
 	}
 }
@@ -402,7 +416,7 @@ static void update_srrtt(struct roccettcp *ca)
 	 * In these cases, set the rtt to a safe value.
 	 */
 	if (ca->curr_rtt < ca->curr_min_rtt) {
-		ca->curr_rtt = max(ca->curr_rtt, 1);
+		ca->curr_rtt = max_t(u32, ca->curr_rtt, 1);
 		ca->curr_min_rtt = ca->curr_rtt;
 	}
 
@@ -541,7 +555,7 @@ static void roccet_enter_min_rtt_probe(struct sock *sk, u32 now)
 	 * to avoid any "invalid"/very large RTT samples from breaking
 	 * the probing and allowing ROCCET to recover afterwards.
 	 */
-	interval = max(200 * USEC_PER_MSEC, min(ca->curr_rtt,
+	interval = max_t(u32, 200 * USEC_PER_MSEC, min_t(u32, ca->curr_rtt,
 						ROCCET_MAX_PROBE_INTERVAL_MS
 						* USEC_PER_MSEC));
 
@@ -554,9 +568,9 @@ static void roccet_enter_min_rtt_probe(struct sock *sk, u32 now)
 	 * we set the cwnd to its previous value after probing.
 	 */
 	if (!tcp_is_cwnd_limited(sk))
-		probe_cwnd = max(tcp_snd_cwnd(tp) / 3, TCP_INIT_CWND);
+		probe_cwnd = max_t(u32, tcp_snd_cwnd(tp) / 3, TCP_INIT_CWND);
 	else
-		probe_cwnd = max(tcp_snd_cwnd(tp) / 2, TCP_INIT_CWND);
+		probe_cwnd = max_t(u32, tcp_snd_cwnd(tp) / 2, TCP_INIT_CWND);
 
 	ca->probe_min_rtt_until = now + interval;
 	ca->cwnd_before_min_rtt_probe = tcp_snd_cwnd(tp);
@@ -834,7 +848,7 @@ static void roccet_launch_update(struct sock *sk, u32 acked)
 		} else {
 			new_cwnd = tcp_snd_cwnd(tp) - (tcp_snd_cwnd(tp) / 3);
 		}
-		tcp_snd_cwnd_set(tp, min(max(new_cwnd, TCP_INIT_CWND),
+		tcp_snd_cwnd_set(tp, min_t(u32, max_t(u32, new_cwnd, TCP_INIT_CWND),
 					 tp->snd_cwnd_clamp));
 		WRITE_ONCE(tp->snd_ssthresh, tcp_snd_cwnd(tp));
 		ca->roccet_last_event_time_us = now;
@@ -983,7 +997,7 @@ static void roccet_orbiter_update(struct sock *sk, u32 acked)
 	}
 
 	bictcp_update(ca, tcp_snd_cwnd(tp), acked);
-	tcp_cong_avoid_ai(tp, max(1, ca->cnt), acked);
+	tcp_cong_avoid_ai(tp, max_t(u32, 1, ca->cnt), acked);
 }
 
 /* The Cubic ssthresh calculation is also used for ROCCET.
@@ -1155,7 +1169,7 @@ static void roccet_cwnd_event(struct sock *sk, enum tcp_ca_event event)
 	    READ_ONCE(sock_net(sk)->ipv4.sysctl_tcp_slow_start_after_idle) &&
 	    delta >= inet_csk(sk)->icsk_rto) {
 		tp->snd_ssthresh = tcp_snd_cwnd(tp);
-		tcp_snd_cwnd_set(tp, min(TCP_INIT_CWND, tp->snd_cwnd_clamp));
+		tcp_snd_cwnd_set(tp, min_t(u32, TCP_INIT_CWND, tp->snd_cwnd_clamp));
 		ca->state = LAUNCH;
 	}
 
@@ -1174,7 +1188,7 @@ static void roccet_state(struct sock *sk, u8 new_state)
 
 	if (new_state == TCP_CA_Loss) {
 		roccet_reset(sk, ca);
-		tcp_snd_cwnd_set(tp, min(TCP_INIT_CWND, tp->snd_cwnd_clamp));
+		tcp_snd_cwnd_set(tp, min_t(u32, TCP_INIT_CWND, tp->snd_cwnd_clamp));
 		WRITE_ONCE(tp->snd_ssthresh, max(tp->snd_ssthresh,
 						 tcp_snd_cwnd(tp)));
 	} else if (tcp_in_cwnd_reduction(sk)) {
