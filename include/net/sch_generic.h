@@ -512,13 +512,14 @@ extern struct Qdisc_ops fq_qdisc_ops;
  * expensive TCP-internal pacer: one high-resolution timer per packet,
  * driven from softirq. On a busy uplink this can peg a CPU and stall the
  * UI. sch_fq consumes EDT itself and turns that into a single shared
- * watchdog timer, so use it on wlan interfaces while leaving every other
- * interface on the configured default (fq_codel).
+ * watchdog timer, so use it on the wlan and cellular (rmnet) uplinks while
+ * leaving every other interface on the configured default (fq_codel).
  */
 static inline bool dev_wants_fq(const struct net_device *dev)
 {
 #if IS_BUILTIN(CONFIG_NET_SCH_FQ)
-	return !strncmp(dev->name, "wlan", 4);
+	return !strncmp(dev->name, "wlan", 4) ||
+	       !strncmp(dev->name, "rmnet", 5);
 #else
 	return false;
 #endif
