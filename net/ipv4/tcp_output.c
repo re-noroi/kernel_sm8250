@@ -3667,7 +3667,7 @@ void tcp_send_delayed_ack(struct sock *sk)
 		const struct tcp_sock *tp = tcp_sk(sk);
 		int max_ato = HZ / 2;
 
-		if (icsk->icsk_ack.pingpong ||
+		if (inet_csk_in_pingpong_mode(sk) ||
 		    (icsk->icsk_ack.pending & ICSK_ACK_PUSHED))
 			max_ato = TCP_DELACK_MAX;
 

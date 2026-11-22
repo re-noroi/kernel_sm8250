@@ -347,4 +347,5 @@ static inline void inet_csk_inc_pingpong_cnt(struct sock *sk)
 	if (icsk->icsk_ack.pingpong < U8_MAX)
 		icsk->icsk_ack.pingpong++;
 }
+
 #endif /* _INET_CONNECTION_SOCK_H */
