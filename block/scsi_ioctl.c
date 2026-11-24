@@ -83,7 +83,7 @@ static int sg_set_timeout(struct request_queue *q, int __user *p)
 		return -EIO;
 
 	q->sg_timeout = min(clock_t_to_jiffies(timeout),
-			    min(UINT_MAX, MAX_JIFFY_OFFSET));
+			    min_t(unsigned long, UINT_MAX, MAX_JIFFY_OFFSET));
 	return 0;
 }
 
