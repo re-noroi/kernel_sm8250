@@ -1340,8 +1340,6 @@ int __irq_domain_alloc_irqs(struct irq_domain *domain, int irq_base,
 
 out_free_irqs:
 	irq_domain_free_irqs_hierarchy(domain, virq, nr_irqs);
-out_free_irq_data:
-	irq_domain_free_irq_data(virq, nr_irqs);
 out_free_desc:
 	irq_free_descs(virq, nr_irqs);
 	return ret;
