@@ -708,6 +708,7 @@ static int __init init_sched_debug_procfs(void)
 
 __initcall(init_sched_debug_procfs);
 
+#define __PS(S, F) SEQ_printf(m, "%-45s:%21Ld\n", S, (long long)(F))
 #define __P(F)	SEQ_printf(m, "%-45s:%21Ld\n",	     #F, (long long)F)
 #define   P(F)	SEQ_printf(m, "%-45s:%21Ld\n",	     #F, (long long)p->F)
 #define   PM(F, M) __PS(#F, p->F & (M))
