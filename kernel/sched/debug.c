@@ -351,7 +351,7 @@ static void print_rq(struct seq_file *m, struct rq *rq, int rq_cpu)
 	SEQ_printf(m, "runnable tasks:\n");
 	SEQ_printf(m, " S            task   PID     weight       vruntime   eligible    "
 		   "deadline             slice          sum-exec      switches  "
-		   "prio         wait-time        sum-sleep       sum-block";
+		   "prio         wait-time        sum-sleep       sum-block");
 	SEQ_printf(m, "-------------------------------------------------------"
 		   "----------------------------------------------------\n");
 
