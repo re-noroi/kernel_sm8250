@@ -1370,19 +1370,14 @@ static void roccet_control(struct sock *sk, const struct rate_sample *rs)
 
 	roccet_update_pacing_rate(sk);
 
-	/* Abuse ca->roccet_last_event_time_us as the start time for this
-	 * connection (only after init, while initial_limit_reached is not
-	 * set). When the connection starts sending enough data or after 500 ms
-	 * we know that we can use tcp_is_cwnd_limited() to check if the
-	 * connection is actually limited by the cwnd and is not just
-	 * starting up.
+	/* Only trust tcp_is_cwnd_limited() once it actually reports a
+	 * cwnd-limited flow.  The old code also force-set this after 500 ms;
+	 * that is wrong when sch_fq consumes EDT and paces packets in the
+	 * qdisc, because packets_out stays below cwnd even on a saturated
+	 * uplink.  ROCCET then exited LAUNCH early and halved cwnd, capping
+	 * its cwnd-derived pacing rate around 500 KB/s.
 	 */
-	if (!ca->initial_limit_reached &&
-	    (tcp_is_cwnd_limited(sk) ||
-	     !time_between32(now, ca->roccet_last_event_time_us
-				  - 500 * USEC_PER_MSEC,
-				  ca->roccet_last_event_time_us
-				  + 500 * USEC_PER_MSEC)))
+	if (!ca->initial_limit_reached && tcp_is_cwnd_limited(sk))
 		ca->initial_limit_reached = true;
 }
 
