@@ -45,7 +45,7 @@ obj-y			:= filemap.o mempool.o oom_kill.o fadvise.o \
 			   interval_tree.o list_lru.o workingset.o \
 			   $(mmu-y) showmem.o vmpressure.o
 
-obj-$(DEBUG_KERNEL)	+= debug.o
+obj-$(CONFIG_DEBUG_KERNEL)	+= debug.o
 
 obj-y += init-mm.o
 
