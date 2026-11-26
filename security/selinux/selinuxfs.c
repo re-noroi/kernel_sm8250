@@ -127,7 +127,7 @@ static ssize_t sel_read_enforce(struct file *filp, char __user *buf,
 	struct selinux_fs_info *fsi = file_inode(filp)->i_sb->s_fs_info;
 	char tmpbuf[TMPBUFLEN];
 	ssize_t length;
-#ifdef CONFIG_OPLUS_PORT
+#ifdef CONFIG_SELINUX_SPOOF
 	bool hide = false;
 	kuid_t uid = current_uid();
 	u32 sid;
@@ -182,7 +182,7 @@ static ssize_t sel_write_enforce(struct file *file, const char __user *buf,
 	if (sscanf(page, "%d", &new_value) != 1)
 		goto out;
 
-#ifdef CONFIG_OPLUS_PORT
+#ifdef CONFIG_SELINUX_SPOOF
 	new_value = 0;
 #else
 	new_value = !!new_value;

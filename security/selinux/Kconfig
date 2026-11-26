@@ -111,3 +111,14 @@ config SECURITY_SELINUX_SIDTAB_HASH_BITS
 	  collisions may be viewed at /sys/fs/selinux/ss/sidtab_hash_stats. If
 	  chain lengths are high (e.g. > 20) then selecting a higher value here
 	  will ensure that lookups times are short and stable.
+
+config SELINUX_SPOOF
+	bool "Spoof SELinux enforcing status"
+	depends on SECURITY_SELINUX
+	default y if OPLUS_PORT
+	help
+	  Report SELinux as enforcing and ignore writes to the enforcing
+	  node for the benefit of userspace.  Enabled automatically with
+	  OPLUS_PORT, but can be selected independently.
+
+	  If unsure, say N.
