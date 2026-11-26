@@ -935,14 +935,18 @@ int smblib_set_fastcharge_mode(struct smb_charger *chg, bool enable)
 				POWER_SUPPLY_PROP_TEMP, &pval);
 	if (rc < 0) {
 		smblib_err(chg, "Couldn't get bms temperature:%d\n", rc);
-		return rc;
-	}
-	batt_temp = pval.intval;
-	if (enable && (pval.intval >= chg->chg_warm_threshold  ||
-			pval.intval <= chg->chg_cool_threshold)) {
-		smblib_dbg(chg, PR_MISC, "temp:%d is abort"
-				"do not setfastcharge mode\n", pval.intval);
-		enable = false;
+		/* Apply the requested mode with a neutral temperature so the
+		 * FCC and float-voltage votes below are not skipped. */
+		batt_temp = (chg->chg_warm_threshold +
+			     chg->chg_cool_threshold) / 2;
+	} else {
+		batt_temp = pval.intval;
+		if (enable && (batt_temp >= chg->chg_warm_threshold ||
+			       batt_temp <= chg->chg_cool_threshold)) {
+			smblib_dbg(chg, PR_MISC, "temp:%d is abort"
+					"do not setfastcharge mode\n", batt_temp);
+			enable = false;
+		}
 	}
 
 	pval.intval = enable;
