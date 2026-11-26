@@ -1052,7 +1052,7 @@ int __vma_adjust(struct vm_area_struct *vma, unsigned long start,
 	}
 
 	if (adjust_next < 0)
-		mas_set_range(&mas, next->vm_start + adjust_next,
+		mas_set_range(&mas, next->vm_start + (adjust_next << PAGE_SHIFT),
 			      next->vm_end - 1);
 	else if (insert)
 		mas_set_range(&mas, insert->vm_start, insert->vm_end - 1);
