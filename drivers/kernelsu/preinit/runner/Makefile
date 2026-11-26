@@ -5,7 +5,7 @@ DUMP = runner_xxd.h
 
 ZIG_VER := $(shell zig version)
 
-CFLAGS += -target aarch64-linux -std=gnu23
+CFLAGS += -target aarch64-linux -std=gnu2y
 CFLAGS += -Oz -flto -s -static
 CFLAGS += -fno-unwind-tables -fmerge-all-constants
 CFLAGS +=  -fno-builtin-memcpy

@@ -37,7 +37,7 @@ static noinline void ksu_grab_data_system_inode()
 	path_put(&path);
 }
 
-static void ksu_rename_observer_slow(struct dentry *old_dentry, struct dentry *new_dentry)
+static noinline void ksu_rename_observer_slow(struct dentry *old_dentry, struct dentry *new_dentry)
 {
 	system_dir_inode_ptr = nullptr; // reset cached inode
 

@@ -15,33 +15,31 @@
 
 static uintptr_t selinux_ops_addr = 0x0;
 
-static int (*orig_setprocattr) (struct task_struct *p, char *name, void *value, size_t size) __read_mostly = nullptr;
-static int hook_setprocattr(struct task_struct *p, char *name, void *value, size_t size)
+static int (*orig_setprocattr)(struct task_struct *p, char *name, void *value, size_t size) __read_mostly = nullptr;
+static int ksu_setprocattr(struct task_struct *p, char *name, void *value, size_t size)
 {
 	ksu_hide_setprocattr_inline(name, value, size);
 	return orig_setprocattr(p, name, value, size);
 }
 
+static int (*orig_inode_setxattr)(struct dentry *dentry, const char *name, const void *value, size_t size, int flags) __read_mostly = nullptr;
+static int ksu_inode_setxattr(struct dentry *dentry, const char *name, const void *value, size_t size, int flags)
+{
+	ksu_hide_setxattr_inline(name, value, size);
+	return orig_inode_setxattr(dentry, name, value, size, flags);
+}
+
 static int (*orig_inode_rename) (struct inode *old_dir, struct dentry *old_dentry,
 			     struct inode *new_dir, struct dentry *new_dentry) __read_mostly = nullptr;
-static int hook_inode_rename(struct inode *old_inode, struct dentry *old_dentry,
+static int ksu_inode_rename(struct inode *old_inode, struct dentry *old_dentry,
 			    struct inode *new_inode, struct dentry *new_dentry)
 {
 	ksu_rename_observer(old_dentry, new_dentry);
 	return orig_inode_rename(old_inode, old_dentry, new_inode, new_dentry);
 }
 
-static int (*orig_bprm_check_security)(struct linux_binprm *bprm) __read_mostly = nullptr;
-static int hook_bprm_check_security(struct linux_binprm *bprm)
-{
-#ifdef CONFIG_KSU_FEATURE_SULOG
-	ksu_sulog_emit_bprm((const char *)bprm->filename);
-#endif
-	return orig_bprm_check_security(bprm);
-}
-
 static int (*orig_task_fix_setuid) (struct cred *new, const struct cred *old, int flags) __read_mostly = nullptr;
-static int hook_task_fix_setuid(struct cred *new, const struct cred *old, int flags)
+static int ksu_task_fix_setuid(struct cred *new, const struct cred *old, int flags)
 {
 	// see sys_setresuid
 	if (flags == LSM_SETID_RES)
@@ -51,7 +49,7 @@ static int hook_task_fix_setuid(struct cred *new, const struct cred *old, int fl
 }
 
 static int (*orig_file_permission) (struct file *file, int mask) __read_mostly = nullptr;
-static int hook_file_permission(struct file *file, int mask)
+static int ksu_file_permission(struct file *file, int mask)
 {
 	if (unlikely(ksu_vfs_read_hook))
 		ksu_install_rc_hook(file);
@@ -60,23 +58,8 @@ static int hook_file_permission(struct file *file, int mask)
 }
 
 static int (*orig_bprm_set_creds)(struct linux_binprm *bprm) __read_mostly = nullptr;
-static int ksu_unregister_bprm_set_creds(void *data)
+static int ksu_bprm_set_creds(struct linux_binprm *bprm)
 {
-	struct security_operations *ops = (struct security_operations *)selinux_ops_addr;
-	if (!orig_bprm_set_creds)
-		return 0;
-
-	pr_info("%s: restoring: bprm_set_creds 0x%lx -> 0x%lx\n", __func__, (long)ops->bprm_set_creds, (long)orig_bprm_set_creds);
-	ops->bprm_set_creds = orig_bprm_set_creds;
-
-	return 0;
-}
-
-static int hook_bprm_set_creds(struct linux_binprm *bprm)
-{
-	if (ksu_boot_completed)
-		goto unreg_bprm_set_creds;
-
 	if (!is_init(current_cred()))
 		goto bprm_set_creds;
 
@@ -89,19 +72,12 @@ static int hook_bprm_set_creds(struct linux_binprm *bprm)
 	pr_info("bprm_set_creds: escape init executing %s with pid: %d\n", bprm->filename, current->pid);
 	escape_to_root_forced(); // give this context all permissions
 
-	goto bprm_set_creds;
-
-unreg_bprm_set_creds:
-	stop_machine(ksu_unregister_bprm_set_creds, NULL, NULL);
-
 bprm_set_creds:
 	return orig_bprm_set_creds(bprm);
 }
 
-static inline bool verify_selinux_cred_free(void *fn_ptr)
+static __nocfi bool verify_selinux_cred_free(void *fn_ptr)
 {
-	bool success = false;
-
 	if (!fn_ptr)
 		return false;
 
@@ -120,17 +96,16 @@ static inline bool verify_selinux_cred_free(void *fn_ptr)
 	selinux_cred_free_fn(&dummy_cred);
 
 	// check if selinux_cred_free is successful
-	if ((unsigned long)*(void **)&dummy_cred.security == 0x7UL)
-		success = true;
+	if ((unsigned long)*(void **)&dummy_cred.security != 0x7UL)
+		return false;
 
-	pr_info("selinux_cred_free: 0x%lx cred->security: 0x%lx success: %d\n", (unsigned long)fn_ptr, (unsigned long)dummy_cred.security, success);
-
-	return success;
+	pr_info("LSM: found: selinux_cred_free @ 0x%lx cred->security: 0x%lx\n", (uintptr_t)fn_ptr, (unsigned long)dummy_cred.security);
+	return true;
 }
 
 // we should see a lot of pointers that is inside stext && etext
 // basically we check for "pointer density"
-static inline bool is_selinux_ops_valid(uintptr_t addr)
+static bool is_selinux_ops_valid(uintptr_t addr)
 {
 	extern char _stext[], _etext[];
 	int total_slots = sizeof(struct security_operations) / sizeof(void *); 
@@ -154,7 +129,6 @@ density_verify_start:
 	if (!valid_ptr && i >= 20)
 		return false;
 
-	// pr_info("%s: member_ptr: 0x%lx \n", __func__, (long)member_ptr);
 	if (member_ptr >= (uintptr_t)_stext && member_ptr <= (uintptr_t)_etext)
 		valid_ptr++;
 
@@ -163,13 +137,13 @@ next_iter:
 	if (i < total_slots)
 		goto density_verify_start;
 
-	pr_info("%s: density: valid: %lu slots: %lu \n", __func__, valid_ptr, total_slots);
+	pr_info("LSM: density: valid: %lu slots: %lu \n", valid_ptr, total_slots);
 
 	// maybe increase to 75% or something?
 	return (valid_ptr > (total_slots / 2));
 }
 
-static inline bool check_candidate(uintptr_t addr)
+static bool check_candidate(uintptr_t addr)
 {
 	struct security_operations *candidate = (struct security_operations *)addr;
 
@@ -181,7 +155,7 @@ static inline bool check_candidate(uintptr_t addr)
 		return false;
 
 	// candidate found!
-	pr_info("%s: candidate selinux_ops at 0x%lx\n", __func__, (long)addr);
+	pr_info("LSM: candidate: selinux_ops at 0x%lx\n", (uintptr_t)addr);
 
 	// check ptr density	
 	if (!is_selinux_ops_valid(addr))
@@ -190,17 +164,17 @@ static inline bool check_candidate(uintptr_t addr)
 	if (!candidate->cred_free)
 		return false;
 
-#if 0 //def CONFIG_KALLSYMS // not always available, can also fail, but it wont hurt to try.
+#if 0 // def CONFIG_KALLSYMS // not always available, but it wont hurt to try.
 	uintptr_t ksym_ptr = (uintptr_t)kallsyms_lookup_name("selinux_cred_free");
 	if (unlikely(ksym_ptr != (uintptr_t)candidate->cred_free))
 		goto test_fn;
 
-	pr_info("%s: selinux_cred_free found via ksym_lookup: 0x%lx probe_result: 0x%lx \n", __func__, (long)ksym_ptr, (long)candidate->cred_free);
+	pr_info("LSM: found: selinux_cred_free: 0x%lx probe: 0x%lx \n", (uintptr_t)ksym_ptr, (uintptr_t)candidate->cred_free);
 	return true;
 test_fn:
 #endif
-	// oh yeah I am so confident that this is it
-	pr_info("%s: candidate selinux_cred_free at 0x%lx\n", __func__, (long)candidate->cred_free);
+	// oh yeah I am so confident that this is it, we might as well show off.
+	pr_info("LSM: candidate: selinux_cred_free @ 0x%lx\n", (uintptr_t)candidate->cred_free);
 	return verify_selinux_cred_free((void *)candidate->cred_free);
 }
 
@@ -213,7 +187,7 @@ test_fn:
  * once ptrdiff of up vs down is larger than L1, it will be trashy.
  *
  */
-static noinline void *hunt_for_selinux_ops(void *heuristic_ptr)
+static void *do_hunt_for_selinux_ops(void *heuristic_ptr, const char *anchor_name)
 {
 	uintptr_t anchor = (uintptr_t)heuristic_ptr;
 	uintptr_t curr;
@@ -223,7 +197,9 @@ static noinline void *hunt_for_selinux_ops(void *heuristic_ptr)
 
 	uintptr_t start = anchor - max_index * sizeof(void *);
 	uintptr_t end = anchor + max_index * sizeof(void *);
-	pr_info("%s: scan range: 0x%lx - 0x%lx anchor: 0x%lx\n", __func__, (long)start, (long)end, (long)anchor);
+
+	pr_info("LSM: scan: anchor: %s @ 0x%lx\n", anchor_name, anchor);
+	pr_info("LSM: scan: range: 0x%lx - 0x%lx\n", start, end);
 
 scan_up:
 	if (i >= max_index) {
@@ -254,15 +230,16 @@ scan_down:
 	goto scan_down;
 
 found:
-	pr_info("%s: found selinux_ops at 0x%lx iter_count: %lu \n", __func__, curr, iter_count);
+	pr_info("LSM: found: selinux_ops at 0x%lx! iterations: %lu \n", curr, iter_count);
 	return (void *)curr;
 
 not_found:
-	pr_info("%s: selinux_ops not found in range! iter_count: %lu \n", __func__, iter_count);
+	pr_info("LSM: selinux_ops not found in range! iterations: %lu \n", iter_count);
 	return nullptr;
 }
+#define hunt_for_selinux_ops(ptr) ({ do_hunt_for_selinux_ops((void *)ptr, #ptr); })
 
-static inline void set_selinux_ops()
+static void set_selinux_ops()
 {
 	extern int selinux_enabled;
 	extern struct security_class_mapping secclass_map[];
@@ -274,27 +251,27 @@ static inline void set_selinux_ops()
 	// if user exports selinux_ops, we just go for it!
 	extern struct security_operations selinux_ops __weak;
 	if (!!&selinux_ops) {
-		pr_info("%s: exported selinux_ops: 0x%lx \n", __func__, (uintptr_t)&selinux_ops);
+		pr_info("LSM: exported selinux_ops: 0x%lx \n", (uintptr_t)&selinux_ops);
 		ops = (struct security_operations *)&selinux_ops;
 	}
 
 #ifdef CONFIG_KEYS
 	extern struct key_user root_key_user;
 	if (!ops)
-		ops = (struct security_operations *)hunt_for_selinux_ops((void *)&root_key_user);
+		ops = (struct security_operations *)hunt_for_selinux_ops(&root_key_user);
 #endif
 
 	if (!ops)
-		ops = (struct security_operations *)hunt_for_selinux_ops((void *)&avc_cache_threshold);
+		ops = (struct security_operations *)hunt_for_selinux_ops(&avc_cache_threshold);
 
 	if (!ops)
-		ops = (struct security_operations *)hunt_for_selinux_ops((void *)&crypto_alg_list);
+		ops = (struct security_operations *)hunt_for_selinux_ops(&crypto_alg_list);
 
 	if (!ops)
-		ops = (struct security_operations *)hunt_for_selinux_ops((void *)&selinux_enabled);
+		ops = (struct security_operations *)hunt_for_selinux_ops(&selinux_enabled);
 
 	if (!ops)
-		ops = (struct security_operations *)hunt_for_selinux_ops((void *)&secclass_map);
+		ops = (struct security_operations *)hunt_for_selinux_ops(&secclass_map);
 
 	if (!ops)
 		return;
@@ -302,63 +279,96 @@ static inline void set_selinux_ops()
 	selinux_ops_addr = (uintptr_t)ops;	
 }
 
-// stop_machine
-static int ksu_restore_file_permission_stop_machine(void *data)
+#ifdef CONFIG_KALLSYMS
+static void print_lsm_symbol(uintptr_t sym1, uintptr_t sym2)
 {
-	struct security_operations *ops = (struct security_operations *)selinux_ops_addr;
-	if (!orig_file_permission)
-		return 0;
-
-	pr_info("%s: restoring file_permission 0x%lx -> 0x%lx\n", __func__, (long)ops->file_permission, (long)orig_file_permission);
-	ops->file_permission = orig_file_permission;	
-	return 0;
+	char buf1[KSYM_NAME_LEN] = "(undefined)";
+	char buf2[KSYM_NAME_LEN] = "(undefined)";
+	sprint_symbol_no_offset(buf1, sym1);
+	sprint_symbol_no_offset(buf2, sym2);
+	pr_info("LSM: exchange: %s with hook: %s \n", buf1, buf2);
 }
+#else
+#define print_lsm_symbol(...)	do { } while (0)
+#endif
+
+#define LSM_HACK_INIT(lsm_name, hook_fn)							\
+do {												\
+	struct security_operations *ops = (struct security_operations *)selinux_ops_addr;	\
+	if (!ops) break;									\
+	pr_info("LSM: Initializing hook for %s -> %s\n", #lsm_name, #hook_fn);			\
+	patch_ptr_slot_kick_cpu((void **)&orig_##lsm_name, (void *)ops->lsm_name);		\
+	pr_info("LSM: %s: slot: 0x%lx hook: 0x%lx\n", 						\
+		#lsm_name, (uintptr_t)&ops->lsm_name, (uintptr_t)ops->lsm_name);		\
+	print_lsm_symbol((uintptr_t)ops->lsm_name, (uintptr_t)hook_fn);				\
+	int ret = patch_ro_slot((uintptr_t)&ops->lsm_name, (uintptr_t)hook_fn);			\
+	pr_info("LSM: %s: slot: 0x%lx hook: 0x%lx ret: %d\n", 					\
+		#lsm_name, (uintptr_t)&ops->lsm_name, (uintptr_t)ops->lsm_name, ret);		\
+} while (0)
+
+#define LSM_HACK_RESTORE(lsm_name)								\
+do {												\
+	struct security_operations *ops = (struct security_operations *)selinux_ops_addr;	\
+	if (!ops || !orig_##lsm_name) break;							\
+	pr_info("LSM: Restoring hook for %s\n", #lsm_name);					\
+	pr_info("LSM: %s: slot: 0x%lx hook: 0x%lx\n", 						\
+		#lsm_name, (uintptr_t)&ops->lsm_name, (uintptr_t)ops->lsm_name);		\
+	print_lsm_symbol((uintptr_t)ops->lsm_name, (uintptr_t)orig_##lsm_name);			\
+	int ret = patch_ro_slot((uintptr_t)&ops->lsm_name, (uintptr_t)orig_##lsm_name);		\
+	pr_info("LSM: %s: slot: 0x%lx hook: 0x%lx ret: %d\n", 					\
+		#lsm_name, (uintptr_t)&ops->lsm_name, (uintptr_t)ops->lsm_name, ret);		\
+} while (0)
 
 static int ksu_restore_file_permission(void *data)
 {
-loop_start:
-
-	msleep(1000);
-
-	if (*(volatile bool *)&ksu_vfs_read_hook)
-		goto loop_start;
-
-	stop_machine(ksu_restore_file_permission_stop_machine, NULL, NULL);
-
+	set_user_nice(current, 19); // low prio
+	while (*(volatile bool *)&ksu_vfs_read_hook)
+		msleep(5000);
+	LSM_HACK_RESTORE(file_permission);
 	return 0;
 }
 
-// stop_machine
-static int ksu_register_lsm_hook(void *data)
+static int ksu_restore_bprm_set_creds(void *data)
 {
-	struct security_operations *ops = (struct security_operations *)selinux_ops_addr;
+	set_user_nice(current, 19); // low prio
+	while (!*(volatile bool *)&ksu_boot_completed)
+		msleep(10000);
+	LSM_HACK_RESTORE(bprm_set_creds);
+	return 0;
+}
 
-	orig_bprm_set_creds = ops->bprm_set_creds;
-	ops->bprm_set_creds = hook_bprm_set_creds;
+static void ksu_decide_inode_setxattr(bool sh_hooked)
+{
+	if (!sh_hooked)
+		return;
+	LSM_HACK_RESTORE(inode_setxattr);
+}
 
-	orig_inode_rename = ops->inode_rename;
-	ops->inode_rename = hook_inode_rename;
+static void ksu_decide_setprocattr(bool sh_hooked)
+{
+	if (!sh_hooked)
+		return;
+	LSM_HACK_RESTORE(setprocattr);
+}
 
-	orig_setprocattr = ops->setprocattr;
-	ops->setprocattr = hook_setprocattr;
+static inline void ksu_register_lsm_hook(void)
+{
+	LSM_HACK_INIT(task_fix_setuid, ksu_task_fix_setuid);
+	LSM_HACK_INIT(inode_rename, ksu_inode_rename);
 
-	orig_task_fix_setuid = ops->task_fix_setuid;
-	ops->task_fix_setuid = hook_task_fix_setuid;
+	LSM_HACK_INIT(bprm_set_creds, ksu_bprm_set_creds);
+	kthread_run(ksu_restore_bprm_set_creds, NULL, "kthread");
 
-#ifdef CONFIG_KSU_FEATURE_SULOG
-	orig_bprm_check_security = ops->bprm_check_security;
-	ops->bprm_check_security = hook_bprm_check_security;
-#endif
+	LSM_HACK_INIT(setprocattr, ksu_setprocattr);
+	LSM_HACK_INIT(inode_setxattr, ksu_inode_setxattr);
 
 #if !defined(CONFIG_KSU_TAMPER_SYSCALL_TABLE) && !defined(CONFIG_KSU_HACK_ARM64_BRANCH_LINK)
-	orig_file_permission = ops->file_permission;
-	ops->file_permission = hook_file_permission;
+	LSM_HACK_INIT(file_permission, ksu_file_permission);
+	kthread_run(ksu_restore_file_permission, nullptr, "kthread");
 #endif
-
-	return 0;
 }
 
-static void ksu_lsm_hook_init(void)
+static void __init ksu_lsm_hook_init(void)
 {
 	set_selinux_ops();
 
@@ -369,15 +379,8 @@ static void ksu_lsm_hook_init(void)
 	if (!!memcmp_inline(ops, "selinux", sizeof("selinux")))
 		return;
 
-	pr_info("%s: selinux_ops: 0x%lx .name = %s\n", __func__, (long)ops, (const char *)ops );
+	pr_info("LSM: selinux_ops: 0x%lx .name = %s\n", (long)ops, (const char *)ops );
+	ksu_register_lsm_hook();
 
-	stop_machine(ksu_register_lsm_hook, NULL, NULL);
-	
-	kthread_run(ksu_restore_file_permission, NULL, "kthread");
 	return;
-}
-
-static void __init ksu_core_init(void)
-{
-	ksu_lsm_hook_init();
 }

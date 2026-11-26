@@ -113,6 +113,32 @@ __weak long copy_to_kernel_nofault(void *dst, const void *src, size_t size)
 }
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 8, 0) // strncpy_from_unsafe_user
+__weak long strncpy_from_user_nofault(char *dst, const void __user *unsafe_addr, long count)
+{
+	mm_segment_t old_fs = get_fs();
+	long ret;
+
+	if (unlikely(count <= 0))
+		return 0;
+
+	set_fs(USER_DS);
+	pagefault_disable();
+	ret = strncpy_from_user(dst, unsafe_addr, count);
+	pagefault_enable();
+	set_fs(old_fs);
+
+	if (ret >= count) {
+		ret = count;
+		dst[ret - 1] = '\0';
+	} else if (ret > 0) {
+		ret++;
+	}
+
+	return ret;
+}
+#endif
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 8, 0) // probe_user_read
 static __always_inline long ksu_copy_from_user_nofault(void *dst, const void __user *src, size_t size)
 {
@@ -174,6 +200,14 @@ static __always_inline long memmove_user(void __user *dst, const void __user *sr
 #define ksu_is_seccomp_enabled() (!!current->seccomp.mode)
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 18, 0)
+#if defined(CONFIG_AUDIT)
+#define audit_context() (current->audit_context)
+#else
+#define audit_context() (nullptr)
+#endif
+#endif
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0)
 static ssize_t ksu_kernel_read_compat(struct file *file, void *buf, size_t count, loff_t *pos)
 {
@@ -223,7 +257,7 @@ old_fn:; // old type: struct file * dentry_open(struct dentry *, struct vfsmount
 	 * old dentry_open consumes a reference regardless of failure or success (dput/mntput)
 	 * we have take one before calling it, else it releases caller's reference. see nameidata_to_filp
 	 */
-	path_get((struct path *)path); // unqual
+	path_get((void *)path); // unqual
 	return fn_old((*path).dentry, (*path).mnt, flags, cred);
 }
 #define dentry_open ksu_dentry_open
@@ -392,6 +426,18 @@ static char *ksu_strchrnul(const char *s, int c)
 #define d_inode(dentry)		((dentry)->d_inode)
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION (5, 16, 0)
+static inline struct file *anon_inode_getfile_unqual(const char *name,
+				const struct file_operations *fops,
+				void *priv, int flags)
+{
+	// mostly an issue on 3.x/4.x with strict compilers, but this is actually < 5.16 
+	// using a function rather than chained macros keeps type-checking
+	return anon_inode_getfile(name, (void *)fops, priv, flags);
+}
+#define anon_inode_getfile(name, fops, priv, flags) anon_inode_getfile_unqual(name, fops, priv, flags)
+#endif
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 13, 0) && !defined(replace_fops)
 #define replace_fops(f, fops)			\
 do {						\
@@ -448,6 +494,14 @@ __weak void groups_sort(struct group_info *group_info) { } // no-op
 
 #ifndef U16_MAX
 #define	U16_MAX	((u16)(~0U))
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION (4, 16, 0)
+#define __poll_t unsigned __bitwise
+#endif // more portable than typedef
+
+#ifndef in_compat_syscall
+#define in_compat_syscall() is_compat_task()
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION (4, 12, 0) && !defined(EPOLLIN)

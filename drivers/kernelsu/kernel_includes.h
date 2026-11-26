@@ -268,6 +268,25 @@ typedef typeof(nullptr) nullptr_t;
 #endif
 
 /**
+ * __overloaded
+ * - not a thing, just communicates intent, for annotation purposes
+ */
+#define __overloaded
+
+/**
+ * __overloadable
+ * now this is an actual thing, however, Clang only.
+ * this enables Cpp-like fn overloading (same fn names, compiler resolved)
+ * so you also get Cpp symbol mangling, c++filt is your friend.
+ * no gcc equivalent.
+ */
+#if defined(__clang__)
+#define __overloadable	__attribute__((overlodable))
+#else
+#define __overloadable
+#endif
+
+/**
  * static_assert is C23
  * this has an alternative available on C11 capable compilers.
  * ref: https://elixir.bootlin.com/linux/v5.1/source/include/linux/build_bug.h
@@ -510,6 +529,9 @@ static inline void kfree_byref(void *buf) { kfree(*(void **)buf); }
 #endif // CONFIG_KSU_NOPRINTK && !CONFIG_KSU_DEBUG
 
 // no ratelimit
+#ifdef pr_warn_ratelimited
+#undef pr_warn_ratelimited
+#endif
 #define pr_warn_ratelimited pr_warn
 
 /**

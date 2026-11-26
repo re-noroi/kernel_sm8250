@@ -12,8 +12,8 @@ MDIR := $(realpath $(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
 $(info -- KDIR: $(KDIR))
 $(info -- MDIR: $(MDIR))
 
-# compliant to last upstream kernel change as of 9ae6e65
-CFLAGS_ksu.o += -DKSU_VERSION=32720
+# compliant to last upstream kernel change as of 2a60b28
+CFLAGS_ksu.o += -DKSU_VERSION=32742
 
 KSU_PACKAGE_NAME := me.weishu.kernelsu
 KSU_EXPECTED_SIZE := 0x033b
@@ -83,6 +83,8 @@ CFLAGS_ksu.o += $(call cc-option, -Wno-macro-redefined)
 CFLAGS_ksu.o += $(call cc-option, -Wno-incompatible-pointer-types-discards-qualifiers)
 CFLAGS_ksu.o += $(call cc-option, -Wno-discarded-qualifiers)
 CFLAGS_ksu.o += $(call cc-option, -Wno-deprecated-octal-literals)
+CFLAGS_ksu.o += $(call cc-option, -Wno-constant-logical-operand)
+CFLAGS_ksu.o += $(call cc-option, -Wno-alloca)
 
 # dont be too strict
 CFLAGS_REMOVE_ksu.o += -Werror

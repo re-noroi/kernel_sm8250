@@ -32,6 +32,4 @@ static void *native_sct __read_mostly = (void *)sys_call_table;
 static void *compat_sct __read_mostly = (void *)compat_sys_call_table;
 #endif
 
-static bool syscall_table_is_mirrored __read_mostly = false;
-
 #endif // __KSU_H_SYSCALL_TABLE_COMMON

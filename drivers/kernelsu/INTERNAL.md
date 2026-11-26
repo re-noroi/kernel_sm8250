@@ -1,13 +1,10 @@
 # Quirks / Adaptations
-## NOT IMPLEMENTED
-- late-load, #3258
-
 ## differences
 
 ### C-style
 - GNU23, but written in a way compatible to GNU17/GNU11 compilers.
 - pointer-heavy. assumes little endian on everything.
-- metaprogramming is actually happening: compile-time overloading/reflection, RAII-like cleanup, template-like type trickery
+- metaprogramming is actually happening: compile-time overloading/reflection/contracts, RAII-like cleanup, template-like type trickery
 - compat and backports are also done through that metaprogramming (mostly redefinitions)
 - heavy use of compiler attributes / builtins, this is intended.
 - minimum is GCC 4.9 / Clang 9
@@ -56,11 +53,6 @@
 - after all we just need file pointer
 - however if theres syscall table hook, we hook it on there instead
 - we also use this for "second stage apply" instead of execve_ksud
-#### bprm LSM
-- defferent hooks for different kernels
-- think of this as "after sys_execve"
-- lockless argv pullouts for sulog
-- might be used for something later
 
 ### selinux_hide
 - we have a thin implementation downstream
