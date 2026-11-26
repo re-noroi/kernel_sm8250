@@ -6745,7 +6745,7 @@ static bool __dequeue_task(struct rq *rq, struct task_struct *p, int flags)
 	update_curr_eevdf(cfs_rq);
 	update_entity_lag(cfs_rq, se);
 
-	if (flags & DEQUEUE_DELAYED) {
+	if (task_delayed) {
 		WARN_ON_ONCE(!se->sched_delayed);
 	} else {
 		bool delay = task_sleep;
