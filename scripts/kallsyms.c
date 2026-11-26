@@ -33,6 +33,7 @@
 struct sym_entry {
 	unsigned long long addr;
 	unsigned int len;
+	unsigned int seq;
 	unsigned int start_pos;
 	unsigned char *sym;
 	unsigned int percpu_absolute;
@@ -206,6 +207,7 @@ static int symbol_valid(struct sym_entry *s)
 		"kallsyms_num_syms",
 		"kallsyms_names",
 		"kallsyms_markers",
+		"kallsyms_seqs_of_names",
 		"kallsyms_token_table",
 		"kallsyms_token_index",
 
@@ -329,6 +331,41 @@ static int symbol_absolute(struct sym_entry *s)
 	return s->percpu_absolute;
 }
 
+/* Compare symbols by their decompressed name, then by address and the
+ * original sequence number for duplicates.  The generated
+ * kallsyms_seqs_of_names table is sorted according to this order so the
+ * kernel can binary-search for a name (with LTO suffixes cleaned) instead
+ * of linearly walking every symbol.
+ */
+static int compare_names(const void *a, const void *b)
+{
+	int ret;
+	char sa_namebuf[KSYM_NAME_LEN];
+	char sb_namebuf[KSYM_NAME_LEN];
+	const struct sym_entry *sa = a;
+	const struct sym_entry *sb = b;
+
+	expand_symbol(sa->sym, sa->len, sa_namebuf);
+	expand_symbol(sb->sym, sb->len, sb_namebuf);
+	ret = strcmp(&sa_namebuf[1], &sb_namebuf[1]);
+	if (!ret) {
+		if (sa->addr > sb->addr)
+			return 1;
+		else if (sa->addr < sb->addr)
+			return -1;
+
+		/* keep old order */
+		return (int)(sa->seq - sb->seq);
+	}
+
+	return ret;
+}
+
+static void sort_symbols_by_name(void)
+{
+	qsort(table, table_cnt, sizeof(struct sym_entry), compare_names);
+}
+
 static void write_src(void)
 {
 	unsigned int i, k, off;
@@ -426,6 +463,10 @@ static void write_src(void)
 		if ((i & 0xFF) == 0)
 			markers[i >> 8] = off;
 
+		/* Remember the index in the address-sorted table.  We emit
+		 * the name-sorted order into kallsyms_seqs_of_names below. */
+		table[i].seq = i;
+
 		printf("\t.byte 0x%02x", table[i].len);
 		for (k = 0; k < table[i].len; k++)
 			printf(", 0x%02x", table[i].sym[k]);
@@ -441,6 +482,18 @@ static void write_src(void)
 	printf("\n");
 
 	free(markers);
+
+	/* Name-sorted indices into the address-sorted tables above, 3 bytes
+	 * per entry.  This is what the kernel uses for binary search in
+	 * kallsyms_lookup_name(), including LTO-suffixed names. */
+	sort_symbols_by_name();
+	output_label("kallsyms_seqs_of_names");
+	for (i = 0; i < table_cnt; i++)
+		printf("\t.byte 0x%02x, 0x%02x, 0x%02x\n",
+			(unsigned char)(table[i].seq >> 16),
+			(unsigned char)(table[i].seq >> 8),
+			(unsigned char)(table[i].seq >> 0));
+	printf("\n");
 
 	output_label("kallsyms_token_table");
 	off = 0;
