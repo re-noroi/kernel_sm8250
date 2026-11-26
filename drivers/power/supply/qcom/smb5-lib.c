@@ -2401,14 +2401,10 @@ int smblib_get_prop_input_suspend(struct smb_charger *chg,
 				  union power_supply_propval *val)
 {
 #ifdef CONFIG_BYPASS_CHARGING
-	if ((get_client_vote(chg->chg_disable_votable, BYPASS_VOTER) == 1)) {
-		val->intval = 1;
-	} else if (bypass_charging) {
-		val->intval = 2;
-	} else {
-		val->intval = 0;
-	}
-
+	/* Keep input_suspend boolean for userspace.  Any nonzero value means
+	 * charging is suspended; the bypass flag is tracked separately. */
+	val->intval = (get_client_vote(chg->chg_disable_votable,
+				       BYPASS_VOTER) == 1);
 #else
 	val->intval
 		= (get_client_vote(chg->usb_icl_votable, USER_VOTER) == 0)
@@ -3204,16 +3200,16 @@ int smblib_set_prop_input_suspend(struct smb_charger *chg,
 	}
 
 #ifdef CONFIG_BYPASS_CHARGING
-	if (val->intval == 1) {
-          	rc = vote(chg->chg_disable_votable, BYPASS_VOTER, 1, 0);
-          	bypass_charging = 0;
-      	} else if (val->intval == 2) {
-          	rc = vote(chg->chg_disable_votable, BYPASS_VOTER, 0, 0);
-          	bypass_charging = 1;
-      	} else {
-          	rc = vote(chg->chg_disable_votable, BYPASS_VOTER, 0, 0);
-          	bypass_charging = 0;
-      	}
+	/* 0 resumes charging.  Any nonzero value suspends it.  Value 2 also
+	 * requests bypass mode: the system runs from the adapter while the
+	 * battery is not charged. */
+	if (val->intval) {
+		rc = vote(chg->chg_disable_votable, BYPASS_VOTER, true, 0);
+		bypass_charging = (val->intval == 2);
+	} else {
+		rc = vote(chg->chg_disable_votable, BYPASS_VOTER, false, 0);
+		bypass_charging = false;
+	}
 
  	if (rc < 0) {
   		smblib_err(chg, "Couldn't vote to %d input_suspend rc=%d\n",
