@@ -647,6 +647,7 @@ static unsigned long get_ksymbol_core(struct kallsym_iter *iter)
 	iter->type = kallsyms_get_symbol_type(off);
 
 	off = kallsyms_expand_symbol(off, iter->name, ARRAY_SIZE(iter->name));
+	cleanup_symbol_name(iter->name);
 
 	return off - iter->nameoff;
 }
