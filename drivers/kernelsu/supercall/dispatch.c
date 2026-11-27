@@ -344,9 +344,21 @@ static int do_set_app_profile(void __user *arg)
 	return ret;
 }
 
+/* External tooling probes this ID for AVC spoofing support. */
+#define KSU_FEATURE_ID_AVC_SPOOF 10003
+
+static inline u32 ksu_normalize_feature_id(u32 feature_id)
+{
+	if (feature_id == KSU_FEATURE_ID_AVC_SPOOF)
+		return KSU_FEATURE_SELINUX_HIDE;
+
+	return feature_id;
+}
+
 static int do_get_feature(void __user *arg)
 {
 	struct ksu_get_feature_cmd cmd;
+	u32 feature_id;
 	bool supported = false;
 	int ret;
 
@@ -355,11 +367,12 @@ static int do_get_feature(void __user *arg)
 		return -EFAULT;
 	}
 
-	ret = ksu_get_feature(cmd.feature_id, &cmd.value, &supported);
+	feature_id = ksu_normalize_feature_id(cmd.feature_id);
+	ret = ksu_get_feature(feature_id, &cmd.value, &supported);
 	cmd.supported = 0;
 	if (supported) {
 		cmd.supported |= KSU_FEATURE_FLAG_SUPPORTED;
-		if (ksu_feature_is_forced(cmd.feature_id)) {
+		if (ksu_feature_is_forced(feature_id)) {
 			cmd.supported |= KSU_FEATURE_FLAG_FORCED;
 		}
 	}
@@ -380,6 +393,7 @@ static int do_get_feature(void __user *arg)
 static int do_set_feature(void __user *arg)
 {
 	struct ksu_set_feature_cmd cmd;
+	u32 feature_id;
 	int ret;
 
 	if (copy_from_user(&cmd, arg, sizeof(cmd))) {
@@ -387,7 +401,8 @@ static int do_set_feature(void __user *arg)
 		return -EFAULT;
 	}
 
-	ret = ksu_set_feature(cmd.feature_id, cmd.value);
+	feature_id = ksu_normalize_feature_id(cmd.feature_id);
+	ret = ksu_set_feature(feature_id, cmd.value);
 	if (ret) {
 		pr_err("set_feature: failed for feature %u: %d\n", cmd.feature_id, ret);
 		return ret;
@@ -790,6 +805,28 @@ out:
 	return ret;
 }
 
+#if defined(CONFIG_KSU_HACK_ARM64_BRANCH_LINK)
+char hook_type[] = "Branch Link x/3";
+#elif defined(CONFIG_KSU_TAMPER_SYSCALL_TABLE)
+const char *hook_type = "Syscall Table Tamper";
+#else
+const char *hook_type = "Manual";
+#endif
+
+static int do_get_hook_type(void __user *arg)
+{
+	struct ksu_hook_type_cmd cmd = { 0 };
+
+	strscpy(cmd.hook_type, hook_type, sizeof(cmd.hook_type));
+
+	if (copy_to_user(arg, &cmd, sizeof(cmd))) {
+		pr_err("get_hook_type: copy_to_user failed\n");
+		return -EFAULT;
+	}
+
+	return 0;
+}
+
 // IOCTL handlers mapping table
 static const struct ksu_ioctl_cmd_map ksu_ioctl_handlers[] = {
 	{ .cmd = KSU_IOCTL_GRANT_ROOT, .name = "GRANT_ROOT", .handler = do_grant_root, .perm_check = allowed_for_su  },
@@ -817,6 +854,7 @@ static const struct ksu_ioctl_cmd_map ksu_ioctl_handlers[] = {
 	{ .cmd = KSU_IOCTL_GET_SULOG_FD, .name = "GET_SULOG_FD", .handler = do_get_sulog_fd, .perm_check = only_root },
 	{ .cmd = KSU_IOCTL_DISABLE_ESCAPE_TO_ROOT, .name = "DISABLE_ESCAPE_TO_ROOT", .handler = do_disable_escape_to_root, .perm_check = only_root, .allow_su_session = true },
 	{ .cmd = KSU_IOCTL_LOOKUP_SYMBOLS, .name = "LOOKUP_SYMBOLS", .handler = do_lookup_symbols, .perm_check = only_root },
+	{ .cmd = KSU_IOCTL_HOOK_TYPE, .name = "HOOK_TYPE", .handler = do_get_hook_type, .perm_check = manager_or_root },
 	{ .cmd = 0, .name = NULL, .handler = NULL, .perm_check = NULL } // Sentinel
 };
 

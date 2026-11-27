@@ -76,5 +76,3 @@
 - some kernel+compiler combo reads \__attribute\_\_((cold, noinline)) as __init, which evicts our fn. avoid.
 - static_assert on fn ptr (e.g. static_assert(!!&fn);) on clang <14? fails. compiler thinks it has to prove constness, it works like assert(!!\__builtin_constant_p(fn)) NOT assert(__builtin_constant_p(!!fn))
 - static initialization on fn ptr w/ _Generic fails compilation on custom clang 17~20 (e.g. neutron 17), workaround is to declare as nullptr and then init before use. codegen is same.
-
-

@@ -165,6 +165,10 @@ struct ksu_lookup_symbols_cmd {
 };
 #define KSU_LOOKUP_SYMBOLS_MAX 1024
 
+struct ksu_hook_type_cmd {
+	char hook_type[32];
+};
+
 #define KSU_UMOUNT_WIPE 0	/* ignore everything and wipe list */
 #define KSU_UMOUNT_ADD 1	/* add entry (path + flags) */
 #define KSU_UMOUNT_DEL 2	/* delete entry, strcmp */
@@ -198,5 +202,6 @@ struct ksu_lookup_symbols_cmd {
 #define KSU_IOCTL_GET_SULOG_FD			_IOW('K', 20, struct ksu_get_sulog_fd_cmd)
 #define KSU_IOCTL_DISABLE_ESCAPE_TO_ROOT	_IO('K', 21)
 #define KSU_IOCTL_LOOKUP_SYMBOLS		_IOW('K', 22, struct ksu_lookup_symbols_cmd)
+#define KSU_IOCTL_HOOK_TYPE			_IOC(_IOC_READ, 'K', 101, 0)
 
 #endif

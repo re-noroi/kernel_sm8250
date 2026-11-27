@@ -98,10 +98,8 @@ static char *sh_simple_transaction_get(struct file *file, const char __user *buf
 
 	if (ino == SEL_CONTEXT && ksu_should_destroy_context(data, size, true)) {
 		pr_info_ratelimited("selinux_hide: simple_transaction_get: context: destroy: %s \n", data);
-		do_useless_alloc(size);
-		do_useless_alloc(size);
-		do_useless_alloc(size);
-		return ERR_PTR(-EINVAL);
+		replace_after_second_colon(data, size);
+		return data;
 	}
 
 	if (ino == SEL_ACCESS && ksu_should_destroy_context(data, size, false)) {
@@ -421,7 +419,8 @@ failure_procattr:
 static inline int patch_branch_context_to_sid(void)
 {
 	patch_branch_context_to_sid_inode_setxattr();
-	patch_branch_context_to_sid_procattr();
+	/* Check both payloads before SELinux skips newline-prefixed contexts. */
+	ksu_decide_setprocattr(false);
 	return 0;
 }
 
