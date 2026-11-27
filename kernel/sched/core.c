@@ -753,8 +753,7 @@ static struct uclamp_se uclamp_default[UCLAMP_CNT];
 
 /*
  * This static key is used to reduce the uclamp overhead in the fast path. It
- * primarily disables the call to uclamp_rq_{inc, dec}() in
- * enqueue/dequeue_task().
+ * disables uclamp_rq_inc() accounting in enqueue_task().
  *
  * This allows users to continue to enable uclamp in their kernel config with
  * minimum uclamp overhead in the fast path.
@@ -1189,12 +1188,12 @@ static inline void uclamp_rq_dec(struct rq *rq, struct task_struct *p)
 	enum uclamp_id clamp_id;
 
 	/*
-	 * Avoid any overhead until uclamp is actually used by the userspace.
-	 *
-	 * The condition is constructed such that a NOP is generated when
-	 * sched_uclamp_used is disabled.
+	 * Static-key updates are not atomic across callsites. An enqueue may
+	 * have accounted this task before this callsite observes the key enabled.
+	 * Check the task's accounting state instead. Both clamps are updated
+	 * under the rq lock, so either active flag is sufficient here.
 	 */
-	if (!uclamp_is_used())
+	if (!p->uclamp[UCLAMP_MIN].active)
 		return;
 
 	if (unlikely(!p->sched_class->uclamp_enabled))
