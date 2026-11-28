@@ -133,7 +133,13 @@ static inline void mmap_read_unlock(struct mm_struct *mm)
 static inline bool mmap_read_trylock_non_owner(struct mm_struct *mm)
 {
 	if (down_read_trylock(&mm->mmap_sem)) {
-		rwsem_release(&mm->mmap_sem.dep_map, _RET_IP_);
+#ifdef CONFIG_DEBUG_LOCK_ALLOC
+		/*
+		 * 4.19's rwsem_release() takes (map, nested, ip) and
+		 * rw_semaphore.dep_map only exists with lock debugging on.
+		 */
+		rwsem_release(&mm->mmap_sem.dep_map, 1, _RET_IP_);
+#endif
 		return true;
 	}
 	return false;
