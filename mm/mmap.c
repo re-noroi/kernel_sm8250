@@ -3440,8 +3440,6 @@ static int do_brk_flags(unsigned long addr, unsigned long len, unsigned long fla
 	if (security_vm_enough_memory_mm(mm, len >> PAGE_SHIFT))
 		return -ENOMEM;
 
-	if (vma)
-		vma_start_write(vma);
 	/* Can we just expand an old private anonymous mapping? */
 	vma = vma_merge(mm, prev, addr, addr + len, flags,
 			NULL, NULL, pgoff, NULL, NULL_VM_UFFD_CTX, NULL);
