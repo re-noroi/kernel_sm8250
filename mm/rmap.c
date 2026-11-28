@@ -364,7 +364,11 @@ int anon_vma_fork(struct vm_area_struct *vma, struct vm_area_struct *pvma)
 	 */
 	get_anon_vma(anon_vma->root);
 	/* Mark this anon_vma as the one where our new (COWed) pages go. */
-	vma->anon_vma = anon_vma;
+	/*
+	 * Make anon_vma fields visible before publishing it, paired with
+	 * the address dependency in reusable_anon_vma().
+	 */
+	smp_store_release(&vma->anon_vma, anon_vma);
 	anon_vma_lock_write(anon_vma);
 	anon_vma_chain_link(vma, avc, anon_vma);
 	anon_vma->parent->num_children++;
