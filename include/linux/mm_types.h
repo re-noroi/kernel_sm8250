@@ -10,6 +10,7 @@
 #include <linux/rbtree.h>
 #include <linux/maple_tree.h>
 #include <linux/rwsem.h>
+#include <linux/seqlock.h>
 #include <linux/completion.h>
 #include <linux/cpumask.h>
 #include <linux/uprobes.h>
@@ -468,6 +469,14 @@ struct mm_struct {
 		unsigned long total_vm;	   /* Total pages mapped */
 		unsigned long locked_vm;   /* Pages that have PG_mlocked set */
 		unsigned long pinned_vm;   /* Refcount permanently increased */
+
+		/*
+		 * Locked while write-protecting pages for a later COW, e.g.
+		 * while copying page tables during fork().  Pairs with the
+		 * raw_write_seqcount_begin/end() calls in copy_page_range().
+		 */
+		seqcount_t write_protect_seq;
+
 		unsigned long data_vm;	   /* VM_WRITE & ~VM_SHARED & ~VM_STACK */
 		unsigned long exec_vm;	   /* VM_EXEC & ~VM_WRITE & ~VM_STACK */
 		unsigned long stack_vm;	   /* VM_STACK */
