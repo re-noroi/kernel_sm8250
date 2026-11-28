@@ -2220,6 +2220,8 @@ proc_map_files_readdir(struct file *file, struct dir_context *ctx)
 			continue;
 		if (++pos <= ctx->pos)
 			continue;
+		nr_files++;
+	}
 
 	if (nr_files) {
 		fa = flex_array_alloc(sizeof(info), nr_files,
