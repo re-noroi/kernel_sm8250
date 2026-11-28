@@ -2772,34 +2772,20 @@ int split_vma(struct mm_struct *mm, struct vm_area_struct *vma,
  * work.  This now handles partial unmappings.
  * Jeremy Fitzhardinge <jeremy@goop.org>
  */
-int do_munmap(struct mm_struct *mm, unsigned long start, size_t len,
-	      struct list_head *uf)
+static int
+do_mas_align_munmap(struct ma_state *mas, struct vm_area_struct *vma,
+		    struct mm_struct *mm, unsigned long start,
+		    unsigned long end, struct list_head *uf, bool downgrade)
 {
-	unsigned long end;
-	struct vm_area_struct *vma, *prev, *last;
+	struct vm_area_struct *prev, *last;
 	int error = -ENOMEM;
-	MA_STATE(mas, &mm->mm_mt, 0, 0);
 
-	if ((offset_in_page(start)) || start > TASK_SIZE || len > TASK_SIZE-start)
-		return -EINVAL;
-
-	len = PAGE_ALIGN(len);
-	end = start + len;
-	if (len == 0)
-		return -EINVAL;
-
-
-	/* Find the first overlapping VMA */
-	vma = find_vma(mm, start);
-	if (!vma)
-		return 0;
-
-	if (mas_preallocate(&mas, vma, GFP_KERNEL))
-		return -ENOMEM;
-	prev = vma->vm_prev;
 	/* we have start < vma->vm_end  */
 
+	if (mas_preallocate(mas, vma, GFP_KERNEL))
+		return -ENOMEM;
 
+	mas->last = end - 1;
 	/*
 	 * If we need to split any vma, do it now to save pain later.
 	 *
@@ -2820,17 +2806,31 @@ int do_munmap(struct mm_struct *mm, unsigned long start, size_t len,
 		error = __split_vma(mm, vma, start, 0);
 		if (error)
 			goto split_failed;
+
 		prev = vma;
+		vma = __vma_next(mm, prev);
+		mas->index = start;
+		mas_reset(mas);
+	} else {
+		prev = vma->vm_prev;
 	}
 
+	if (vma->vm_end >= end)
+		last = vma;
+	else
+		last = find_vma_intersection(mm, end - 1, end);
+
 	/* Does it split the last one? */
-	last = find_vma(mm, end);
-	if (last && end > last->vm_start) {
+	if (last && end < last->vm_end) {
 		error = __split_vma(mm, last, end, 1);
+
 		if (error)
 			goto split_failed;
+
+		if (vma == last)
+			vma = __vma_next(mm, prev);
+		mas_reset(mas);
 	}
-	vma = __vma_next(mm, prev);
 
 	if (unlikely(uf)) {
 		/*
@@ -2843,44 +2843,118 @@ int do_munmap(struct mm_struct *mm, unsigned long start, size_t len,
 		 * failure that it's not worth optimizing it for.
 		 */
 		error = userfaultfd_unmap_prep(vma, start, end, uf);
+
 		if (error)
 			goto userfaultfd_error;
 	}
 
 	/*
-	 * unlock any mlock()ed ranges before detaching vmas
+	 * unlock any mlock()ed ranges before detaching vmas, count the number
+	 * of VMAs to be dropped, and return the tail entry of the affected
+	 * area.
 	 */
-	if (mm->locked_vm) {
-		struct vm_area_struct *tmp = vma;
-		while (tmp && tmp->vm_start < end) {
-			if (tmp->vm_flags & VM_LOCKED) {
-				mm->locked_vm -= vma_pages(tmp);
-				munlock_vma_pages_all(tmp);
-			}
-			tmp = tmp->vm_next;
-		}
-	}
+	mm->map_count -= unlock_range(vma, &last, end);
+	/* Drop removed area from the tree */
+	mas_store_prealloc(mas, NULL);
+
+	/* Detach vmas from the MM linked list */
+	vma->vm_prev = NULL;
+	if (prev)
+		prev->vm_next = last->vm_next;
+	else
+		mm->mmap = last->vm_next;
+
+	if (last->vm_next) {
+		last->vm_next->vm_prev = prev;
+		last->vm_next = NULL;
+	} else
+		mm->highest_vm_end = prev ? vm_end_gap(prev) : 0;
 
 	/*
-	 * Remove the vma's, and unmap the actual pages
+	 * Do not downgrade mmap_lock if we are next to VM_GROWSDOWN or
+	 * VM_GROWSUP VMA. Such VMAs can change their size under
+	 * mmap_read_lock(mm) and collide with the VMA we are about to unmap.
 	 */
-	detach_vmas_to_be_unmapped(mm, &mas, vma, prev, end);
-	unmap_region(mm, vma, prev, start, end);
+	if (downgrade) {
+		if (last && (last->vm_flags & VM_GROWSDOWN))
+			downgrade = false;
+		else if (prev && (prev->vm_flags & VM_GROWSUP))
+			downgrade = false;
+		else
+			mmap_write_downgrade(mm);
+	}
 
-	arch_unmap(mm, vma, start, end);
+	unmap_region(mm, vma, prev, start, end);
 
 	/* Fix up all other VM information */
 	remove_vma_list(mm, vma);
 
-	mas_destroy(&mas);
-	return 0;
+
+	validate_mm(mm);
+	return downgrade ? 1 : 0;
 
 map_count_exceeded:
 split_failed:
 userfaultfd_error:
-	mas_destroy(&mas);
+	mas_destroy(mas);
 	return error;
 }
+
+/*
+ * do_mas_munmap() - munmap a given range.
+ * @mas: The maple state
+ * @mm: The mm_struct
+ * @start: The start address to munmap
+ * @len: The length of the range to munmap
+ * @uf: The userfaultfd list_head
+ * @downgrade: set to true if the user wants to attempt to write_downgrade the
+ * mmap_sem
+ *
+ * This function takes a @mas that is either pointing to the previous VMA or set
+ * to MA_START and sets it up to remove the mapping(s).  The @len will be
+ * aligned and any arch_unmap work will be preformed.
+ *
+ * Returns: -EINVAL on failure, 1 on success and unlock, 0 otherwise.
+ */
+int do_mas_munmap(struct ma_state *mas, struct mm_struct *mm,
+		  unsigned long start, size_t len, struct list_head *uf,
+		  bool downgrade)
+{
+	unsigned long end;
+	struct vm_area_struct *vma;
+
+	if ((offset_in_page(start)) || start > TASK_SIZE || len > TASK_SIZE-start)
+		return -EINVAL;
+
+	end = start + PAGE_ALIGN(len);
+	if (end == start)
+		return -EINVAL;
+
+	 /* arch_unmap() might do unmaps itself.  */
+	arch_unmap(mm, NULL, start, end);
+
+	/* Find the first overlapping VMA */
+	vma = mas_find(mas, end - 1);
+	if (!vma)
+		return 0;
+
+	return do_mas_align_munmap(mas, vma, mm, start, end, uf, downgrade);
+}
+
+/* do_munmap() - Wrapper function for non-maple tree aware do_munmap() calls.
+ * @mm: The mm_struct
+ * @start: The start address to munmap
+ * @len: The length to be munmapped.
+ * @uf: The userfaultfd list_head
+ */
+int do_munmap(struct mm_struct *mm, unsigned long start, size_t len,
+	      struct list_head *uf)
+{
+	MA_STATE(mas, &mm->mm_mt, start, start);
+
+	return do_mas_munmap(&mas, mm, start, len, uf, false);
+}
+
 EXPORT_SYMBOL(do_munmap);
 
 int vm_munmap(unsigned long start, size_t len)
