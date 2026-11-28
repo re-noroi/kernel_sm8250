@@ -183,11 +183,16 @@ enum maple_type {
 
 #define MAPLE_RESERVED_RANGE	4096
 
-#ifdef CONFIG_LOCKDEP
+/*
+ * 4.19 adaptation: struct rw_semaphore only has a dep_map with
+ * CONFIG_DEBUG_LOCK_ALLOC (which itself selects CONFIG_LOCKDEP).  Using
+ * CONFIG_LOCKDEP alone breaks LOCKDEP=y / DEBUG_LOCK_ALLOC=n builds.
+ */
+#ifdef CONFIG_DEBUG_LOCK_ALLOC
 typedef struct lockdep_map *lockdep_map_p;
 #define mt_lock_is_held(mt)	lock_is_held(mt->ma_external_lock)
 #define mt_set_external_lock(mt, lock)					\
-	(mt)->ma_external_lock = &(lock)->dep_map
+	((mt)->ma_external_lock = &(lock)->dep_map)
 #else
 typedef struct { /* nothing */ } lockdep_map_p;
 #define mt_lock_is_held(mt)	1
@@ -235,7 +240,7 @@ struct maple_tree {
  * @__flags: The maple tree flags
  * @__lock: The external lock
  */
-#ifdef CONFIG_LOCKDEP
+#ifdef CONFIG_DEBUG_LOCK_ALLOC
 #define MTREE_INIT_EXT(name, __flags, __lock) {				\
 	.ma_external_lock = &(__lock).dep_map,				\
 	.ma_flags = (__flags),						\
