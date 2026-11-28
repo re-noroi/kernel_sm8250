@@ -2455,7 +2455,6 @@ static vm_fault_t wp_page_copy(struct vm_fault *vmf)
 	const unsigned long mmun_start = vmf->address & PAGE_MASK;
 	const unsigned long mmun_end = mmun_start + PAGE_SIZE;
 	struct mem_cgroup *memcg;
-	struct mmu_notifier_range range;
 	vm_fault_t ret;
 
 	ret = vmf_anon_prepare(vmf);
