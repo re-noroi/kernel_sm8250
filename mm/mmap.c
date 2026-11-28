@@ -2033,7 +2033,6 @@ unsigned long mmap_region(struct file *file, unsigned long addr,
 	struct vm_area_struct *next, *prev, *merge;
 	struct rb_node **rb_link, *rb_parent;
 	pgoff_t pglen = len >> PAGE_SHIFT;
-	bool writable_file_mapping = false;
 	unsigned long charged = 0;
 	unsigned long end = addr + len;
 	unsigned long merge_start = addr, merge_end = end;
@@ -3696,14 +3695,6 @@ struct vm_area_struct *copy_vma(struct vm_area_struct **vmap,
 	validate_mm_mt(mm);
 	return new_vma;
 
-out_vma_link:
-	if (new_vma->vm_ops && new_vma->vm_ops->close)
-		new_vma->vm_ops->close(new_vma);
-
-	if (new_vma->vm_file)
-		fput(new_vma->vm_file);
-
-	unlink_anon_vmas(new_vma);
 out_free_mempol:
 	mpol_put(vma_policy(new_vma));
 out_free_vma:
