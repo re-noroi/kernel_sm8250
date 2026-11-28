@@ -2573,19 +2573,10 @@ struct vm_area_struct *find_vma_intersection(struct mm_struct *mm,
 					     unsigned long start_addr,
 					     unsigned long end_addr)
 {
-	struct vm_area_struct *vma;
 	unsigned long index = start_addr;
 
 	mmap_assert_locked(mm);
-	/* Check the cache first. */
-	vma = vmacache_find(mm, start_addr);
-	if (likely(vma))
-		return vma;
-
-	vma = mt_find(&mm->mm_mt, &index, end_addr - 1);
-	if (vma)
-		vmacache_update(start_addr, vma);
-	return vma;
+	return mt_find(&mm->mm_mt, &index, end_addr - 1);
 }
 EXPORT_SYMBOL(find_vma_intersection);
 
@@ -2599,18 +2590,15 @@ EXPORT_SYMBOL(find_vma_intersection);
  */
 struct vm_area_struct *find_vma(struct mm_struct *mm, unsigned long addr)
 {
-	struct vm_area_struct *vma;
 	unsigned long index = addr;
 
-	/* Check the cache first. */
-	vma = vmacache_find(mm, addr);
-	if (likely(vma))
-		return vma;
-
-	vma = mt_find(&mm->mm_mt, &index, ULONG_MAX);
-	if (vma)
-		vmacache_update(addr, vma);
-	return vma;
+	/*
+	 * The maple tree is authoritative; the legacy vmacache is kept only
+	 * for the 4.19 consumers that still call it directly.  Reading it
+	 * here would bypass the tree and can return a stale VMA when a
+	 * mutation path missed an invalidation.
+	 */
+	return mt_find(&mm->mm_mt, &index, ULONG_MAX);
 }
 EXPORT_SYMBOL(find_vma);
 
