@@ -605,12 +605,6 @@ static inline void vma_end_read(struct vm_area_struct *vma)
 	rcu_read_unlock();
 }
 
-/* WARNING! Can only be used if mmap_lock is expected to be write-locked */
-static inline void vma_mark_detached(struct vm_area_struct *vma, bool detached)
-{
-	vma->detached = detached;
-}
-
 /*
  * Release whichever lock the fault was taken under (per-VMA or mmap).
  * Adapted from the source tree where this was introduced together with
@@ -731,6 +725,10 @@ static inline bool vma_try_start_write(struct vm_area_struct *vma)
 static inline void vma_assert_write_locked(struct vm_area_struct *vma)
 		{ mmap_assert_write_locked(vma->vm_mm); }
 static inline void vma_assert_locked(struct vm_area_struct *vma) {}
+static inline void assert_fault_locked(struct vm_fault *vmf)
+{
+	mmap_assert_locked(vmf->vma->vm_mm);
+}
 static inline void vma_mark_detached(struct vm_area_struct *vma,
 				     bool detached) {}
 
