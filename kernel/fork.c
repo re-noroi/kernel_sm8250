@@ -470,15 +470,12 @@ static __latent_entropy int dup_mmap(struct mm_struct *mm,
 	if (retval)
 		goto out;
 
+	/* Pre-size the maple tree so per-VMA stores cannot fail mid-fork. */
 	retval = mas_expected_entries(&mas, oldmm->map_count);
 	if (retval)
 		goto out;
 
 	prev = NULL;
-
-	retval = mas_expected_entries(&mas, oldmm->map_count);
-	if (retval)
-		goto out;
 
 	mas_for_each(&old_mas, mpnt, ULONG_MAX) {
 		struct file *file;
