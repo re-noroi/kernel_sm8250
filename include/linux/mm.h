@@ -16,6 +16,7 @@
 #include <linux/debug_locks.h>
 #include <linux/compiler.h>
 #include <linux/mm_types.h>
+#include <linux/mmap_lock.h>
 #include <linux/range.h>
 #include <linux/pfn.h>
 #include <linux/percpu-refcount.h>
