@@ -374,6 +374,7 @@ extern pgprot_t protection_map[16];
 #define FAULT_FLAG_INSTRUCTION  		0x100
 #define FAULT_FLAG_INTERRUPTIBLE		0x200
 #define FAULT_FLAG_PREFAULT_OLD			0x400
+#define FAULT_FLAG_VMA_LOCK			0x1000
 
 /*
  * The default fault flags that should be used by most of the
@@ -602,6 +603,11 @@ static inline void vma_end_read(struct vm_area_struct *vma)
 	rcu_read_lock(); /* keeps vma alive till the end of up_read */
 	up_read(&vma->lock);
 	rcu_read_unlock();
+}
+
+static inline void vma_mark_detached(struct vm_area_struct *vma, bool detached)
+{
+	vma->detached = detached;
 }
 
 /*

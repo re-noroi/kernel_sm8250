@@ -319,6 +319,9 @@ struct vm_area_struct {
 	 */
 	int vm_lock_seq;
 	struct rw_semaphore lock;
+
+	/* Flag to indicate areas detached from the mm->mm_mt tree. */
+	bool detached;
 #endif
 
 	/*
