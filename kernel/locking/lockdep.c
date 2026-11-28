@@ -50,12 +50,9 @@
 #include <linux/random.h>
 #include <linux/jhash.h>
 #include <linux/nmi.h>
-<<<<<<< HEAD
-=======
 #include <linux/rcupdate.h>
 #include <linux/kprobes.h>
 #include <linux/lockdep.h>
->>>>>>> 1b251ed3225ed (lockdep: Add lockdep lock state defines)
 
 #include <asm/sections.h>
 #include <asm/stacktrace.h>
@@ -3990,13 +3987,8 @@ static int __lock_is_held(const struct lockdep_map *lock, int read)
 		struct held_lock *hlock = curr->held_locks + i;
 
 		if (match_held_lock(hlock, lock)) {
-<<<<<<< HEAD
-			if (read == -1 || hlock->read == read)
-				return 1;
-=======
 			if (read == -1 || !!hlock->read == read)
 				return LOCK_STATE_HELD;
->>>>>>> 1b251ed3225ed (lockdep: Add lockdep lock state defines)
 
 			return LOCK_STATE_NOT_HELD;
 		}
