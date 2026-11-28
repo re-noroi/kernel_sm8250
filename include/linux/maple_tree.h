@@ -11,6 +11,18 @@
 #include <linux/kernel.h>
 #include <linux/rcupdate.h>
 #include <linux/spinlock.h>
+/*
+ * 4.19 backport: with CONFIG_LOCKDEP=n, linux/lockdep.h only forward-
+ * declares lockdep_is_held() (no definition).  mt_locked() calls it in
+ * a live path (mas_slot()/mas_root()), so map it to true here, matching
+ * the lockdep_is_held_type() stub already present in 4.19's lockdep.h.
+ * Guarded so LOCKDEP=y keeps using the real lockdep implementation.
+ */
+#ifndef CONFIG_LOCKDEP
+#ifndef lockdep_is_held
+#define lockdep_is_held(lock)		(1)
+#endif
+#endif
 /* #define CONFIG_MAPLE_RCU_DISABLED */
 /* #define CONFIG_DEBUG_MAPLE_TREE_VERBOSE */
 

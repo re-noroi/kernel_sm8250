@@ -57,6 +57,8 @@
 #include <linux/export.h>
 #include <linux/slab.h>
 #include <linux/limits.h>
+/* 4.19: be explicit about lockdep.h for lockdep_is_held() in mas validation */
+#include <linux/lockdep.h>
 #include <asm/barrier.h>
 
 #define CREATE_TRACE_POINTS
